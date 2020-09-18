@@ -20,19 +20,23 @@ fn main() {
 }
 
 fn generate(world: &mut World, area: Area) {
+    remove_ground_foilage(world, area);
+}
+
+fn remove_ground_foilage(world: &mut World, area: Area) {
     for x in area.min.0 ..= area.max.0 {
         for z in area.min.1 ..= area.max.1 {
-            for y in 40 .. 100 {
-                let block = &mut world[Pos(x, y, z)];
-                if let Block::Log(..) = block {
-                    *block = Block::Stone;
-                }
+            let base_height = if let Some(water_height) = world.watermap(Column(x,z)) {
+                water_height.into()
+            } else {
+                world.heightmap(Column(x,z))
+            };
+            for y in base_height + 1 ..= base_height + 2 {
+                let block = &mut world[Pos(x,y,z)];
+                if match block { Block::Log(..) => false, Block::Leaves(..) => false, _ => true } {
+                    *block = Block::Air
+                } 
             }
-            world[Pos(x, 80, z)] = Block::Stone;
         }
-    }
-
-    for y in 80 .. 200 {
-        world[Pos(0, y, 0)] = Block::Log(TreeSpecies::Acacia, LogType::FullBark);
     }
 }

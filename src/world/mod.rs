@@ -1,7 +1,7 @@
 mod block;
 mod biome;
 
-use std::ops::{Index, IndexMut};
+use std::{ops::{Index, IndexMut}, num::NonZeroU8};
 use std::collections::HashMap;
 use anvil_region::*;
 use nbt::CompoundTag;
@@ -82,6 +82,44 @@ impl World {
         }
         Ok(())
     }
+
+    pub fn biome(&self, column: Column) -> Biome {
+        self.chunks.get(&column.into()).unwrap().biomes[
+            (column.0.rem_euclid(16)
+           + column.1.rem_euclid(16) * 16) as usize
+        ]
+    }
+
+    // load_area must have been called before
+    // also, since we're going to be working with a fixed area, 
+    // this could be moved to the generation part (maybe make readonly and rename to heightmap_orig)
+    pub fn heightmap(&self, column: Column) -> u8 {
+        self.chunks.get(&column.into()).unwrap().heightmap[
+            (column.0.rem_euclid(16)
+           + column.1.rem_euclid(16) * 16) as usize
+        ]
+    }
+
+    pub fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
+        &mut self.chunks.get_mut(&column.into()).unwrap().heightmap[
+            (column.0.rem_euclid(16)
+           + column.1.rem_euclid(16) * 16) as usize
+        ]
+    }
+
+    pub fn watermap(&self, column: Column) -> Option<NonZeroU8> {
+        self.chunks.get(&column.into()).unwrap().watermap[
+            (column.0.rem_euclid(16)
+           + column.1.rem_euclid(16) * 16) as usize
+        ]
+    }
+
+    pub fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8> {
+        &mut self.chunks.get_mut(&column.into()).unwrap().watermap[
+            (column.0.rem_euclid(16)
+           + column.1.rem_euclid(16) * 16) as usize
+        ]
+    }
 }
 
 // load_area must have been called before
@@ -120,6 +158,8 @@ pub struct Chunk {
     index: ChunkIndex,
     sections: [Option<Box<Section>>; 16],
     biomes: [Biome; 16 * 16],
+    heightmap: [u8; 16 * 16],
+    watermap: [Option<NonZeroU8>; 16 * 16], 
     // Todo: Entities, TileEntities
 }
 
@@ -128,7 +168,7 @@ impl Chunk {
         let nbt = chunk_provider.load_chunk(index.0, index.1)?;
         let version = nbt.get_i32("DataVersion").unwrap();
         if version > MAX_VERSION {
-            // Todo: 1.16 support
+            // Todo: 1.13+ support (palette)
             println!("Unsupported version: {}. Only 1.12 is supported currently.", version);
         }
 
@@ -156,21 +196,41 @@ impl Chunk {
                     block_ids[i] as u8, 
                     {
                         let byte = block_data[i/2] as u8;
-                        // Todo: Check if this is the right way around!
-                        if i%2 == 0 {
-                            byte % 16
-                        } else {
-                            byte >> 4
-                        }
+                        if i%2 == 0 { byte % 16 } else { byte >> 4 }
                     }
                 )
+            }
+        }
+
+        let mut heightmap = [0; 16 * 16];
+        let mut watermap = [None; 16 * 16];
+        for x in 0..16 {
+            for z in 0..16 {
+                'column: for section_index in (0..16).rev() {
+                    if let Some(section) = &sections[section_index] {
+                        for y in (0..16).rev() {
+                            let block = section.blocks[x + z*16 + y*16*16];
+                            let height = (section_index * 16 + y) as u8;
+                            if match block {Block::Log(..) => false, _ => block.is_solid() } {
+                                heightmap[x + z*16] = height;
+                                break 'column;
+                            } else if match block { Block::Water => height > 0, _ => false } {
+                                watermap[x + z*16].get_or_insert(
+                                    unsafe { NonZeroU8::new_unchecked((section_index * 16 + y) as u8) }
+                                );
+                            }
+                        }
+                    }
+                }
             }
         }
 
         Ok(Chunk {
             index,
             sections,
-            biomes
+            biomes,
+            heightmap,
+            watermap
         })
     }
 
