@@ -1,0 +1,17 @@
+Flatten world data (no chunks)
+- single array each for blocks, biomes, heightmap, watermap...
+
+Areas:
+- polygon
+- corners/edges shared between areas
+- Ramer-Douglas-Peucker
+  - small number of points for buildings, medium/high for farms, roads
+
+
+Move stuff to gpu?
+- can do some otherwise very heavy passes
+- not neccessary for majority of work (10min CPU time allowed, multithreading allowed)
+
+Be wary of lava
+- don't build anything flamable nearby
+- prevent lava flows

@@ -6,46 +6,15 @@ use std::collections::HashMap;
 use anvil_region::*;
 use nbt::CompoundTag;
 
+use crate::geometry_types::*;
 pub use block::*;
 pub use biome::*;
 
 
 const MAX_VERSION: i32 = 1343;
 
-#[derive(Debug, Copy, Clone)]
-pub struct Area {
-    pub min: Column,
-    pub max: Column
-}
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Pos(pub i32, pub u8, pub i32);
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Column(pub i32, pub i32);
-impl From<Pos> for Column {
-    fn from(pos: Pos) -> Self {
-        Column(pos.0, pos.2)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct ChunkIndex(pub i32, pub i32);
-impl From<Column> for ChunkIndex {
-    fn from(column: Column) -> Self {
-        ChunkIndex(
-            column.0.div_euclid(16),
-            column.1.div_euclid(16)
-        )
-    }
-}
-impl From<Pos> for ChunkIndex {
-    fn from(pos: Pos) -> Self {
-        Column(pos.0, pos.2).into()
-    }
-}
-
-
+// Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
     region_path: String,
     chunks: HashMap<ChunkIndex, Chunk>
@@ -59,7 +28,7 @@ impl World {
         }
     }
 
-    pub fn load_area(&mut self, area: Area) -> Result<(), ChunkLoadError> {
+    pub fn load_area(&mut self, area: Rect) -> Result<(), ChunkLoadError> {
         let chunk_provider = AnvilChunkProvider::new(&self.region_path);
         let chunk_min: ChunkIndex = area.min.into();
         let chunk_max: ChunkIndex = area.max.into();
@@ -76,6 +45,30 @@ impl World {
     }
 
     pub fn save(&self) -> Result<(), ChunkSaveError> {
+        // QoL: Change level name & last played timestamp
+        // Except this doesn't seem to write anything (at least on my system)‽
+        {
+            let mut level_nbt_path = std::path::PathBuf::from(&self.region_path);
+            level_nbt_path.pop();
+            level_nbt_path.push("level.dat");
+            if let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(&level_nbt_path) 
+            {
+                if let Ok(mut nbt) = nbt::decode::read_gzip_compound_tag(&mut file) {
+                    // Whyyyy is there no method to borrow mutably?
+                    let mut data = nbt.get_compound_tag("Data").unwrap().clone();
+                    let name = String::from(data.get_str("LevelName").unwrap())
+                        + " [generated]";
+                    data.insert_str("LevelName", &name);
+                    let timestamp = data.get_i64("LastPlayed").unwrap() + 1;
+                    data.insert_i64("LastPlayer", timestamp);
+                    nbt.insert_compound_tag("Data", data);
+
+                    drop(nbt::encode::write_gzip_compound_tag(&mut file, nbt));
+                }
+            }
+        }
+
+        // Write chunks
         let chunk_provider = AnvilChunkProvider::new(&self.region_path);
         for chunk in self.chunks.values() {
             chunk.save(&chunk_provider)?;
@@ -278,6 +271,7 @@ impl Chunk {
                             nbt.insert_i8_vec("Data", block_data);
 
                             // Todo: correct lighting (without these tags, minecraft rejects the chunk)
+                            // maybe use commandblocks to force light update?
                             nbt.insert_i8_vec("BlockLight", vec![0; 16*16*16/2]);
                             nbt.insert_i8_vec("SkyLight", vec![0; 16*16*16/2]);
 
