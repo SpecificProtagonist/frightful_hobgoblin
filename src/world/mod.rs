@@ -5,8 +5,10 @@ use std::{ops::{Index, IndexMut}, num::NonZeroU8};
 use std::collections::HashMap;
 use anvil_region::*;
 use nbt::CompoundTag;
+use rayon::prelude::*;
+use itertools::Itertools;
 
-use crate::geometry_types::*;
+use crate::geometry::*;
 pub use block::*;
 pub use biome::*;
 
@@ -17,31 +19,26 @@ const MAX_VERSION: i32 = 1343;
 // Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
     region_path: String,
-    chunks: HashMap<ChunkIndex, Chunk>
+    chunks: HashMap<ChunkIndex, Chunk>,
+    area: Rect
 } 
 
 impl World {
-    pub fn new(path: &str) -> Self {
-        World {
-            region_path: String::from(path) + "/region",
-            chunks: HashMap::new(),
-        }
-    }
+    pub fn new(path: &str, area: Rect) -> Self {
+        let region_path = String::from(path) + "/region";
+        let mut chunks = HashMap::new();
 
-    pub fn load_area(&mut self, area: Rect) -> Result<(), ChunkLoadError> {
-        let chunk_provider = AnvilChunkProvider::new(&self.region_path);
-        let chunk_min: ChunkIndex = area.min.into();
-        let chunk_max: ChunkIndex = area.max.into();
-        for chunk_x in chunk_min.0 ..= chunk_max.0 {
-            for chunk_z in chunk_min.1 ..= chunk_max.1 {
-                let index = ChunkIndex(chunk_x, chunk_z);
-                if !self.chunks.contains_key(&index) {
-                    self.chunks.insert(index, Chunk::load(&chunk_provider, index)?);
-                }
-            }
-        }
+        let chunk_provider = AnvilChunkProvider::new(&region_path);
+        let chunk_min: ChunkIndex = (area.min - Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
+        let chunk_max: ChunkIndex = (area.max + Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
+        
+        let indices: Vec<_> = (chunk_min.0..=chunk_max.0).cartesian_product(chunk_min.1..=chunk_max.1).collect();
+        chunks.par_extend(indices.par_iter().map(
+            |index| ((*index).into(), Chunk::load(&chunk_provider, (*index).into())
+            .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1)))
+        ));
 
-        Ok(())
+        World { region_path, chunks, area }
     }
 
     pub fn save(&self) -> Result<(), ChunkSaveError> {
@@ -76,7 +73,14 @@ impl World {
         Ok(())
     }
 
-    pub fn biome(&self, column: Column) -> Biome {
+    pub fn set_if_not_solid(&mut self, pos: Pos, block: Block) {
+        let block_ref = &mut self[pos];
+        if !block_ref.solid() {
+            *block_ref = block;
+        }
+    }
+
+    pub fn biome(&self, column: Column) -> Biome{
         self.chunks.get(&column.into()).unwrap().biomes[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
@@ -112,6 +116,10 @@ impl World {
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
+    }
+
+    pub fn area(&self) -> Rect {
+        self.area
     }
 }
 
@@ -167,7 +175,7 @@ impl Chunk {
 
         let level_nbt = nbt.get_compound_tag("Level").unwrap();
 
-        let mut biomes = [Biome::Other(0); 16 * 16];
+        let mut biomes = [Biome::default(); 16 * 16];
         let biome_ids = level_nbt.get_i8_vec("Biomes").unwrap();
         for i in 0..(16*16) {
             biomes[i] = Biome::from_bytes(biome_ids[i] as u8);
@@ -204,7 +212,7 @@ impl Chunk {
                         for y in (0..16).rev() {
                             let block = section.blocks[x + z*16 + y*16*16];
                             let height = (section_index * 16 + y) as u8;
-                            if match block {Block::Log(..) => false, _ => block.is_solid() } {
+                            if match block {Block::Log(..) => false, _ => block.solid() } {
                                 heightmap[x + z*16] = height;
                                 break 'column;
                             } else if match block { Block::Water => height > 0, _ => false } {
@@ -246,6 +254,8 @@ impl Chunk {
                 // Todo: correct heightmap
                 nbt.insert_i8_vec("HeightMap", vec![0; 16*16]);
 
+                // Minecraft actually loads the chunk if the biomes tag is missing,
+                // but regenerates the biomes incorrectly
                 nbt.insert_i8_vec("Biomes", 
                     self.biomes.iter().map(|biome|biome.to_bytes() as i8).collect()
                 );

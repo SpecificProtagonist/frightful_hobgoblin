@@ -14,3 +14,6 @@ anvil-region = "0.3.2"
 num-traits = "0.2"
 num-derive = "0.2"
 rand = "0.7.3"
+rayon = "1.4"
+itertools = "0.9"
+bresenham = { path = "../bresenham-rs" }

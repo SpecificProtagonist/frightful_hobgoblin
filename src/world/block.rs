@@ -13,8 +13,8 @@ pub enum Block {
     Soil(Soil),
     Log(TreeSpecies, LogType, LogOrigin),
     Leaves(TreeSpecies),
-    GroundPlant(Plant),
-    Crop(Crop),
+    GroundPlant(GroundPlant),
+    Fence(Fence),
     Debug(u8),
     Other { id: u8, data: u8 }
 }
@@ -43,7 +43,9 @@ impl Block {
             12 => Soil(Soil::Sand),
             13 => Soil(Soil::Gravel),
             60 => Soil(Soil::Farmland),
+            8 => Block::Air, // Flowing water
             9 => Water,
+            10 => Block::Air, // Flowing lava
             11 => Lava,
             17 => Log(
                 TreeSpecies::from_u8(data % 4).unwrap(), 
@@ -63,14 +65,14 @@ impl Block {
             ),
             18 => Leaves(TreeSpecies::from_u8(data % 4).unwrap()),
             161 => Leaves(TreeSpecies::from_u8(data % 4 + 4).unwrap()),
-            6 => GroundPlant(Plant::Sapling(TreeSpecies::from_u8(data % 8).unwrap())),
-            31 => GroundPlant(Plant::Small(match data {
+            6 => GroundPlant(GroundPlant::Sapling(TreeSpecies::from_u8(data % 8).unwrap())),
+            31 => GroundPlant(GroundPlant::Small(match data {
                 0 => SmallPlant::Grass,
                 _ => SmallPlant::Fern
             })),
-            32 => GroundPlant(Plant::Small(SmallPlant::DeadBush)),
-            37 => GroundPlant(Plant::Small(SmallPlant::Dandelion)),
-            38 => GroundPlant(Plant::Small(match data {
+            32 => GroundPlant(GroundPlant::Small(SmallPlant::DeadBush)),
+            37 => GroundPlant(GroundPlant::Small(SmallPlant::Dandelion)),
+            38 => GroundPlant(GroundPlant::Small(match data {
                 0 => SmallPlant::Poppy,
                 1 => SmallPlant::BlueOrchid,
                 2 => SmallPlant::Allium,
@@ -81,11 +83,11 @@ impl Block {
                 7 => SmallPlant::PinkTulip,
                 _ => SmallPlant::OxeyeDaisy
             })),
-            39 => GroundPlant(Plant::Small(SmallPlant::BrownMushroom)),
-            40 => GroundPlant(Plant::Small(SmallPlant::RedMushroom)),
-            81 => GroundPlant(Plant::Cactus),
-            83 => GroundPlant(Plant::Reeds),
-            175 => GroundPlant(Plant::Tall{
+            39 => GroundPlant(GroundPlant::Small(SmallPlant::BrownMushroom)),
+            40 => GroundPlant(GroundPlant::Small(SmallPlant::RedMushroom)),
+            81 => GroundPlant(GroundPlant::Cactus),
+            83 => GroundPlant(GroundPlant::Reeds),
+            175 => GroundPlant(GroundPlant::Tall{
                 plant: match id % 8 {
                     0 => TallPlant::Sunflower,
                     1 => TallPlant::Lilac,
@@ -130,8 +132,8 @@ impl Block {
                 (species as u8)%4 + 4 // no decay
             ),
             GroundPlant(plant) => match plant {
-                Plant::Sapling(species) => (6, species as u8 ),
-                Plant::Small(plant) => match plant {
+                GroundPlant::Sapling(species) => (6, species as u8 ),
+                GroundPlant::Small(plant) => match plant {
                     SmallPlant::Grass => (31, 0),
                     SmallPlant::Fern => (31, 1),
                     SmallPlant::DeadBush => (32, 0),
@@ -148,9 +150,9 @@ impl Block {
                     SmallPlant::BrownMushroom => (39, 0),
                     SmallPlant::RedMushroom => (40, 0),
                 },
-                Plant::Cactus => (81, 0),
-                Plant::Reeds => (83, 0),
-                Plant::Tall{plant, upper} => (175, 
+                GroundPlant::Cactus => (81, 0),
+                GroundPlant::Reeds => (83, 0),
+                GroundPlant::Tall{plant, upper} => (175, 
                     match plant {
                         TallPlant::Sunflower => 0,
                         TallPlant::Lilac => 1,
@@ -159,20 +161,30 @@ impl Block {
                         TallPlant::Rose => 4,
                         TallPlant::Peony => 5,
                     } + if upper {8} else {0}
-                )
+                ),
+                GroundPlant::Crop(crop) => match crop {
+                    Crop::Wheat => (59, 0),
+                    Crop::Carrot => (141, 0),
+                    Crop::Potato => (142, 0),
+                    Crop::Beetroot => (207, 0)
+                },
             },
-            Crop(crop) => match crop {
-                Crop::Wheat => (59, 0),
-                Crop::Carrot => (141, 0),
-                Crop::Potato => (142, 0),
-                Crop::Beetroot => (207, 0)
+            Fence(fence) => match fence {
+                Fence::Wood(TreeSpecies::Oak) => (85, 0),
+                Fence::Wood(TreeSpecies::Spruce) => (188, 0),
+                Fence::Wood(TreeSpecies::Birch) => (189, 0),
+                Fence::Wood(TreeSpecies::Jungle) => (190, 0),
+                Fence::Wood(TreeSpecies::DarkOak) => (191, 0),
+                Fence::Wood(TreeSpecies::Acacia) => (192, 0),
+                Fence::Stone {mossy: false} => (139, 0),
+                Fence::Stone {mossy: true} => (139, 1),
             },
             Debug(data) => (35, data),
             Other {id, data} => (id, data),
         }
     }
 
-    pub fn is_solid(self) -> bool {
+    pub fn solid(self) -> bool {
         // Todo: expand this
         match self {
             Air => false,
@@ -180,7 +192,6 @@ impl Block {
             Lava => false,
             GroundPlant(..) => false,
             Leaves(..) => false,
-            Crop(..) => false,
             _ => true
         }
     }
@@ -237,7 +248,7 @@ pub enum TreeSpecies {
     Oak,
     Spruce,
     Birch,
-    Junge,
+    Jungle,
     Acacia,
     DarkOak
 }
@@ -263,12 +274,13 @@ pub enum Soil {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
 #[repr(u8)]
-pub enum Plant {
+pub enum GroundPlant {
     Sapling(TreeSpecies),
     Cactus,
     Reeds,
     Small(SmallPlant),
     Tall {plant: TallPlant, upper: bool},
+    Crop(Crop)
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq)]
@@ -310,4 +322,11 @@ pub enum Crop {
     Carrot,
     Potato,
     Beetroot
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Fence {
+    Wood(TreeSpecies),
+    Stone {mossy: bool}
 }

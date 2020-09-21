@@ -1,6 +1,6 @@
 use rand::prelude::*;
 use crate::world::*;
-use crate::geometry_types::*;
+use crate::geometry::*;
 
 const STUMP_HEIGHT_0_CHANCE: f32 = 0.3;
 const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
@@ -13,7 +13,7 @@ pub fn remove_ground_foilage(world: &mut World, area: Rect) {
             world.heightmap(column)
         };
         for y in base_height + 1 ..= base_height + 2 {
-            let block = &mut world[column.with_height(y)];
+            let block = &mut world[column.at_height(y)];
             if match block { Block::Log(..) => false, Block::Leaves(..) => false, _ => true } {
                 *block = Block::Air
             } 
@@ -24,8 +24,8 @@ pub fn remove_ground_foilage(world: &mut World, area: Rect) {
 pub fn remove_trees(world: &mut World, area: Rect, leave_stumps: bool) {
     for column in area.iter() {
         let y = world.heightmap(column) + 1;
-        if let Block::Log(..) = world[column.with_height(y)] {
-            remove_tree(world, column.with_height(y), leave_stumps);
+        if let Block::Log(..) = world[column.at_height(y)] {
+            remove_tree(world, column.at_height(y), leave_stumps);
         }
     }
 }

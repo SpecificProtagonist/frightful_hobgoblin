@@ -9,8 +9,12 @@ Areas:
 
 
 Move stuff to gpu?
-- can do some otherwise very heavy passes
+- very quick, can do some otherwise very heavy passes
 - not neccessary for majority of work (10min CPU time allowed, multithreading allowed)
+- quite some effort (although some things are embarrassingly parallel)
+
+Instead: multithreading
+- easy for e.g. Chunk loading
 
 Be wary of lava
 - don't build anything flamable nearby
