@@ -41,7 +41,7 @@ fn main() {
 }
 
 fn generate(world: &mut World, area: Rect) {
-    world.insert_entity(Entity {
+    world.entities.push(Entity {
         pos: Pos(0,200,0),
         data: Villager {
             name: String::from("Rollo"),
@@ -52,4 +52,3 @@ fn generate(world: &mut World, area: Rect) {
         id: 1
     });
 }
-

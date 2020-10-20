@@ -114,6 +114,10 @@ impl From<Vec2> for Vec3 {
 }
 
 impl Rect {
+    pub fn size(self) -> Vec2 {
+        self.max - self.min
+    }
+
     pub fn contains(self, column: Column) -> bool {
         (self.min.0 <= column.0) &
         (self.min.1 <= column.1) &

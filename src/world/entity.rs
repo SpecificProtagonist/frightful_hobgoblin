@@ -146,8 +146,9 @@ impl Entity {
                         spacing.insert_str("id", "falling_block");
                         spacing.insert_i32("TileID", Block::Barrier.to_bytes().0 as i32);
                         // Make sure the block doesn't despawn (as consequence of a failed mc block dupe bugfix)
-                        // Todo: refresh time every 30s in case it gets carried for longer
                         spacing.insert_i32("Time", 1);
+                        // Todo: refresh time every 30s in case it gets carried for longer
+                        spacing.insert_bool("DropItem", false);
                         spacing.insert_compound_tag_vec("Passengers", vec![{
                             let (block_id, data) = carrying.to_bytes();
                             let mut block = CompoundTag::new();
@@ -155,6 +156,7 @@ impl Entity {
                             block.insert_i32("TileID", block_id as i32);
                             block.insert_i8("Data", data as i8);
                             block.insert_i32("Time", 1);
+                            block.insert_bool("DropItem", false);
                             block
                         }]);
                         spacing

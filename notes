@@ -26,6 +26,11 @@ Villagers
 - in-game trades based on resources?
 - jobs?
 
+Buildings
+- material variations based on used materials (e.g. oak log, birch planks, granite)
+- wooden doors placed so that the closed state appears open 
+  -> villagers & zombies can't interact with them
+- lots of fun todo
 
 Error handling
 - one-shot tool -> just exit on error

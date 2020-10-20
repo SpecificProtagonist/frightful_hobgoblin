@@ -251,6 +251,10 @@ impl Block {
     }
 
     pub fn to_bytes(self) -> (u8, u8) {
+        /*return match self {
+            Air => (0, 0),
+            _ => (1, 1)
+        };*/
         match self {
             Air => (0, 0),
             Stone(mineral) => (1, match mineral {
