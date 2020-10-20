@@ -1,5 +1,7 @@
 use std::ops::{Add, AddAssign, Sub, SubAssign};
 use itertools::Itertools;
+//use num_traits::FromPrimitive;
+use num_derive::FromPrimitive;
 
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -34,7 +36,82 @@ pub struct Polyline(pub Vec<Column>);
 pub struct Polygon(pub Vec<Column>);
 // Todo: areas with shared borders/corners
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum Axis {
+    Y,
+    X,
+    Z
+}
 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum HDir {
+    ZPos,
+    XNeg,
+    ZNeg,
+    XPos
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum FullDir {
+    XPos,
+    XNeg,
+    YPos,
+    YNeg,
+    ZPos,
+    ZNeg
+}
+
+
+
+
+impl Vec2 {
+    pub fn clockwise(self) -> Vec2 {
+        Vec2(self.1, -self.0)
+    }
+
+    pub fn counterclockwise(self) -> Vec2 {
+        Vec2(-self.1, self.0)
+    }
+}
+
+impl From<HDir> for Vec2 {
+    fn from(dir: HDir) -> Self {
+        match dir {
+            HDir::XPos => Vec2(1,0),
+            HDir::XNeg => Vec2(-1,0),
+            HDir::ZPos => Vec2(0,1),
+            HDir::ZNeg => Vec2(0,-1)
+        }
+    }
+}
+
+impl From<FullDir> for Vec3 {
+    fn from(dir: FullDir) -> Self {
+        match dir {
+            FullDir::XPos => Vec3(1,0,0),
+            FullDir::XNeg => Vec3(-1,0,0),
+            FullDir::YPos => Vec3(0,1,0),
+            FullDir::YNeg => Vec3(0,-1,0),
+            FullDir::ZPos => Vec3(0,0,1),
+            FullDir::ZNeg => Vec3(0,0,-1)
+        }
+    }
+}
+
+impl From<HDir> for Vec3 {
+    fn from(dir: HDir) -> Self {
+        Vec2::from(dir).into()
+    }
+}
+
+impl From<Vec2> for Vec3 {
+    fn from(vec: Vec2) -> Self {
+        Vec3(vec.0, 0, vec.1)
+    }
+}
 
 impl Rect {
     pub fn contains(self, column: Column) -> bool {
@@ -59,6 +136,10 @@ impl Polyline {
             closed: false
         }
     } 
+
+    pub fn segments(&self) -> impl Iterator<Item=(Column, Column)> + '_ {
+        self.0.iter().cloned().tuple_windows()
+    }
 }
 
 impl Polygon {
@@ -458,6 +539,7 @@ impl ColumnLineIter {
 
 
 
+/* These don't really fit here, but oh well. */
 
 pub fn rand(prob: f32) -> bool {
     rand::random::<f32>() < prob
@@ -477,4 +559,9 @@ pub fn rand_2(prob: f32) -> Vec2 {
 
 pub fn rand_3(prob: f32) -> Vec3 {
     Vec3(rand_1(prob), rand_1(prob), rand_1(prob))
+}
+
+// Inclusive range
+pub fn rand_range(min: i32, max: i32) -> i32 {
+    rand::Rng::gen_range(&mut rand::thread_rng(), min, max)
 }

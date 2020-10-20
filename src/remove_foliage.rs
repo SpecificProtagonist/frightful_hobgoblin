@@ -14,7 +14,7 @@ pub fn remove_ground_foilage(world: &mut World, area: Rect) {
         };
         for y in base_height + 1 ..= base_height + 2 {
             let block = &mut world[column.at_height(y)];
-            if match block { Block::Log(..) => false, Block::Leaves(..) => false, _ => true } {
+            if match block { GroundPlant(..) => true, _ => false } {
                 *block = Block::Air
             } 
         }
@@ -36,7 +36,7 @@ pub fn remove_trees(world: &mut World, area: Rect, leave_stumps: bool) {
 /// This function isn't very performant (e.g. >10k blocks checked for a dark oak), 
 /// but luckily this will be called a few hundred times at most and this isn't Python
 pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
-    if let Block::Log(species, ..) = world[pos] {
+    if let Log(species, ..) = world[pos] {
         // Track area of stem for leaf removal
         let mut stem_area = Cuboid { min: pos, max: pos };
 
@@ -51,9 +51,9 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                 for x in -1 ..= 1 {
                     for z in -1 ..= 1 {
                         let pos = Pos(pos.0+x, pos.1, pos.2+z);
-                        if let Block::Log(s, log_type, LogOrigin::Natural) = world[pos] {
+                        if let Log(s, log_type, LogOrigin::Natural) = world[pos] {
                             if s == species {
-                                world[pos - Vec3(0,1,0)] = Block::Log(species, log_type, LogOrigin::Stump);
+                                world[pos - Vec3(0,1,0)] = Log(species, log_type, LogOrigin::Stump);
                             }
                         }
                     }
@@ -72,15 +72,15 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                 for z in -1 ..= 1 {
                     let block_below = world[Pos(pos.0+x, pos.1-1, pos.2+z)];
                     let block = &mut world[Pos(pos.0+x, pos.1, pos.2+z)];
-                    if let Block::Log(s, log_type, LogOrigin::Natural) = block {
+                    if let Log(s, log_type, LogOrigin::Natural) = block {
                         if *s == species {
                             // Check block below in case of diagonal branch close to the ground
                             // when leave_stumps and stump height is 1 (mostly happens with dark oak)
                             if (match block_below {Block::Log(..) => true, _ => false}) 
                              & (rand::random::<f32>() < STUMP_HEIGHT_2_CHANCE) {
-                                *block = Block::Log(species, *log_type, LogOrigin::Stump);
+                                *block = Log(species, *log_type, LogOrigin::Stump);
                             } else {
-                                *block = Block::Air;
+                                *block = Air;
                             }
                         }
                     }
@@ -98,12 +98,12 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                         for z in -1 ..= 1 {
                             let pos = Pos(pos.0+x, (pos.1 as i32 + y) as u8, pos.2+z);
                             let block = &mut world[pos];
-                            if let Block::Log(s, log_type, LogOrigin::Natural) = block {
+                            if let Log(s, log_type, LogOrigin::Natural) = block {
                                 if *s == species {
                                     *block = if pos.1 <= stump_height {
-                                        Block::Log(species, *log_type, LogOrigin::Stump)
+                                        Log(species, *log_type, LogOrigin::Stump)
                                     } else {
-                                        Block::Air
+                                        Air
                                     };
                                     log_removed.push(pos);
                                 }
@@ -154,7 +154,7 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
 
             for _ in 0 .. decay_distance {
                 for pos in inner_check_area.iter() {
-                    if let (Block::Leaves(s), _) = blocks[index(pos)] {
+                    if let (Leaves(s), _) = blocks[index(pos)] {
                         if s == species {
                             let surrounds_distance = 
                                 [pos + Vec3(1, 0, 0),
@@ -164,8 +164,8 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                                 pos + Vec3(0, 0, 1),
                                 pos + Vec3(0, 0, -1)].iter().map(
                                 |neightbor: &Pos| match blocks[index(*neightbor)] {
-                                    (Block::Log(s, _, LogOrigin::Natural), _) if s == species => 0,
-                                    (Block::Leaves(..), distane) => distane,
+                                    (Log(s, _, LogOrigin::Natural), _) if s == species => 0,
+                                    (Leaves(..), distane) => distane,
                                     _ => decay_distance as u8
                                 }
                             ).min().unwrap();
@@ -178,9 +178,9 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
 
             // Remove identified leaves
             for pos in removal_area.iter() {
-                if let (Block::Leaves(s), distance) = blocks[index(pos)] {
+                if let (Leaves(s), distance) = blocks[index(pos)] {
                     if (s == species) & (distance == decay_distance as u8) {
-                        world[pos] = Block::Air;
+                        world[pos] = Air;
                         // Vines (jungle/swamp) helpfully remove themselves
                     }
                 }

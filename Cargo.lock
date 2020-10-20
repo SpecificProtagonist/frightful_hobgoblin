@@ -8,9 +8,9 @@ checksum = "ee2a4ec343196209d6594e19543ae87a39f96d5534d7174822a3ad825dd6ed7e"
 
 [[package]]
 name = "anvil-region"
-version = "0.3.2"
+version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "40a5543399bdcebd302c2355b72e9ec1fee0691ed795e2b238be9572a4897378"
+checksum = "d8e1613ef793128ec9fb0bacd879a09bc5590e9757d81eb3104b2fd08fb5c59f"
 dependencies = [
  "bitvec",
  "byteorder",
@@ -248,9 +248,9 @@ dependencies = [
 
 [[package]]
 name = "named-binary-tag"
-version = "0.2.3"
+version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4d654702943d37d67f1491769ed46484c306f9b9d0d258348904bd63ffb101e8"
+checksum = "7ae8ccc227f1ca068299ad32bcac0da2d2cf90b1b51c4679d0cc30900703ba60"
 dependencies = [
  "byteorder",
  "flate2",

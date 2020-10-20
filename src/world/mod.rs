@@ -1,7 +1,9 @@
 mod block;
+mod entity;
 mod biome;
+mod export_behavior;
 
-use std::{ops::{Index, IndexMut}, num::NonZeroU8};
+use std::{ops::{Index, IndexMut}, num::NonZeroU8, path::PathBuf};
 use std::collections::HashMap;
 use anvil_region::*;
 use nbt::CompoundTag;
@@ -11,6 +13,7 @@ use itertools::Itertools;
 use crate::geometry::*;
 pub use block::*;
 pub use biome::*;
+pub use entity::*;
 
 
 const MAX_VERSION: i32 = 1343;
@@ -18,16 +21,20 @@ const MAX_VERSION: i32 = 1343;
 
 // Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
-    region_path: String,
+    path: PathBuf,
     chunks: HashMap<ChunkIndex, Chunk>,
     area: Rect
 } 
 
 impl World {
     pub fn new(path: &str, area: Rect) -> Self {
-        let region_path = String::from(path) + "/region";
         let mut chunks = HashMap::new();
 
+        let region_path = {
+            let mut region_path = PathBuf::from(path);
+            region_path.push("region");
+            region_path.into_os_string().into_string().unwrap()
+        };
         let chunk_provider = AnvilChunkProvider::new(&region_path);
         let chunk_min: ChunkIndex = (area.min - Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
         let chunk_max: ChunkIndex = (area.max + Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
@@ -38,37 +45,54 @@ impl World {
             .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1)))
         ));
 
-        World { region_path, chunks, area }
+        let mut world = World { path: PathBuf::from(path), chunks, area };
+        // Global scoreboard keeper
+        world.insert_entity(Entity { 
+            pos: Pos((area.min.0+area.max.0)/2,0,(area.min.1+area.max.1)/2), 
+            data: Marker,
+            id: 0
+        });
+
+        world
     }
 
     pub fn save(&self) -> Result<(), ChunkSaveError> {
-        // QoL: Change level name & last played timestamp
-        // Except this doesn't seem to write anything (at least on my system)‽
+        // Write chunks
         {
-            let mut level_nbt_path = std::path::PathBuf::from(&self.region_path);
-            level_nbt_path.pop();
-            level_nbt_path.push("level.dat");
-            if let Ok(mut file) = std::fs::OpenOptions::new().read(true).write(true).open(&level_nbt_path) 
-            {
-                if let Ok(mut nbt) = nbt::decode::read_gzip_compound_tag(&mut file) {
-                    // Whyyyy is there no method to borrow mutably?
-                    let mut data = nbt.get_compound_tag("Data").unwrap().clone();
-                    let name = String::from(data.get_str("LevelName").unwrap())
-                        + " [generated]";
-                    data.insert_str("LevelName", &name);
-                    let timestamp = data.get_i64("LastPlayed").unwrap() + 1;
-                    data.insert_i64("LastPlayer", timestamp);
-                    nbt.insert_compound_tag("Data", data);
-
-                    drop(nbt::encode::write_gzip_compound_tag(&mut file, nbt));
-                }
+            let mut region_path = self.path.clone();
+            region_path.push("region");
+            // Internally, AnvilChunkProvider stores a path. So why require a str??
+            let region_path = region_path.into_os_string().into_string().unwrap();
+            let chunk_provider = AnvilChunkProvider::new(&region_path);
+            for chunk in self.chunks.values() {
+                chunk.save(&chunk_provider)?;
             }
         }
 
-        // Write chunks
-        let chunk_provider = AnvilChunkProvider::new(&self.region_path);
-        for chunk in self.chunks.values() {
-            chunk.save(&chunk_provider)?;
+        export_behavior::save_behavior(&self).expect("Failed to write mcfunctions");
+
+        // Edit metadata
+        {
+            let level_nbt_path = self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
+            let mut file = std::fs::File::open(&level_nbt_path).expect("Failed to open level.dat");
+            let mut nbt = nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
+            let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
+
+            let name: &mut String = data.get_mut("LevelName").expect("Corrupt level.dat");
+            name.push_str(" [generated]");
+
+            let timestamp: &mut i64 = data.get_mut("LastPlayed").unwrap();
+            *timestamp += 10;
+
+            data.insert_i8("Difficulty", 0);
+
+            let gamerules: &mut CompoundTag = data.get_mut("GameRules").unwrap();
+            gamerules.insert_str("commandBlockOutput", "false");
+            gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
+
+            let mut file = std::fs::OpenOptions::new().write(true).open(&level_nbt_path)
+                .expect("Failed to open level.dat");
+            nbt::encode::write_gzip_compound_tag(&mut file, nbt).expect("Failed to write level.dat");
         }
         Ok(())
     }
@@ -81,7 +105,7 @@ impl World {
     }
 
     pub fn biome(&self, column: Column) -> Biome{
-        self.chunks.get(&column.into()).unwrap().biomes[
+        self.chunks.get(&column.into()).expect("Tried to read biome outside of loaded chunks").biomes[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
@@ -91,28 +115,28 @@ impl World {
     // also, since we're going to be working with a fixed area, 
     // this could be moved to the generation part (maybe make readonly and rename to heightmap_orig)
     pub fn heightmap(&self, column: Column) -> u8 {
-        self.chunks.get(&column.into()).unwrap().heightmap[
+        self.chunks.get(&column.into()).expect("Tried to read heightmap outside of loaded chunks").heightmap[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
     }
 
     pub fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
-        &mut self.chunks.get_mut(&column.into()).unwrap().heightmap[
+        &mut self.chunks.get_mut(&column.into()).expect("Tried to access heightmap outside of loaded chunks").heightmap[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
     }
 
     pub fn watermap(&self, column: Column) -> Option<NonZeroU8> {
-        self.chunks.get(&column.into()).unwrap().watermap[
+        self.chunks.get(&column.into()).expect("Tried to read watermap outside of loaded chunks").watermap[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
     }
 
     pub fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8> {
-        &mut self.chunks.get_mut(&column.into()).unwrap().watermap[
+        &mut self.chunks.get_mut(&column.into()).expect("Tried to access watermap outside of loaded chunks").watermap[
             (column.0.rem_euclid(16)
            + column.1.rem_euclid(16) * 16) as usize
         ]
@@ -121,6 +145,11 @@ impl World {
     pub fn area(&self) -> Rect {
         self.area
     }
+
+    pub fn insert_entity(&mut self, entity: Entity) {
+        &mut self.chunks.get_mut(&entity.pos.into()).unwrap()
+            .entities.push(entity);
+    }
 }
 
 // load_area must have been called before
@@ -128,7 +157,7 @@ impl World {
 impl Index<Pos> for World {
     type Output = Block;
     fn index(&self, pos: Pos) -> &Self::Output {
-        let chunk = self.chunks.get(&pos.into()).unwrap();
+        let chunk = self.chunks.get(&pos.into()).expect("Tried to read block outside of loaded chunks");
         if let Some(section) = &chunk.sections[pos.1 as usize / 16] {
             &section.blocks[
                 pos.0.rem_euclid(16) as usize
@@ -143,7 +172,7 @@ impl Index<Pos> for World {
 
 impl IndexMut<Pos> for World {
     fn index_mut(&mut self, pos: Pos) -> &mut Self::Output {
-        let chunk = self.chunks.get_mut(&pos.into()).unwrap();
+        let chunk = self.chunks.get_mut(&pos.into()).expect("Tried to access block outside of loaded chunks");
         let section = chunk.sections[pos.1 as usize / 16].get_or_insert_with(||
             Box::new(Section::default())
         );
@@ -161,7 +190,8 @@ pub struct Chunk {
     biomes: [Biome; 16 * 16],
     heightmap: [u8; 16 * 16],
     watermap: [Option<NonZeroU8>; 16 * 16], 
-    // Todo: Entities, TileEntities
+    entities: Vec<Entity>
+    // Todo: TileEntities
 }
 
 impl Chunk {
@@ -231,7 +261,8 @@ impl Chunk {
             sections,
             biomes,
             heightmap,
-            watermap
+            watermap,
+            entities: Vec::new()
         })
     }
 
@@ -291,6 +322,10 @@ impl Chunk {
                         }
                     ).collect()
                 });
+
+                nbt.insert_compound_tag_vec("Entities", 
+                    self.entities.iter().map(Entity::to_nbt).collect());
+
                 nbt
             });
             nbt

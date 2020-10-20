@@ -33,10 +33,10 @@ pub enum Temperature {
 
 #[derive(Debug, Copy, Clone)]
 pub struct Biome {
-    base: BiomeType,
-    temp: Temperature,
-    hilly: bool,
-    wooded: bool
+    pub base: BiomeType,
+    pub temp: Temperature,
+    pub hilly: bool,
+    pub wooded: bool
 }
 
 impl Biome {
@@ -140,6 +140,18 @@ impl Biome {
             Biome {base: ExtremeHills, ..} => if random::<f32>() < 0.6 {TreeSpecies::Oak} else {TreeSpecies::Spruce},
             Biome {base: RoofedForest, ..} => if random::<f32>() < 0.25 {TreeSpecies::Oak} else {TreeSpecies::DarkOak},
             _ => self.default_tree_species()
+        }
+    }
+
+    pub fn villager_type(self) -> &'static str {
+        match self {
+            Biome {base: Swamp, ..} => "minecraft:swamp",
+            Biome {base: Savanna, ..} => "minecraft:savanna",
+            Biome {base: Jungle, ..} => "minecraft:jungle",
+            Biome {base: Desert, ..} => "minecraft:desert",
+            Biome {base: Taiga, ..} => "minecraft:taige",
+            Biome {temp: Cold, ..} => "minecraft:snow",
+            Biome {..} => "minecraft:plains"
         }
     }
 }

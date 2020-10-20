@@ -86,6 +86,8 @@ fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small
 }
 
 // Even with gapless, there can be gaps if the terrain is too steep, but it looks a bit awkward otherwise
+// Todo: Mobs can escape if inside is higher than ground under fence 
+// (best fix: raise ground in that case, but only in that case. If that's too hard, maybe just set chattep movement rate to 0)
 fn make_fence(world: &mut World, start: Column, end: Column, prev: Column, stone: bool, gapless: bool) {
     let wooden_fence_type = Fence::Wood(world.biome(start).default_tree_species());
     let place_fence_block = |world: &mut World, pos: Pos| {

@@ -1,6 +1,8 @@
-use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use Block::*;
+use num_derive::FromPrimitive;
+use crate::geometry::*;
+pub use Block::*;
+pub use self::GroundPlant::*;
 
 
 #[derive(Debug, Copy, Clone)]
@@ -15,15 +17,161 @@ pub enum Block {
     Leaves(TreeSpecies),
     GroundPlant(GroundPlant),
     Fence(Fence),
+    Wool(Color),
+    Glowstone,
+    Hay,
+    Slab { kind: Slab, upper: bool },
+    Barrier,
     Debug(u8),
     Other { id: u8, data: u8 }
 }
 
 impl Default for Block {
     fn default() -> Self {
-        Block::Air
+        Air
     }
 }
+
+
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
+pub enum LogType {
+    Normal(Axis),
+    FullBark
+}
+
+// So far this is only used to check whether this log can sustain leaves
+#[derive(Debug, Copy, Clone)]
+#[repr(u8)]
+pub enum LogOrigin {
+    Natural,
+    Stump,
+    Manmade
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum TreeSpecies {
+    Oak,
+    Spruce,
+    Birch,
+    Jungle,
+    Acacia,
+    DarkOak
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Stone {
+    Stone,
+    Granite,
+    Diorite,
+    Andesite,
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Soil {
+    Dirt,
+    Grass,
+    Sand,
+    Gravel,
+    Farmland,
+    Path,
+    Podzol,
+    CoarseDirt
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum GroundPlant {
+    Sapling(TreeSpecies),
+    Cactus,
+    Reeds,
+    Pumpkin(HDir),
+    Small(SmallPlant),
+    Tall {plant: TallPlant, upper: bool},
+    Crop(Crop)
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum SmallPlant {
+    Grass,
+    DeadBush,
+    Fern,
+    BrownMushroom,
+    RedMushroom,
+    Dandelion,
+    Poppy,
+    BlueOrchid,
+    Allium,
+    AzureBluet,
+    RedTulip,
+    OrangeTulip,
+    WhiteTulip,
+    PinkTulip,
+    OxeyeDaisy
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum TallPlant {
+    Grass,
+    Fern,
+    Sunflower,
+    Lilac,
+    Rose,
+    Peony
+}
+
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Crop {
+    Wheat,
+    Carrot,
+    Potato,
+    Beetroot
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Fence {
+    Wood(TreeSpecies),
+    Stone {mossy: bool}
+}
+
+// Note: for dyes, id order is reversed 
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[repr(u8)]
+pub enum Color {
+    White,
+    Orange,
+    Magenta,
+    LightBlue,
+    Yellow,
+    Lime,
+    Pink,
+    Gray,
+    LightGray,
+    Cyan,
+	Purple,
+	Blue,
+	Brown,
+	Green,
+	Red,
+	Black
+}
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[repr(u8)]
+pub enum Slab {
+    Wooden(TreeSpecies)
+}
+
+
+
 
 // Can the serialize & deserialize-funtions somehow be unified?A
 // maybe a macro could help
@@ -116,7 +264,10 @@ impl Block {
                 Soil::Dirt => (3, 0),
                 Soil::Sand => (12, 0),
                 Soil::Gravel => (13, 0),
-                Soil::Farmland => (60, 0)
+                Soil::Farmland => (60, 0),
+                Soil::Path => (208, 0),
+                Soil::CoarseDirt => (3, 1),
+                Soil::Podzol => (3, 2)
             },
             Water => (9, 0),
             Lava => (11, 0),
@@ -152,6 +303,7 @@ impl Block {
                 },
                 GroundPlant::Cactus => (81, 0),
                 GroundPlant::Reeds => (83, 0),
+                GroundPlant::Pumpkin(dir) => (86, dir as u8),
                 GroundPlant::Tall{plant, upper} => (175, 
                     match plant {
                         TallPlant::Sunflower => 0,
@@ -163,10 +315,10 @@ impl Block {
                     } + if upper {8} else {0}
                 ),
                 GroundPlant::Crop(crop) => match crop {
-                    Crop::Wheat => (59, 0),
-                    Crop::Carrot => (141, 0),
-                    Crop::Potato => (142, 0),
-                    Crop::Beetroot => (207, 0)
+                    Crop::Wheat => (59, 7),
+                    Crop::Carrot => (141, 7),
+                    Crop::Potato => (142, 7),
+                    Crop::Beetroot => (207, 3)
                 },
             },
             Fence(fence) => match fence {
@@ -179,6 +331,13 @@ impl Block {
                 Fence::Stone {mossy: false} => (139, 0),
                 Fence::Stone {mossy: true} => (139, 1),
             },
+            Wool(color) => (35, color as u8),
+            Glowstone => (89, 0),
+            Hay => (170, 0),
+            Block::Slab { kind, upper } => match kind {
+                Slab::Wooden(species) => (126, species as u8 + if upper {8} else {0})
+            },
+            Barrier => (166, 0),
             Debug(data) => (35, data),
             Other {id, data} => (id, data),
         }
@@ -195,138 +354,4 @@ impl Block {
             _ => true
         }
     }
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
-#[repr(u8)]
-pub enum Axis {
-    Y,
-    X,
-    Z
-}
-
-#[derive(Debug, Copy, Clone)]
-#[repr(u8)]
-pub enum LogType {
-    Normal(Axis),
-    FullBark
-}
-
-// So far this is only used to check whether this log can sustain leaves
-#[derive(Debug, Copy, Clone)]
-#[repr(u8)]
-pub enum LogOrigin {
-    Natural,
-    Stump,
-    Manmade
-}
-
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum HorDir {
-    XPos,
-    XNeg,
-    ZPos,
-    ZNeg
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum FullDir {
-    XPos,
-    XNeg,
-    YPos,
-    YNeg,
-    ZPos,
-    ZNeg
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
-#[repr(u8)]
-pub enum TreeSpecies {
-    Oak,
-    Spruce,
-    Birch,
-    Jungle,
-    Acacia,
-    DarkOak
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Stone {
-    Stone,
-    Granite,
-    Diorite,
-    Andesite,
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Soil {
-    Dirt,
-    Grass,
-    Sand,
-    Gravel,
-    Farmland
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum GroundPlant {
-    Sapling(TreeSpecies),
-    Cactus,
-    Reeds,
-    Small(SmallPlant),
-    Tall {plant: TallPlant, upper: bool},
-    Crop(Crop)
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum SmallPlant {
-    Grass,
-    DeadBush,
-    Fern,
-    BrownMushroom,
-    RedMushroom,
-    Dandelion,
-    Poppy,
-    BlueOrchid,
-    Allium,
-    AzureBluet,
-    RedTulip,
-    OrangeTulip,
-    WhiteTulip,
-    PinkTulip,
-    OxeyeDaisy
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum TallPlant {
-    Grass,
-    Fern,
-    Sunflower,
-    Lilac,
-    Rose,
-    Peony
-}
-
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Crop {
-    Wheat,
-    Carrot,
-    Potato,
-    Beetroot
-}
-
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
-#[repr(u8)]
-pub enum Fence {
-    Wood(TreeSpecies),
-    Stone {mossy: bool}
 }

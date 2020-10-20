@@ -3,9 +3,11 @@ mod world;
 mod remove_foliage;
 mod make_trees;
 mod make_divider;
+mod make_misc;
+mod make_name;
+mod make_house;
 
 use std::time::Instant;
-use make_divider::*;
 
 use world::*;
 use geometry::*;
@@ -39,29 +41,15 @@ fn main() {
 }
 
 fn generate(world: &mut World, area: Rect) {
-
-    remove_foliage::remove_trees(world, area, false);
-    for column in area.iter() {
-        if rand::random::<f32>() < 0.05 {
-            let pos = column.at_height(world.heightmap(column));
-            let species = world.biome(column).random_tree_species();
-            if rand::random::<f32>() < 0.5 {
-                make_trees::make_tiny(world, pos, species);
-            } else {
-                make_trees::make_straight(world, pos, species);
-            }
-        }
-    }
-
-    make_divider(
-        world, 
-        Polygon(vec![
-            Column(0, 0),
-            Column(-2, 10),
-            Column(10, 9),
-            Column(7, 0)
-        ]).segments(),
-        DividerType::Fence {gapless: true}
-    );
+    world.insert_entity(Entity {
+        pos: Pos(0,200,0),
+        data: Villager {
+            name: String::from("Rollo"),
+            biome: world.biome(Column(0,0)),
+            profession: Profession::Leatherworker,
+            carrying: Some(Log(TreeSpecies::DarkOak, LogType::Normal(Axis::X), LogOrigin::Manmade))
+        },
+        id: 1
+    });
 }
 
