@@ -1,11 +1,10 @@
 use rand::prelude::*;
-use crate::world::*;
-use crate::geometry::*;
+use crate::*;
 
 const STUMP_HEIGHT_0_CHANCE: f32 = 0.3;
 const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
 
-pub fn remove_ground_foilage(world: &mut World, area: Rect) {
+pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
     for column in area.iter() {
         let base_height = if let Some(water_height) = world.watermap(column) {
             water_height.into()
@@ -13,7 +12,7 @@ pub fn remove_ground_foilage(world: &mut World, area: Rect) {
             world.heightmap(column)
         };
         for y in base_height + 1 ..= base_height + 2 {
-            let block = &mut world[column.at_height(y)];
+            let block = world.get_mut(column.at_height(y));
             if match block { GroundPlant(..) => true, _ => false } {
                 *block = Block::Air
             } 
@@ -21,10 +20,10 @@ pub fn remove_ground_foilage(world: &mut World, area: Rect) {
     }
 }
 
-pub fn remove_trees(world: &mut World, area: Rect, leave_stumps: bool) {
+pub fn remove_trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
     for column in area.iter() {
         let y = world.heightmap(column) + 1;
-        if let Block::Log(..) = world[column.at_height(y)] {
+        if let Block::Log(..) = world.get(column.at_height(y)) {
             remove_tree(world, column.at_height(y), leave_stumps);
         }
     }
@@ -35,8 +34,8 @@ pub fn remove_trees(world: &mut World, area: Rect, leave_stumps: bool) {
 /// Currently it just removes leaves which would decay without this tree.
 /// This function isn't very performant (e.g. >10k blocks checked for a dark oak), 
 /// but luckily this will be called a few hundred times at most and this isn't Python
-pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
-    if let Log(species, ..) = world[pos] {
+pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
+    if let Log(species, ..) = *world.get(pos) {
         // Track area of stem for leaf removal
         let mut stem_area = Cuboid { min: pos, max: pos };
 
@@ -51,9 +50,9 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                 for x in -1 ..= 1 {
                     for z in -1 ..= 1 {
                         let pos = Pos(pos.0+x, pos.1, pos.2+z);
-                        if let Log(s, log_type, LogOrigin::Natural) = world[pos] {
+                        if let Log(s, log_type, LogOrigin::Natural) = *world.get(pos) {
                             if s == species {
-                                world[pos - Vec3(0,1,0)] = Log(species, log_type, LogOrigin::Stump);
+                                *world.get_mut(pos - Vec3(0,1,0)) = Log(species, log_type, LogOrigin::Stump);
                             }
                         }
                     }
@@ -67,11 +66,11 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                 pos 
             };
 
-            world[pos] = Block::Air;
+            *world.get_mut(pos) = Block::Air;
             for x in -1 ..= 1 {
                 for z in -1 ..= 1 {
-                    let block_below = world[Pos(pos.0+x, pos.1-1, pos.2+z)];
-                    let block = &mut world[Pos(pos.0+x, pos.1, pos.2+z)];
+                    let block_below = *world.get(Pos(pos.0+x, pos.1-1, pos.2+z));
+                    let block = world.get_mut(Pos(pos.0+x, pos.1, pos.2+z));
                     if let Log(s, log_type, LogOrigin::Natural) = block {
                         if *s == species {
                             // Check block below in case of diagonal branch close to the ground
@@ -97,7 +96,7 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
                     for y in (if leave_stump {-1} else {0}) ..= 1 {
                         for z in -1 ..= 1 {
                             let pos = Pos(pos.0+x, (pos.1 as i32 + y) as u8, pos.2+z);
-                            let block = &mut world[pos];
+                            let block = world.get_mut(pos);
                             if let Log(s, log_type, LogOrigin::Natural) = block {
                                 if *s == species {
                                     *block = if pos.1 <= stump_height {
@@ -144,7 +143,7 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
             };
 
             for pos in check_area.iter() {
-                blocks.push((world[pos], decay_distance as u8));
+                blocks.push((*world.get(pos), decay_distance as u8));
             }
             
             let inner_check_area = Cuboid {
@@ -180,7 +179,7 @@ pub fn remove_tree(world: &mut World, pos: Pos, leave_stump: bool) {
             for pos in removal_area.iter() {
                 if let (Leaves(s), distance) = blocks[index(pos)] {
                     if (s == species) & (distance == decay_distance as u8) {
-                        world[pos] = Air;
+                        *world.get_mut(pos) = Air;
                         // Vines (jungle/swamp) helpfully remove themselves
                     }
                 }

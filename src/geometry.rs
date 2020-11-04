@@ -1,4 +1,4 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use itertools::Itertools;
 //use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
@@ -36,7 +36,7 @@ pub struct Polyline(pub Vec<Column>);
 pub struct Polygon(pub Vec<Column>);
 // Todo: areas with shared borders/corners
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum Axis {
     Y,
@@ -44,7 +44,7 @@ pub enum Axis {
     Z
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum HDir {
     ZPos,
@@ -53,7 +53,7 @@ pub enum HDir {
     XPos
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum FullDir {
     XPos,
@@ -116,6 +116,10 @@ impl From<Vec2> for Vec3 {
 impl Rect {
     pub fn size(self) -> Vec2 {
         self.max - self.min
+    }
+
+    pub fn center(self) -> Column {
+        self.min + (self.max-self.min) * 0.5
     }
 
     pub fn contains(self, column: Column) -> bool {
@@ -489,6 +493,32 @@ impl Sub<Vec2> for Column {
 impl SubAssign<Vec2> for Column {
     fn sub_assign(&mut self, rhs: Vec2) {
         *self = *self - rhs;
+    }
+}
+
+impl Add<Vec2> for Vec2 {
+    type Output = Vec2;
+    fn add(self, rhs: Vec2) -> Self::Output {
+        Self(self.0 + rhs.0, self.1 + rhs.1)
+    }
+}
+
+impl AddAssign<Vec2> for Vec2 {
+    fn add_assign(&mut self, rhs: Vec2) {
+        *self = *self + rhs;
+    }
+}
+
+impl Mul<f32> for Vec2 {
+    type Output = Vec2;
+    fn mul(self, rhs: f32) -> Self::Output {
+        Self((self.0 as f32 * rhs) as i32, (self.1 as f32 * rhs) as i32)
+    }
+}
+
+impl MulAssign<f32> for Vec2 {
+    fn mul_assign(&mut self, rhs: f32) {
+        *self = *self * rhs;
     }
 }
 

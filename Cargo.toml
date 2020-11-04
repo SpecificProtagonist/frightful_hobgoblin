@@ -17,3 +17,8 @@ rayon = "1.4"
 itertools = "0.9"
 bresenham = { path = "bresenham-rs" }
 named-binary-tag = "0.3"
+lazy_static = "1"
+hashlink = "0.6"
+
+[patch.crates-io]
+named-binary-tag = {path = "named-binary-tag"}

@@ -28,21 +28,21 @@ pub fn make_scarecrow(world: &mut World, column: Column) {
         Hay
     };
 
-    world[pos] = fence_block;
+    *world.get_mut(pos) = fence_block;
     pos += Vec3(0,1,0);
     if rand(0.34) {
         if rand(0.65) {
-            world[pos] = fence_block;
+            *world.get_mut(pos) = fence_block;
         } else {
-            world[pos] = center_block;
+            *world.get_mut(pos) = center_block;
         }
         pos += Vec3(0,1,0);
     }
-    world[pos] = center_block;
-    world[pos + Vec2::from(direction).clockwise()] = fence_block;
-    world[pos + Vec2::from(direction).counterclockwise()] = fence_block;
+    *world.get_mut(pos) = center_block;
+    *world.get_mut(pos + Vec2::from(direction).clockwise()) = fence_block;
+    *world.get_mut(pos + Vec2::from(direction).counterclockwise()) = fence_block;
     pos += Vec3(0,1,0);
-    world[pos] = GroundPlant(GroundPlant::Pumpkin(direction));
+    *world.get_mut(pos) = GroundPlant(GroundPlant::Pumpkin(direction));
 }
 
 pub fn make_signpost() {

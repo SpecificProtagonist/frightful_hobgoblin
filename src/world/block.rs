@@ -1,11 +1,13 @@
+use std::{collections::HashMap, sync::RwLock};
 use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
+use nbt::CompoundTag;
 use crate::geometry::*;
 pub use Block::*;
 pub use self::GroundPlant::*;
 
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Block {
     Air,
@@ -21,7 +23,10 @@ pub enum Block {
     Glowstone,
     Hay,
     Slab { kind: Slab, upper: bool },
+    Repeater(HDir, u8),
     Barrier,
+    Bedrock,
+    CommandBlock,
     Debug(u8),
     Other { id: u8, data: u8 }
 }
@@ -33,7 +38,7 @@ impl Default for Block {
 }
 
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum LogType {
     Normal(Axis),
@@ -41,7 +46,7 @@ pub enum LogType {
 }
 
 // So far this is only used to check whether this log can sustain leaves
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum LogOrigin {
     Natural,
@@ -49,7 +54,7 @@ pub enum LogOrigin {
     Manmade
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive)]
 #[repr(u8)]
 pub enum TreeSpecies {
     Oak,
@@ -60,7 +65,7 @@ pub enum TreeSpecies {
     DarkOak
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Stone {
     Stone,
@@ -69,7 +74,7 @@ pub enum Stone {
     Andesite,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Soil {
     Dirt,
@@ -82,7 +87,7 @@ pub enum Soil {
     CoarseDirt
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum GroundPlant {
     Sapling(TreeSpecies),
@@ -94,7 +99,7 @@ pub enum GroundPlant {
     Crop(Crop)
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum SmallPlant {
     Grass,
@@ -114,7 +119,7 @@ pub enum SmallPlant {
     OxeyeDaisy
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum TallPlant {
     Grass,
@@ -126,7 +131,7 @@ pub enum TallPlant {
 }
 
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Crop {
     Wheat,
@@ -135,7 +140,7 @@ pub enum Crop {
     Beetroot
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Fence {
     Wood(TreeSpecies),
@@ -143,7 +148,7 @@ pub enum Fence {
 }
 
 // Note: for dyes, id order is reversed 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum Color {
     White,
@@ -164,12 +169,11 @@ pub enum Color {
 	Black
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Slab {
     Wooden(TreeSpecies)
 }
-
 
 
 
@@ -191,6 +195,7 @@ impl Block {
             12 => Soil(Soil::Sand),
             13 => Soil(Soil::Gravel),
             60 => Soil(Soil::Farmland),
+            7 => Bedrock,
             8 => Block::Air, // Flowing water
             9 => Water,
             10 => Block::Air, // Flowing lava
@@ -251,10 +256,6 @@ impl Block {
     }
 
     pub fn to_bytes(self) -> (u8, u8) {
-        /*return match self {
-            Air => (0, 0),
-            _ => (1, 1)
-        };*/
         match self {
             Air => (0, 0),
             Stone(mineral) => (1, match mineral {
@@ -273,6 +274,7 @@ impl Block {
                 Soil::CoarseDirt => (3, 1),
                 Soil::Podzol => (3, 2)
             },
+            Bedrock => (7, 0),
             Water => (9, 0),
             Lava => (11, 0),
             Log(species, log_type, _) => (
@@ -341,9 +343,91 @@ impl Block {
             Block::Slab { kind, upper } => match kind {
                 Slab::Wooden(species) => (126, species as u8 + if upper {8} else {0})
             },
+            Repeater(dir, delay) => (93, (dir as u8 + 2) % 4 + delay * 4),
             Barrier => (166, 0),
-            Debug(data) => (35, data),
+            CommandBlock => (137, 0),
+            Debug(data) => (251, data),
             Other {id, data} => (id, data),
+        }
+    }
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Air => "air",
+            Stone(_) => "stone",
+            Soil(soil_type) => match soil_type {
+                Soil::Grass => "grass",
+                Soil::Dirt | Soil::CoarseDirt | Soil::Podzol => "dirt",
+                Soil::Sand => "sand",
+                Soil::Gravel => "gravel",
+                Soil::Farmland => "farmland",
+                Soil::Path => "grass_path",
+            },
+            Water => "water",
+            Lava => "lava",
+            Log(species, ..) => (
+                if (species as u8) < 4 {
+                    "log"
+                } else {
+                    "log2"
+                }
+            ),
+            Leaves(species) => (
+                if (species as u8) < 4 {
+                    "leaves"
+                } else {
+                    "leaves2"
+                }
+            ),
+            GroundPlant(plant) => match plant {
+                GroundPlant::Sapling(_) => "sapling",
+                GroundPlant::Small(plant) => match plant {
+                    SmallPlant::Grass | SmallPlant::Fern => "tallgrass",
+                    SmallPlant::DeadBush => "deadbush",
+                    SmallPlant::Dandelion => "yellow_flower",
+                    SmallPlant::Poppy |
+                    SmallPlant::BlueOrchid |
+                    SmallPlant::Allium |
+                    SmallPlant::AzureBluet |
+                    SmallPlant::RedTulip |
+                    SmallPlant::OrangeTulip |
+                    SmallPlant::WhiteTulip |
+                    SmallPlant::PinkTulip |
+                    SmallPlant::OxeyeDaisy => "red_flower",
+                    SmallPlant::BrownMushroom => "brown_mushroom",
+                    SmallPlant::RedMushroom => "red_mushroom",
+                },
+                GroundPlant::Cactus => "cactus",
+                GroundPlant::Reeds => "reeds",
+                GroundPlant::Pumpkin(_) => "pumpkin",
+                GroundPlant::Tall{..} => "double_plant",
+                GroundPlant::Crop(crop) => match crop {
+                    Crop::Wheat => "wheat",
+                    Crop::Carrot => "carrots",
+                    Crop::Potato => "potatoes",
+                    Crop::Beetroot => "beetroots"
+                },
+            },
+            Fence(fence) => match fence {
+                Fence::Wood(TreeSpecies::Oak) => "fence",
+                Fence::Wood(TreeSpecies::Spruce) => "spruce_fence",
+                Fence::Wood(TreeSpecies::Birch) => "birch_fence",
+                Fence::Wood(TreeSpecies::Jungle) => "jungle_fence",
+                Fence::Wood(TreeSpecies::DarkOak) => "dark_oak_fence",
+                Fence::Wood(TreeSpecies::Acacia) => "acacia_fence",
+                Fence::Stone {..} => "cobblestone_wall",
+            },
+            Wool(color) => "wool",
+            Glowstone => "glowstone",
+            Hay => "hay_block",
+            Block::Slab { kind, upper } => match kind {
+                Slab::Wooden(_) => "wooden_slab"
+            },
+            Repeater(..) => "unpowered_repeater",
+            CommandBlockn => "command_block",
+            Barrier => "barrier",
+            Debug(data) => "concrete",
+            Other {..} => panic!(),
         }
     }
 
@@ -357,5 +441,29 @@ impl Block {
             Leaves(..) => false,
             _ => true
         }
+    }
+}
+
+
+
+#[derive(Clone)]
+pub enum TileEntity {
+    CommandBlock(String), // We don't make command block chains, therefore we only care for the command
+}
+
+impl TileEntity {
+    pub fn to_nbt(&self, pos: Pos) -> CompoundTag {
+        let mut nbt = CompoundTag::new();
+        nbt.insert_i32("x", pos.0);
+        nbt.insert_i32("y", pos.1 as i32);
+        nbt.insert_i32("z", pos.2);
+        match self {
+            TileEntity::CommandBlock(command) => {
+                nbt.insert_str("id", "command_block");
+                nbt.insert_str("Command", &command);
+                nbt.insert_bool("TrackOutput", false);
+            }
+        };
+        nbt
     }
 }

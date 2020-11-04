@@ -22,6 +22,8 @@ Villagers
     - later: eat, converse, ...
 - record everything, replay it ingame
   - structure build block-by-block
+    - command block repeater chains for performant block-by-block
+      - load chunks via world spawn or portal loaders?
   - after everything's finished, randomly replay trips
 - in-game trades based on resources?
 - jobs?

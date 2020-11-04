@@ -1,9 +1,8 @@
 mod block;
 mod entity;
 mod biome;
-mod export_behavior;
 
-use std::{ops::{Index, IndexMut}, num::NonZeroU8, path::PathBuf};
+use std::{num::NonZeroU8, path::PathBuf};
 use std::collections::HashMap;
 use anvil_region::*;
 use nbt::CompoundTag;
@@ -19,9 +18,33 @@ pub use entity::*;
 const MAX_VERSION: i32 = 1343;
 
 
+// Ugh, can't impl Index and IndexMut because of orphan rules
+// TODO: figure out tile entities!
+pub trait WorldView {
+    fn get(&self, pos: Pos) -> &Block;
+    fn get_mut(&mut self, pos: Pos) -> &mut Block;
+    
+    fn biome(&self, column: Column) -> Biome;
+
+    fn heightmap(&self, column: Column) -> u8;
+    fn heightmap_mut(&mut self, column: Column) -> &mut u8;
+
+    fn watermap(&self, column: Column) -> Option<NonZeroU8>;
+    fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8>;
+
+    fn area(&self) -> Rect;
+
+    fn set_if_not_solid(&mut self, pos: Pos, block: Block) {
+        let block_ref = self.get_mut(pos);
+        if !block_ref.solid() {
+            *block_ref = block;
+        }
+    }
+}
+
 // Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
-    path: PathBuf,
+    pub path: PathBuf,
     // Loaded area; aligned with chunk borders (-> usually larger than area specified in new())
     pub chunk_min: ChunkIndex,
     pub chunk_max: ChunkIndex,
@@ -29,7 +52,9 @@ pub struct World {
     biome:     Vec<Biome>,
     heightmap:  Vec<u8>,
     watermap: Vec<Option<NonZeroU8>>,
-    pub entities:  Vec<Entity>
+    pub entities:  Vec<Entity>,
+    // Not storing the these in Block isn't pretty but makes some things easier (e.g. Block can be Copy)
+    pub tile_entities: HashMap<Pos, TileEntity>
 } 
 
 impl World {
@@ -54,7 +79,8 @@ impl World {
             biome: vec![Biome::default(); chunk_count * 16 * 16],
             heightmap: vec![0; chunk_count * 16 * 16],
             watermap: vec![None; chunk_count * 16 * 16],
-            entities: vec![]
+            entities: vec![],
+            tile_entities: HashMap::new(),
         };
 
         // Load chunks. Collecting indexes to vec neccessary for zip
@@ -68,13 +94,6 @@ impl World {
             load_chunk(&chunk_provider, (*index).into(), sections, biome, heightmap, watermap)
                 .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1))
         );
-
-        // Global scoreboard keeper
-        world.entities.push(Entity { 
-            pos: Pos((area.min.0+area.max.0)/2,0,(area.min.1+area.max.1)/2), 
-            data: Marker,
-            id: 0
-        });
 
         world
     }
@@ -93,19 +112,22 @@ impl World {
             for entity in &self.entities {
                 entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
             }
+            let mut tile_entities_chunked = vec![vec![]; chunk_count];
+            for (pos, tile_entity) in &self.tile_entities {
+                tile_entities_chunked[self.chunk_index((*pos).into())].push((*pos, tile_entity));
+            }
           
             // Sadly chunk_provider saveing isn't thread safe
             (self.chunk_min.1..=self.chunk_max.1).flat_map(|z|(self.chunk_min.1..=self.chunk_max.1).map(move|x|(x,z)))
                 .zip(self.sections .chunks_exact(16))
                 .zip(self.biome    .chunks_exact(16 * 16))
                 .zip(entities_chunked)
-            .for_each(|(((index, sections), biome), entities)|
-                save_chunk(&chunk_provider, index.into(), sections, biome, &entities)
+                .zip(tile_entities_chunked)
+            .for_each(|((((index, sections), biome), entities), tile_entities)|
+                save_chunk(&chunk_provider, index.into(), sections, biome, &entities, &tile_entities)
                     .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
             );
         }
-
-        export_behavior::save_behavior(&self).expect("Failed to write mcfunctions");
 
         // Edit metadata
         {
@@ -126,11 +148,24 @@ impl World {
             gamerules.insert_str("commandBlockOutput", "false");
             gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
 
+            // Set spawn to the center of the area to ensure all command blocks stay loaded
+            data.insert_i32("SpawnX", self.area().center().0);
+            data.insert_i32("SpawnZ", self.area().center().1);
+
             let mut file = std::fs::OpenOptions::new().write(true).open(&level_nbt_path)
                 .expect("Failed to open level.dat");
             nbt::encode::write_gzip_compound_tag(&mut file, nbt).expect("Failed to write level.dat");
         }
         Ok(())
+    }
+
+    pub fn redstone_processing_area(&self) -> Rect {
+        let min = self.area().center() - Vec2(111, 111);
+        let max = self.area().center() + Vec2(111, 111);
+        Rect {
+            min: Column((min.0/16)*16, (min.1/16)*16),
+            max: Column((max.0/16)*16 + 15, (max.1/16)*16 + 15)
+        }
     }
 
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
@@ -146,7 +181,7 @@ impl World {
     }
 
     fn section_index(&self, pos: Pos) -> usize {
-        self.chunk_index(pos.into()) * 16 + (pos.1 % 16) as usize
+        self.chunk_index(pos.into()) * 16 + (pos.1 / 16) as usize
     }
 
     fn column_index(&self, column: Column) -> usize {
@@ -160,64 +195,53 @@ impl World {
         + pos.1.rem_euclid(16) as i32 * 16 * 16
         + pos.2.rem_euclid(16) * 16) as usize
     }
-
-    pub fn set_if_not_solid(&mut self, pos: Pos, block: Block) {
-        let block_ref = &mut self[pos];
-        if !block_ref.solid() {
-            *block_ref = block;
-        }
-    }
-
-    pub fn biome(&self, column: Column) -> Biome{
-        self.biome[self.column_index(column)]
-    }
-
-    pub fn heightmap(&self, column: Column) -> u8 {
-        self.heightmap[self.column_index(column)]
-    }
-
-    pub fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
-        let index = self.column_index(column);
-        &mut self.heightmap[index]
-    }
-
-    pub fn watermap(&self, column: Column) -> Option<NonZeroU8> {
-        self.watermap[self.column_index(column)]
-    }
-
-    pub fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8> {
-        let index = self.column_index(column);
-        &mut self.watermap[index]
-    }
-
-    pub fn area(&self) -> Rect {
-        Rect {
-            min: Column(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
-            max: Column(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15)
-        }
-    }
 }
 
-// load_area must have been called before
-// todo: remove this requirement
-impl Index<Pos> for World {
-    type Output = Block;
-    fn index(&self, pos: Pos) -> &Self::Output {
+impl WorldView for World {
+
+    fn get(&self, pos: Pos) -> &Block {
         if let Some(section) = &self.sections[self.section_index(pos)] {
             &section.blocks[Self::block_in_section_index(pos)]
         } else {
             &Block::Air
         }
     }
-}
 
-impl IndexMut<Pos> for World {
-    fn index_mut(&mut self, pos: Pos) -> &mut Self::Output {
+    fn get_mut(&mut self, pos: Pos) -> &mut Block {
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_with(||
             Box::new(Section::default())
         );
         &mut section.blocks[Self::block_in_section_index(pos)]
+    }
+
+    fn biome(&self, column: Column) -> Biome{
+        self.biome[self.column_index(column)]
+    }
+
+    fn heightmap(&self, column: Column) -> u8 {
+        self.heightmap[self.column_index(column)]
+    }
+
+    fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
+        let index = self.column_index(column);
+        &mut self.heightmap[index]
+    }
+
+    fn watermap(&self, column: Column) -> Option<NonZeroU8> {
+        self.watermap[self.column_index(column)]
+    }
+
+    fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8> {
+        let index = self.column_index(column);
+        &mut self.watermap[index]
+    }
+
+    fn area(&self) -> Rect {
+        Rect {
+            min: Column(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
+            max: Column(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15)
+        }
     }
 }
 
@@ -293,7 +317,8 @@ fn save_chunk(
     index: ChunkIndex,
     sections: &[Option<Box<Section>>],
     biomes: &[Biome],
-    entities: &[&Entity]
+    entities: &[&Entity],
+    tile_entities: &[(Pos, &TileEntity)],
 ) -> Result<(), ChunkSaveError> 
 {
     chunk_provider.save_chunk(index.0, index.1, {
@@ -354,6 +379,10 @@ fn save_chunk(
 
             nbt.insert_compound_tag_vec("Entities", 
                 entities.iter().map(|e|e.to_nbt()).collect()
+            );
+
+            nbt.insert_compound_tag_vec("TileEntities", 
+                tile_entities.iter().map(|(pos,tile_entity)|tile_entity.to_nbt(*pos)).collect()
             );
 
             nbt

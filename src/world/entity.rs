@@ -1,16 +1,28 @@
-use nbt::{CompoundTag, Tag};
-use crate::geometry::Pos;
-use super::block::{Block, Color};
-use super::{Biome, BiomeType::*, Temperature::*};
+use std::fmt::Display;
 
-pub use EntityType::*;
+use nbt::{CompoundTag, Tag};
+use crate::*;
+
 pub use Chattel::*;
+use EntityType::*;
+
+/*
+ * UUIDs
+ * 0-0-0-{villager id}-0           Villager
+ * 0-0-1-{villager id}-{action id} Marker für Villager-Actions
+ * 0-0-2-{villager id}-0           carried block (armor stand)
+ * all others simply not saved
+ */
 
 pub struct Entity {
+    pub id: Option<EntityID>,
     pub pos: Pos,
     pub data: EntityType,
-    pub id: u32
+    pub tags: Vec<String>
 }
+
+#[derive(Copy, Clone, Eq, PartialEq, Hash)]
+pub struct EntityID(pub u32, pub u16, pub u16, pub u16, pub u64);
 
 pub enum EntityType {
     Chattel(Chattel),
@@ -18,7 +30,6 @@ pub enum EntityType {
         name: String,
         biome: Biome,
         profession: Profession,
-        carrying: Option<Block>
     },
     Cat,
     Marker
@@ -57,25 +68,28 @@ impl Entity {
             Chattel(Pig) => "pig",
             Chattel(Sheep(..)) => "sheep",
             Chattel(Llama) => "llama",
-            Villager {..} => "villager",
+            EntityType::Villager {..} => "villager",
             Cat => "cat",
             Marker {..} => "armor_stand",
         });
 
+        if let Some(id) = self.id {
+            write_uuid(&mut nbt, id);
+        }
+
         nbt.insert("Pos", Tag::List(vec![
-            Tag::Double(self.pos.0 as f64),
+            Tag::Double(self.pos.0 as f64 + 0.5),
             Tag::Double(self.pos.1 as f64),
-            Tag::Double(self.pos.2 as f64),
+            Tag::Double(self.pos.2 as f64 + 0.5),
         ]));
 
-        nbt.insert_i64("UUIDMost", 0);
-        nbt.insert_i64("UUIDLeast", self.id as i64);
+        nbt.insert_str_vec("Tags", self.tags.iter().map(AsRef::as_ref).collect());
 
         match &self.data {
             Chattel(Sheep(color)) => {
                 nbt.insert_i8("Color", *color as i8);
             },
-            Villager { name, biome, profession, carrying} => {
+            EntityType::Villager { name, biome, profession} => {
                 nbt.insert_str("CustomName", &name);
                 nbt.insert_compound_tag("VillagerData", {
                     let mut data = CompoundTag::new();
@@ -120,6 +134,7 @@ impl Entity {
                         attr
                     },{
                         // Make them a bit beefier in case somthing goes wrong
+                        // TODO: make this actually work
                         let mut attr = CompoundTag::new();
                         attr.insert_str("Name", "generic.maxHealth");
                         attr.insert_f64("Base", 10000.0);
@@ -127,9 +142,9 @@ impl Entity {
                     }
                 ]);
 
-                // Adding NoAI would allow us to specify where villagers are looking,
-                // but would also disable motion :/
-                // nbt.insert_bool("NoAI", true);
+                // NoAI allows us to specify where villagers are looking,
+                // but also disables motion :/
+                nbt.insert_bool("NoAI", true);
 
                 // Disable trades
                 // Todo: add fitting trades
@@ -138,38 +153,26 @@ impl Entity {
                     offers.insert_compound_tag_vec("Recipes", Vec::new());
                     offers
                 });
-
-                if let Some(carrying) = carrying {
-                    nbt.insert_compound_tag_vec("Passengers", vec![{
-                        // Create a spacing block, else the carried block would obscure the villager head
-                        let mut spacing = CompoundTag::new();
-                        spacing.insert_str("id", "falling_block");
-                        spacing.insert_i32("TileID", Block::Barrier.to_bytes().0 as i32);
-                        // Make sure the block doesn't despawn (as consequence of a failed mc block dupe bugfix)
-                        spacing.insert_i32("Time", 1);
-                        // Todo: refresh time every 30s in case it gets carried for longer
-                        spacing.insert_bool("DropItem", false);
-                        spacing.insert_compound_tag_vec("Passengers", vec![{
-                            let (block_id, data) = carrying.to_bytes();
-                            let mut block = CompoundTag::new();
-                            block.insert_str("id", "falling_block");
-                            block.insert_i32("TileID", block_id as i32);
-                            block.insert_i8("Data", data as i8);
-                            block.insert_i32("Time", 1);
-                            block.insert_bool("DropItem", false);
-                            block
-                        }]);
-                        spacing
-                    }])
-                }
             },
             Marker => {
                 nbt.insert_bool("Marker", true);
                 nbt.insert_bool("NoGravity", true);
+                nbt.insert_bool("Invisible", true);
             },
             _ => ()
         }
 
         nbt
+    }
+}
+
+fn write_uuid(nbt: &mut CompoundTag, id: EntityID) {
+    nbt.insert_i64("UUIDMost", ((id.0 as i64) << 32) + ((id.1 as i64) << 16) + id.2 as i64);
+    nbt.insert_i64("UUIDLeast", ((id.3 as i64) << 48) + id.4 as i64);
+}
+
+impl Display for EntityID {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}-{}-{}-{}-{}", self.0, self.1, self.2, self.3, self.4)
     }
 }

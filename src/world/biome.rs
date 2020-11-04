@@ -1,7 +1,7 @@
 use rand::random;
 use crate::world::TreeSpecies;
-use BiomeType::*;
-use Temperature::*;
+pub use BiomeType::*;
+pub use Temperature::*;
 
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
