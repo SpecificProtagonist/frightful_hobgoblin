@@ -6,26 +6,20 @@ use crate::geometry::rand;
 // Todo: prevent bad phonome combinations
 // Todo: different generators for different biomes
 
-
 pub fn make_town_name() -> String {
     let prefixes = &[
-        "aber", "ard", "ash", "ast", "auch", 
-        "bre", "dal", "kil", "lang", "nor",
-        "rother", "shep", "stan", "sut"
-    ]; 
+        "aber", "ard", "ash", "ast", "auch", "bre", "dal", "kil", "lang", "nor", "rother", "shep",
+        "stan", "sut",
+    ];
     let middle = &[
-        "ac", "avon", "beck", "fos", "garth",
-        "holm", "hamp", "mere", "thorpe"
+        "ac", "avon", "beck", "fos", "garth", "holm", "hamp", "mere", "thorpe",
     ];
     let suffixes = &[
-        "berry", "bourne", "burry", "bourgh", "borough", "by", 
-        "carden", "combe", "cott", "dale", "esk", "ey", 
-        "field", "ham", "hurst", "ing", "stead", "ter", "ton",
-        "wich", "wick", "worth"
+        "berry", "bourne", "burry", "bourgh", "borough", "by", "carden", "combe", "cott", "dale",
+        "esk", "ey", "field", "ham", "hurst", "ing", "stead", "ter", "ton", "wich", "wick",
+        "worth",
     ];
-    let standalone = &[
-        "ben", "eglos", "hayes", "law", "minster", "shaw", "stoke"
-    ];
+    let standalone = &["ben", "eglos", "hayes", "law", "minster", "shaw", "stoke"];
 
     // Todo: Experiment with probabilities
     let mut name = String::new();
@@ -48,12 +42,16 @@ pub fn make_town_name() -> String {
     name
 }
 
-fn select<'a>(list: &'a[&'a str]) -> &'a str {
+fn select<'a>(list: &'a [&'a str]) -> &'a str {
     use rand::Rng;
     list[rand::thread_rng().gen_range(0, list.len())]
 }
 
-fn uppercase(word: &'static str) -> impl Iterator<Item=char> {
+fn uppercase(word: &'static str) -> impl Iterator<Item = char> {
     let mut iter = word.chars();
-    iter.next().map(char::to_uppercase).into_iter().flatten().chain(iter)
+    iter.next()
+        .map(char::to_uppercase)
+        .into_iter()
+        .flatten()
+        .chain(iter)
 }

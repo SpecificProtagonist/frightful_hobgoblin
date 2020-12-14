@@ -1,8 +1,7 @@
-use std::ops::{Add, AddAssign, Sub, SubAssign, Mul, MulAssign};
 use itertools::Itertools;
+use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
 //use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
-
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Pos(pub i32, pub u8, pub i32);
@@ -22,13 +21,13 @@ pub struct Vec2(pub i32, pub i32);
 #[derive(Debug, Copy, Clone)]
 pub struct Rect {
     pub min: Column,
-    pub max: Column
+    pub max: Column,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Cuboid {
     pub min: Pos,
-    pub max: Pos
+    pub max: Pos,
 }
 
 pub struct Polyline(pub Vec<Column>);
@@ -41,7 +40,7 @@ pub struct Polygon(pub Vec<Column>);
 pub enum Axis {
     Y,
     X,
-    Z
+    Z,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
@@ -50,7 +49,7 @@ pub enum HDir {
     ZPos,
     XNeg,
     ZNeg,
-    XPos
+    XPos,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -61,11 +60,8 @@ pub enum FullDir {
     YPos,
     YNeg,
     ZPos,
-    ZNeg
+    ZNeg,
 }
-
-
-
 
 impl Vec2 {
     pub fn clockwise(self) -> Vec2 {
@@ -80,10 +76,10 @@ impl Vec2 {
 impl From<HDir> for Vec2 {
     fn from(dir: HDir) -> Self {
         match dir {
-            HDir::XPos => Vec2(1,0),
-            HDir::XNeg => Vec2(-1,0),
-            HDir::ZPos => Vec2(0,1),
-            HDir::ZNeg => Vec2(0,-1)
+            HDir::XPos => Vec2(1, 0),
+            HDir::XNeg => Vec2(-1, 0),
+            HDir::ZPos => Vec2(0, 1),
+            HDir::ZNeg => Vec2(0, -1),
         }
     }
 }
@@ -91,12 +87,12 @@ impl From<HDir> for Vec2 {
 impl From<FullDir> for Vec3 {
     fn from(dir: FullDir) -> Self {
         match dir {
-            FullDir::XPos => Vec3(1,0,0),
-            FullDir::XNeg => Vec3(-1,0,0),
-            FullDir::YPos => Vec3(0,1,0),
-            FullDir::YNeg => Vec3(0,-1,0),
-            FullDir::ZPos => Vec3(0,0,1),
-            FullDir::ZNeg => Vec3(0,0,-1)
+            FullDir::XPos => Vec3(1, 0, 0),
+            FullDir::XNeg => Vec3(-1, 0, 0),
+            FullDir::YPos => Vec3(0, 1, 0),
+            FullDir::YNeg => Vec3(0, -1, 0),
+            FullDir::ZPos => Vec3(0, 0, 1),
+            FullDir::ZNeg => Vec3(0, 0, -1),
         }
     }
 }
@@ -119,19 +115,19 @@ impl Rect {
     }
 
     pub fn center(self) -> Column {
-        self.min + (self.max-self.min) * 0.5
+        self.min + (self.max - self.min) * 0.5
     }
 
     pub fn contains(self, column: Column) -> bool {
-        (self.min.0 <= column.0) &
-        (self.min.1 <= column.1) &
-        (self.max.0 >= column.0) &
-        (self.max.1 >= column.1)
+        (self.min.0 <= column.0)
+            & (self.min.1 <= column.1)
+            & (self.max.0 >= column.0)
+            & (self.max.1 >= column.1)
     }
 
-    pub fn iter(self) -> impl Iterator<Item=Column> {
-        (self.min.1 ..= self.max.1)
-        .flat_map(move |z|(self.min.0 ..= self.max.0).map(move |x|Column(x,z)))
+    pub fn iter(self) -> impl Iterator<Item = Column> {
+        (self.min.1..=self.max.1)
+            .flat_map(move |z| (self.min.0..=self.max.0).map(move |x| Column(x, z)))
     }
 }
 
@@ -141,11 +137,11 @@ impl Polyline {
             points: &self.0,
             i: 0,
             current_iter: ColumnLineIter::new(self.0[0], self.0[1]),
-            closed: false
+            closed: false,
         }
-    } 
+    }
 
-    pub fn segments(&self) -> impl Iterator<Item=(Column, Column)> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = (Column, Column)> + '_ {
         self.0.iter().cloned().tuple_windows()
     }
 }
@@ -177,14 +173,14 @@ impl Polygon {
         // Iterate through edges, check if we cross them
         for i in 0..self.0.len() {
             let line_start = self.0[i];
-            let line_end = self.0[(i+1)%self.0.len()];
+            let line_end = self.0[(i + 1) % self.0.len()];
             // Todo: fix corners
             if (line_start.1 <= column.1) & (line_end.1 > column.1)
-             | (line_start.1 >= column.1) & (line_end.1 < column.1)
+                | (line_start.1 >= column.1) & (line_end.1 < column.1)
             {
                 // Calculate possible intersection
-                let angle = (line_end.1-line_start.1) as f32 / (line_end.0-line_start.0) as f32;
-                let x = line_start.0 as f32 + ((column.1-line_start.1) as f32 / angle + 0.5);
+                let angle = (line_end.1 - line_start.1) as f32 / (line_end.0 - line_start.0) as f32;
+                let x = line_start.0 as f32 + ((column.1 - line_start.1) as f32 / angle + 0.5);
                 if inside {
                     if x >= column.0 as f32 {
                         inside = false;
@@ -196,12 +192,13 @@ impl Polygon {
                 }
             } else if (line_start.1 == column.1) & (line_end.1 == column.1) {
                 if (line_start.0 <= column.0) & (line_end.0 >= column.0)
-                 | (line_end.0 <= column.0) & (line_start.0 >= column.0) {
-                    return false
+                    | (line_end.0 <= column.0) & (line_start.0 >= column.0)
+                {
+                    return false;
                 } else {
                     // Todo: what if there are multiple segments right after another on the same z coord?
-                    let before = self.0[(i-1)%self.0.len()];
-                    let after = self.0[(i+2)%self.0.len()];
+                    let before = self.0[(i - 1) % self.0.len()];
+                    let after = self.0[(i + 2) % self.0.len()];
                     if before.1.signum() != after.1.signum() {
                         inside ^= true;
                     }
@@ -221,8 +218,8 @@ impl Polygon {
         }
         PolygonIterator {
             polygon: self,
-            bounds: Rect {min, max},
-            current: min
+            bounds: Rect { min, max },
+            current: min,
         }
     }
 
@@ -231,20 +228,27 @@ impl Polygon {
             points: &self.0,
             i: 0,
             current_iter: ColumnLineIter::new(self.0[0], self.0[1]),
-            closed: true
+            closed: true,
         }
     }
 
-    pub fn segments(&self) -> impl Iterator<Item=(Column, Column)> + '_ {
-        self.0.iter().cloned().tuple_windows()
-            .chain(if self.0.len() <= 1 {None} else {Some((self.0[self.0.len()-1], self.0[0]))})
+    pub fn segments(&self) -> impl Iterator<Item = (Column, Column)> + '_ {
+        self.0
+            .iter()
+            .cloned()
+            .tuple_windows()
+            .chain(if self.0.len() <= 1 {
+                None
+            } else {
+                Some((self.0[self.0.len() - 1], self.0[0]))
+            })
     }
 }
 
 pub struct PolygonIterator<'a> {
     polygon: &'a Polygon,
     bounds: Rect, // We can't use Rect::iter() here :(
-    current: Column
+    current: Column,
 }
 
 // Todo: look for a more performant solution
@@ -260,7 +264,7 @@ impl Iterator for PolygonIterator<'_> {
                 self.current.1 += 1;
             }
             if self.polygon.contains(column) {
-                return Some(column)
+                return Some(column);
             }
         }
         None
@@ -271,7 +275,7 @@ pub struct BorderIterator<'a> {
     points: &'a [Column],
     i: usize,
     current_iter: ColumnLineIter,
-    closed: bool
+    closed: bool,
 }
 
 impl Iterator for BorderIterator<'_> {
@@ -279,23 +283,28 @@ impl Iterator for BorderIterator<'_> {
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.current_iter.next() {
-            None => if self.i < if self.closed {self.points.len()-1} else {self.points.len()-2} {
-                self.i += 1;
-                self.current_iter = ColumnLineIter::new(
-                    self.points[self.i], 
-                    self.points[(self.i+1)%self.points.len()]
-                );
-                self.current_iter.next()
-            } else {
-                None
-            },
-            Some(next) => Some(next)
+            None => {
+                if self.i
+                    < if self.closed {
+                        self.points.len() - 1
+                    } else {
+                        self.points.len() - 2
+                    }
+                {
+                    self.i += 1;
+                    self.current_iter = ColumnLineIter::new(
+                        self.points[self.i],
+                        self.points[(self.i + 1) % self.points.len()],
+                    );
+                    self.current_iter.next()
+                } else {
+                    None
+                }
+            }
+            Some(next) => Some(next),
         }
     }
 }
-
-
-
 
 impl Column {
     pub fn at_height(self, y: u8) -> Pos {
@@ -304,17 +313,11 @@ impl Column {
 
     // Unrelated to std::cmp::min
     pub fn min(self, other: Self) -> Self {
-        Self (
-            self.0.min(other.0),
-            self.1.min(other.1),
-        )
+        Self(self.0.min(other.0), self.1.min(other.1))
     }
 
     pub fn max(self, other: Self) -> Self {
-        Self (
-            self.0.max(other.0),
-            self.1.max(other.1),
-        )
+        Self(self.0.max(other.0), self.1.max(other.1))
     }
 }
 
@@ -330,14 +333,9 @@ impl From<(i32, i32)> for Column {
     }
 }
 
-
-
 impl From<Column> for ChunkIndex {
     fn from(column: Column) -> Self {
-        ChunkIndex(
-            column.0.div_euclid(16),
-            column.1.div_euclid(16)
-        )
+        ChunkIndex(column.0.div_euclid(16), column.1.div_euclid(16))
     }
 }
 
@@ -353,15 +351,13 @@ impl From<(i32, i32)> for ChunkIndex {
     }
 }
 
-
-
 impl Pos {
     // Unrelated to std::cmp::min
     pub fn min(self, other: Pos) -> Pos {
         Pos(
             self.0.min(other.0),
             self.1.min(other.1),
-            self.2.min(other.2)
+            self.2.min(other.2),
         )
     }
 
@@ -369,38 +365,37 @@ impl Pos {
         Pos(
             self.0.max(other.0),
             self.1.max(other.1),
-            self.2.max(other.2)
+            self.2.max(other.2),
         )
     }
 }
 
-
-
 impl Cuboid {
     pub fn new(corner_a: Pos, corner_b: Pos) -> Cuboid {
-        Cuboid { min: corner_a, max: corner_b}
+        Cuboid {
+            min: corner_a,
+            max: corner_b,
+        }
         .extend_to(corner_b)
     }
 
     pub fn extend_to(self, pos: Pos) -> Self {
         Cuboid {
             min: self.min.min(pos),
-            max: self.max.max(pos)
+            max: self.max.max(pos),
         }
     }
 
     pub fn size(self) -> Vec3 {
-        self.max - self.min + Vec3(1,1,1)
+        self.max - self.min + Vec3(1, 1, 1)
     }
 
-    pub fn iter(self) -> impl Iterator<Item=Pos> {
-        (self.min.1 ..= self.max.1)
-        .flat_map(move |y|(self.min.2 ..= self.max.2).map(move |z|(y,z)))
-        .flat_map(move |(y, z)|(self.min.0 ..= self.max.0).map(move |x|Pos(x, y, z)))
+    pub fn iter(self) -> impl Iterator<Item = Pos> {
+        (self.min.1..=self.max.1)
+            .flat_map(move |y| (self.min.2..=self.max.2).map(move |z| (y, z)))
+            .flat_map(move |(y, z)| (self.min.0..=self.max.0).map(move |x| Pos(x, y, z)))
     }
 }
-
-
 
 impl Sub<Pos> for Pos {
     type Output = Vec3;
@@ -412,7 +407,11 @@ impl Sub<Pos> for Pos {
 impl Add<Vec3> for Pos {
     type Output = Pos;
     fn add(self, rhs: Vec3) -> Self::Output {
-        Pos(self.0 + rhs.0, (self.1 as i32 + rhs.1) as u8, self.2 + rhs.2)
+        Pos(
+            self.0 + rhs.0,
+            (self.1 as i32 + rhs.1) as u8,
+            self.2 + rhs.2,
+        )
     }
 }
 
@@ -425,7 +424,11 @@ impl AddAssign<Vec3> for Pos {
 impl Sub<Vec3> for Pos {
     type Output = Pos;
     fn sub(self, rhs: Vec3) -> Self::Output {
-        Pos(self.0 - rhs.0, (self.1 as i32 - rhs.1) as u8, self.2 - rhs.2)
+        Pos(
+            self.0 - rhs.0,
+            (self.1 as i32 - rhs.1) as u8,
+            self.2 - rhs.2,
+        )
     }
 }
 
@@ -460,8 +463,6 @@ impl SubAssign<Vec2> for Pos {
         *self = *self - rhs;
     }
 }
-
-
 
 impl Sub<Column> for Column {
     type Output = Vec2;
@@ -522,7 +523,6 @@ impl MulAssign<f32> for Vec2 {
     }
 }
 
-
 impl Add<Vec3> for Vec3 {
     type Output = Vec3;
     fn add(self, rhs: Vec3) -> Self::Output {
@@ -549,35 +549,30 @@ impl SubAssign<Vec3> for Vec3 {
     }
 }
 
-
-
 pub struct ColumnLineIter(bresenham::Bresenham);
 
 impl Iterator for ColumnLineIter {
     type Item = Column;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|(x, z)|Column(x as i32, z as i32))
+        self.0.next().map(|(x, z)| Column(x as i32, z as i32))
     }
 }
 
 impl ColumnLineIter {
     pub fn new(start: Column, end: Column) -> ColumnLineIter {
-        ColumnLineIter(
-            bresenham::Bresenham::new((start.0 as isize, start.1 as isize), (end.0 as isize, end.1 as isize))
-        )
+        ColumnLineIter(bresenham::Bresenham::new(
+            (start.0 as isize, start.1 as isize),
+            (end.0 as isize, end.1 as isize),
+        ))
     }
 }
-
-
-
-
 
 /* These don't really fit here, but oh well. */
 
 pub fn rand(prob: f32) -> bool {
     rand::random::<f32>() < prob
-} 
+}
 
 pub fn rand_1(prob: f32) -> i32 {
     if rand::random::<f32>() < prob {

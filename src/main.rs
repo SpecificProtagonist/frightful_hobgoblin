@@ -1,37 +1,35 @@
-mod geometry;
-mod world;
-mod remove_foliage;
-mod make_trees;
-mod make_divider;
-mod make_misc;
-mod make_name;
-mod make_house;
 mod behavior;
 mod build_recorder;
+mod geometry;
+mod make_divider;
+mod make_house;
+mod make_misc;
+mod make_name;
+mod make_trees;
+mod remove_foliage;
+mod world;
 
 use std::time::Instant;
 
 // Flat module hierarchy is ok for now
+pub use behavior::*;
+pub use build_recorder::*;
+pub use geometry::*;
 use itertools::Itertools;
 pub use world::*;
-pub use geometry::*;
-pub use build_recorder::*;
-pub use behavior::*;
 
 // How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;
 
 fn main() {
-
     // Temporary configuration TODO: parse arguments
     let tmp_replay_generation = true;
     let tmp_world_load_path: &str = concat!(include_str!("../save_path"), "mc-gen base");
     let tmp_world_save_path: &str = concat!(include_str!("../save_path"), "mc-gen generated");
     let tmp_area = Rect {
         min: Column(-100, -100),
-        max: Column(100, 100)
+        max: Column(100, 100),
     };
-
 
     drop(std::fs::remove_dir_all(tmp_world_save_path));
     copy_dir::copy_dir(tmp_world_load_path, tmp_world_save_path).expect("Failed to create save");
@@ -51,32 +49,37 @@ fn main() {
     world.save().unwrap();
     let time_saved = Instant::now();
 
-    println!("Timings | load: {}s, generation: {}s, saving behavior: {}s, saving world: {}s",
-        (time_loaded-time_start).as_secs_f64(),
-        (time_generated-time_loaded).as_secs_f64(),
-        (time_behavior_save-time_generated).as_secs_f64(),
-        (time_saved-time_behavior_save).as_secs_f64() 
+    println!(
+        "Timings | load: {}s, generation: {}s, saving behavior: {}s, saving world: {}s",
+        (time_loaded - time_start).as_secs_f64(),
+        (time_generated - time_loaded).as_secs_f64(),
+        (time_behavior_save - time_generated).as_secs_f64(),
+        (time_saved - time_behavior_save).as_secs_f64()
     );
 }
 
 fn generate(world: &mut World, area: Rect) -> Vec<Villager> {
     // Temporary test function
-    
+
     let mut actions = vec![];
     let mut tree_list = Vec::new();
-    for x in -15 ..= 15 {
-        for z in -15 ..= 15 {
-            let pos = Pos(x,world.heightmap(Column(x,z))+1,z);
+    for x in -15..=15 {
+        for z in -15..=15 {
+            let pos = Pos(x, world.heightmap(Column(x, z)) + 1, z);
             if let Log(..) = world.get(pos) {
                 tree_list.push(pos);
             }
         }
     }
-    tree_list.sort_unstable_by_key(|pos|pos.0.abs()+pos.2.abs());
-   
+    tree_list.sort_unstable_by_key(|pos| pos.0.abs() + pos.2.abs());
+
     let mut world = BuildRecorder::new(world);
-    let start_pos = Pos(0,world.heightmap(Column(0,0))+1,0);
-    for (start, tree_pos) in Some(start_pos).iter().chain(tree_list.iter()).tuple_windows() {
+    let start_pos = Pos(0, world.heightmap(Column(0, 0)) + 1, 0);
+    for (start, tree_pos) in Some(start_pos)
+        .iter()
+        .chain(tree_list.iter())
+        .tuple_windows()
+    {
         fn dontstandinthetree(pos: Pos) -> Column {
             if pos.0.abs() > pos.2.abs() {
                 Column(pos.0 - pos.0.signum(), pos.2)
@@ -85,7 +88,10 @@ fn generate(world: &mut World, area: Rect) -> Vec<Villager> {
             }
         }
         let log_block = *world.get(*tree_pos);
-        actions.push(Action::Walk(vec![dontstandinthetree(*start), dontstandinthetree(*tree_pos)]));
+        actions.push(Action::Walk(vec![
+            dontstandinthetree(*start),
+            dontstandinthetree(*tree_pos),
+        ]));
         let mut view = BuildRecorder::new(&world);
         remove_foliage::remove_tree(&mut view, *tree_pos, false);
         let view = view.finish();
@@ -96,12 +102,12 @@ fn generate(world: &mut World, area: Rect) -> Vec<Villager> {
 
     vec![Villager {
         name: "Rollo".into(),
-        actions
+        actions,
     }]
 }
 
 fn apply_builds(world: &mut World, villagers: &Vec<Villager>) {
-    for action in villagers.iter().flat_map(|v|&v.actions) {
+    for action in villagers.iter().flat_map(|v| &v.actions) {
         if let Action::Build(record) = action {
             record.apply_to(world);
         }

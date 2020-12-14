@@ -1,7 +1,7 @@
+use crate::geometry::*;
+use crate::world::*;
 use num_traits::FromPrimitive;
 use rand::prelude::*;
-use crate::world::*;
-use crate::geometry::*;
 
 // Todo: maybe make a prefab system in mc (with replacement of block)?
 // Would allow for very easy creation & good quality, but less parametricism
@@ -19,7 +19,7 @@ pub fn make_scarecrow(world: &mut World, column: Column) {
         Color::Red,
         Color::Brown,
         Color::Blue,
-        Color::Green
+        Color::Green,
     ];
 
     let center_block = if rand(0.5) {
@@ -29,22 +29,20 @@ pub fn make_scarecrow(world: &mut World, column: Column) {
     };
 
     *world.get_mut(pos) = fence_block;
-    pos += Vec3(0,1,0);
+    pos += Vec3(0, 1, 0);
     if rand(0.34) {
         if rand(0.65) {
             *world.get_mut(pos) = fence_block;
         } else {
             *world.get_mut(pos) = center_block;
         }
-        pos += Vec3(0,1,0);
+        pos += Vec3(0, 1, 0);
     }
     *world.get_mut(pos) = center_block;
     *world.get_mut(pos + Vec2::from(direction).clockwise()) = fence_block;
     *world.get_mut(pos + Vec2::from(direction).counterclockwise()) = fence_block;
-    pos += Vec3(0,1,0);
+    pos += Vec3(0, 1, 0);
     *world.get_mut(pos) = GroundPlant(GroundPlant::Pumpkin(direction));
 }
 
-pub fn make_signpost() {
-
-}
+pub fn make_signpost() {}
