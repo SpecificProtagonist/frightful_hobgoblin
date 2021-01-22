@@ -2,25 +2,25 @@ use crate::geometry::*;
 use crate::world::*;
 
 pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
-    let log_block = Log(species, LogType::FullBark, LogOrigin::Natural);
-    let leaf_block = Leaves(species);
+    let log_block = &Log(species, LogType::FullBark, LogOrigin::Natural);
+    let leaf_block = &Leaves(species);
 
     let base_pos = base_pos + Vec3(0, 1, 0);
-    *world.get_mut(base_pos) = log_block;
+    world.set(base_pos, log_block);
 
     let mut pos = base_pos + Vec3(0, 1, 0) + rand_2(0.2);
-    *world.get_mut(pos) = log_block;
+    world.set(pos, log_block);
 
     pos.1 += 1;
     if rand(0.8) {
         if Column::from(pos) == base_pos.into() {
             pos += rand_2(0.3);
         }
-        *world.get_mut(pos) = log_block;
+        world.set(pos, log_block);
 
         if rand(0.2) {
             pos.1 += 1;
-            *world.get_mut(pos) = log_block;
+            world.set(pos, log_block);
         }
     }
 
@@ -42,18 +42,18 @@ pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
 }
 
 pub fn make_straight(world: &mut World, pos: Pos, species: TreeSpecies) {
-    let log_block = Log(species, LogType::FullBark, LogOrigin::Natural);
-    let leaf_block = Leaves(species);
+    let log_block = &Log(species, LogType::FullBark, LogOrigin::Natural);
+    let leaf_block = &Leaves(species);
 
     let log_height = 5 + rand_1(0.5) + rand_1(0.5);
 
     for y in 1..=log_height {
-        *world.get_mut(pos + Vec3(0, y, 0)) = log_block;
+        world.set(pos + Vec3(0, y, 0), log_block);
     }
 
     for Vec2(x, z) in &[Vec2(1, 0), Vec2(-1, 0), Vec2(0, 1), Vec2(0, -1)] {
         for y in 3..=log_height + 1 {
-            *world.get_mut(pos + Vec3(*x, y, *z)) = leaf_block;
+            world.set(pos + Vec3(*x, y, *z), leaf_block);
         }
     }
 

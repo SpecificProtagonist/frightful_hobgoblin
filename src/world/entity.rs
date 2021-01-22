@@ -37,7 +37,7 @@ pub enum EntityType {
 
 pub enum Chattel {
     Chicken,
-    Cow,
+    Cattle,
     Pig,
     Sheep(Color),
     Llama,
@@ -64,9 +64,9 @@ impl Entity {
         let mut nbt = CompoundTag::new();
         nbt.insert_str(
             "id",
-            match self.data {
+            match &self.data {
                 Chattel(Chicken) => "chicken",
-                Chattel(Cow) => "cow",
+                Chattel(Cattle) => "cow",
                 Chattel(Pig) => "pig",
                 Chattel(Sheep(..)) => "sheep",
                 Chattel(Llama) => "llama",

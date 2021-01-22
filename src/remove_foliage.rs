@@ -54,8 +54,10 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                         let pos = Pos(pos.0 + x, pos.1, pos.2 + z);
                         if let Log(s, log_type, LogOrigin::Natural) = *world.get(pos) {
                             if s == species {
-                                *world.get_mut(pos - Vec3(0, 1, 0)) =
-                                    Log(species, log_type, LogOrigin::Stump);
+                                world.set(
+                                    pos - Vec3(0, 1, 0),
+                                    Log(species, log_type, LogOrigin::Stump),
+                                );
                             }
                         }
                     }
@@ -69,10 +71,10 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                 pos
             };
 
-            *world.get_mut(pos) = Block::Air;
+            world.set(pos, Block::Air);
             for x in -1..=1 {
                 for z in -1..=1 {
-                    let block_below = *world.get(Pos(pos.0 + x, pos.1 - 1, pos.2 + z));
+                    let block_below = world.get(Pos(pos.0 + x, pos.1 - 1, pos.2 + z)).clone();
                     let block = world.get_mut(Pos(pos.0 + x, pos.1, pos.2 + z));
                     if let Log(s, log_type, LogOrigin::Natural) = block {
                         if *s == species {
@@ -146,7 +148,7 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
             };
 
             for pos in check_area.iter() {
-                blocks.push((*world.get(pos), decay_distance as u8));
+                blocks.push((world.get(pos).clone(), decay_distance as u8));
             }
 
             let inner_check_area = Cuboid {
@@ -185,7 +187,7 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
             for pos in removal_area.iter() {
                 if let (Leaves(s), distance) = blocks[index(pos)] {
                     if (s == species) & (distance == decay_distance as u8) {
-                        *world.get_mut(pos) = Air;
+                        world.set(pos, Air);
                         // Vines (jungle/swamp) helpfully remove themselves
                     }
                 }

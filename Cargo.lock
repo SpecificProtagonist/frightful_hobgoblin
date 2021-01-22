@@ -275,6 +275,8 @@ dependencies = [
 [[package]]
 name = "named-binary-tag"
 version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7ae8ccc227f1ca068299ad32bcac0da2d2cf90b1b51c4679d0cc30900703ba60"
 dependencies = [
  "byteorder",
  "flate2",

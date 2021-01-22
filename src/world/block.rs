@@ -1,3 +1,5 @@
+use std::sync::Arc;
+
 pub use self::GroundPlant::*;
 use crate::geometry::*;
 use nbt::CompoundTag;
@@ -5,7 +7,7 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 pub use Block::*;
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Block {
     Air,
@@ -24,7 +26,7 @@ pub enum Block {
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
-    CommandBlock,
+    CommandBlock(Arc<String>),
     Debug(u8),
     Other { id: u8, data: u8 },
 }
@@ -251,7 +253,7 @@ impl Block {
         }
     }
 
-    pub fn to_bytes(self) -> (u8, u8) {
+    pub fn to_bytes(&self) -> (u8, u8) {
         match self {
             Air => (0, 0),
             Stone(mineral) => (
@@ -277,19 +279,19 @@ impl Block {
             Water => (9, 0),
             Lava => (11, 0),
             Log(species, log_type, _) => (
-                if (species as u8) < 4 { 17 } else { 162 },
+                if (*species as u8) < 4 { 17 } else { 162 },
                 (match log_type {
-                    LogType::Normal(dir) => dir as u8,
+                    LogType::Normal(dir) => *dir as u8,
                     LogType::FullBark => 3,
                 } << 2)
-                    + (species as u8) % 4,
+                    + (*species as u8) % 4,
             ),
             Leaves(species) => (
-                if (species as u8) < 4 { 18 } else { 161 },
-                (species as u8) % 4 + 4, // no decay
+                if (*species as u8) < 4 { 18 } else { 161 },
+                (*species as u8) % 4 + 4, // no decay
             ),
             GroundPlant(plant) => match plant {
-                GroundPlant::Sapling(species) => (6, species as u8),
+                GroundPlant::Sapling(species) => (6, *species as u8),
                 GroundPlant::Small(plant) => match plant {
                     SmallPlant::Grass => (31, 0),
                     SmallPlant::Fern => (31, 1),
@@ -309,7 +311,7 @@ impl Block {
                 },
                 GroundPlant::Cactus => (81, 0),
                 GroundPlant::Reeds => (83, 0),
-                GroundPlant::Pumpkin(dir) => (86, dir as u8),
+                GroundPlant::Pumpkin(dir) => (86, *dir as u8),
                 GroundPlant::Tall { plant, upper } => (
                     175,
                     match plant {
@@ -319,7 +321,7 @@ impl Block {
                         TallPlant::Fern => 3,
                         TallPlant::Rose => 4,
                         TallPlant::Peony => 5,
-                    } + if upper { 8 } else { 0 },
+                    } + if *upper { 8 } else { 0 },
                 ),
                 GroundPlant::Crop(crop) => match crop {
                     Crop::Wheat => (59, 7),
@@ -338,21 +340,21 @@ impl Block {
                 Fence::Stone { mossy: false } => (139, 0),
                 Fence::Stone { mossy: true } => (139, 1),
             },
-            Wool(color) => (35, color as u8),
+            Wool(color) => (35, *color as u8),
             Glowstone => (89, 0),
             Hay => (170, 0),
             Block::Slab { kind, upper } => match kind {
-                Slab::Wooden(species) => (126, species as u8 + if upper { 8 } else { 0 }),
+                Slab::Wooden(species) => (126, *species as u8 + if *upper { 8 } else { 0 }),
             },
-            Repeater(dir, delay) => (93, (dir as u8 + 2) % 4 + delay * 4),
+            Repeater(dir, delay) => (93, (*dir as u8 + 2) % 4 + delay * 4),
             Barrier => (166, 0),
-            CommandBlock => (137, 0),
-            Debug(data) => (251, data),
-            Other { id, data } => (id, data),
+            CommandBlock(_) => (137, 0),
+            Debug(data) => (251, *data),
+            Other { id, data } => (*id, *data),
         }
     }
 
-    pub fn name(self) -> &'static str {
+    pub fn name(&self) -> &'static str {
         match self {
             Air => "air",
             Stone(_) => "stone",
@@ -366,9 +368,15 @@ impl Block {
             },
             Water => "water",
             Lava => "lava",
-            Log(species, ..) => (if (species as u8) < 4 { "log" } else { "log2" }),
+            Log(species, ..) => {
+                if (*species as u8) < 4 {
+                    "log"
+                } else {
+                    "log2"
+                }
+            }
             Leaves(species) => {
-                if (species as u8) < 4 {
+                if (*species as u8) < 4 {
                     "leaves"
                 } else {
                     "leaves2"
@@ -420,14 +428,30 @@ impl Block {
             },
             Repeater(..) => "unpowered_repeater",
             Bedrock => "bedrock",
-            CommandBlock => "command_block",
+            CommandBlock(_) => "command_block",
             Barrier => "barrier",
             Debug(_) => "concrete",
             Other { .. } => panic!(),
         }
     }
 
-    pub fn solid(self) -> bool {
+    pub fn tile_entity_nbt(&self, pos: Pos) -> Option<CompoundTag> {
+        match self {
+            CommandBlock(command) => {
+                let mut nbt = CompoundTag::new();
+                nbt.insert_i32("x", pos.0);
+                nbt.insert_i32("y", pos.1 as i32);
+                nbt.insert_i32("z", pos.2);
+                nbt.insert_str("id", "command_block");
+                nbt.insert_str("Command", &command);
+                nbt.insert_bool("TrackOutput", false);
+                Some(nbt)
+            }
+            _ => None,
+        }
+    }
+
+    pub fn solid(&self) -> bool {
         // Todo: expand this
         match self {
             Air => false,
@@ -437,27 +461,5 @@ impl Block {
             Leaves(..) => false,
             _ => true,
         }
-    }
-}
-
-#[derive(Clone)]
-pub enum TileEntity {
-    CommandBlock(String), // We don't make command block chains, therefore we only care for the command
-}
-
-impl TileEntity {
-    pub fn to_nbt(&self, pos: Pos) -> CompoundTag {
-        let mut nbt = CompoundTag::new();
-        nbt.insert_i32("x", pos.0);
-        nbt.insert_i32("y", pos.1 as i32);
-        nbt.insert_i32("z", pos.2);
-        match self {
-            TileEntity::CommandBlock(command) => {
-                nbt.insert_str("id", "command_block");
-                nbt.insert_str("Command", &command);
-                nbt.insert_bool("TrackOutput", false);
-            }
-        };
-        nbt
     }
 }

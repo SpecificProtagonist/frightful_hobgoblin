@@ -1,31 +1,13 @@
-mod behavior;
-mod build_recorder;
-mod geometry;
-mod make_divider;
-mod make_house;
-mod make_misc;
-mod make_name;
-mod make_trees;
-mod remove_foliage;
-mod world;
-
+use itertools::Itertools;
 use std::time::Instant;
 
-// Flat module hierarchy is ok for now
-pub use behavior::*;
-pub use build_recorder::*;
-pub use geometry::*;
-use itertools::Itertools;
-pub use world::*;
-
-// How far outside of the borders of the work area is loaded
-const LOAD_MARGIN: i32 = 20;
+use mc_gen::*;
 
 fn main() {
     // Temporary configuration TODO: parse arguments
     let tmp_replay_generation = true;
-    let tmp_world_load_path: &str = concat!(include_str!("../save_path"), "mc-gen base");
-    let tmp_world_save_path: &str = concat!(include_str!("../save_path"), "mc-gen generated");
+    let tmp_world_load_path: &str = concat!(include_str!("../../save_path"), "mc-gen base");
+    let tmp_world_save_path: &str = concat!(include_str!("../../save_path"), "mc-gen generated");
     let tmp_area = Rect {
         min: Column(-100, -100),
         max: Column(100, 100),
@@ -87,7 +69,7 @@ fn generate(world: &mut World, area: Rect) -> Vec<Villager> {
                 Column(pos.0, pos.2 - pos.2.signum())
             }
         }
-        let log_block = *world.get(*tree_pos);
+        let log_block = world.get(*tree_pos).clone();
         actions.push(Action::Walk(vec![
             dontstandinthetree(*start),
             dontstandinthetree(*tree_pos),
@@ -104,12 +86,4 @@ fn generate(world: &mut World, area: Rect) -> Vec<Villager> {
         name: "Rollo".into(),
         actions,
     }]
-}
-
-fn apply_builds(world: &mut World, villagers: &Vec<Villager>) {
-    for action in villagers.iter().flat_map(|v| &v.actions) {
-        if let Action::Build(record) = action {
-            record.apply_to(world);
-        }
-    }
 }

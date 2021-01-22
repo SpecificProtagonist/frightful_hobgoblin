@@ -8,7 +8,7 @@ use rand::prelude::*;
 
 pub fn make_scarecrow(world: &mut World, column: Column) {
     let mut pos = column.at_height(world.heightmap(column) + 1);
-    let fence_block = Fence(Fence::Wood(world.biome(column).random_tree_species()));
+    let fence_block = &Fence(Fence::Wood(world.biome(column).random_tree_species()));
     let direction = HDir::from_u8(thread_rng().gen_range(0, 4)).unwrap();
 
     let colors = &[
@@ -22,27 +22,27 @@ pub fn make_scarecrow(world: &mut World, column: Column) {
         Color::Green,
     ];
 
-    let center_block = if rand(0.5) {
+    let center_block = &if rand(0.5) {
         Wool(colors[thread_rng().gen_range(0, colors.len())])
     } else {
         Hay
     };
 
-    *world.get_mut(pos) = fence_block;
+    world.set(pos, fence_block);
     pos += Vec3(0, 1, 0);
     if rand(0.34) {
         if rand(0.65) {
-            *world.get_mut(pos) = fence_block;
+            world.set(pos, fence_block);
         } else {
-            *world.get_mut(pos) = center_block;
+            world.set(pos, center_block);
         }
         pos += Vec3(0, 1, 0);
     }
-    *world.get_mut(pos) = center_block;
-    *world.get_mut(pos + Vec2::from(direction).clockwise()) = fence_block;
-    *world.get_mut(pos + Vec2::from(direction).counterclockwise()) = fence_block;
+    world.set(pos, center_block);
+    world.set(pos + Vec2::from(direction).clockwise(), fence_block);
+    world.set(pos + Vec2::from(direction).counterclockwise(), fence_block);
     pos += Vec3(0, 1, 0);
-    *world.get_mut(pos) = GroundPlant(GroundPlant::Pumpkin(direction));
+    world.set(pos, GroundPlant(GroundPlant::Pumpkin(direction)));
 }
 
 pub fn make_signpost() {}

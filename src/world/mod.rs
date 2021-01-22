@@ -6,7 +6,6 @@ use anvil_region::*;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::collections::HashMap;
 use std::{num::NonZeroU8, path::PathBuf};
 
 use crate::geometry::*;
@@ -32,11 +31,32 @@ pub trait WorldView {
 
     fn area(&self) -> Rect;
 
-    fn set_if_not_solid(&mut self, pos: Pos, block: Block) {
+    /// Convenience method
+    fn set(&mut self, pos: Pos, block: impl BlockOrRef) {
+        *self.get_mut(pos) = block.get();
+    }
+    /// Convenience method
+    fn set_if_not_solid<'a, 's>(&'s mut self, pos: Pos, block: impl BlockOrRef) {
         let block_ref = self.get_mut(pos);
         if !block_ref.solid() {
-            *block_ref = block;
+            *block_ref = block.get();
         }
+    }
+}
+
+pub trait BlockOrRef {
+    fn get(self) -> Block;
+}
+
+impl BlockOrRef for Block {
+    fn get(self) -> Block {
+        self
+    }
+}
+
+impl BlockOrRef for &Block {
+    fn get(self) -> Block {
+        self.clone()
     }
 }
 
@@ -51,8 +71,6 @@ pub struct World {
     heightmap: Vec<u8>,
     watermap: Vec<Option<NonZeroU8>>,
     pub entities: Vec<Entity>,
-    // Not storing the these in Block isn't pretty but makes some things easier (e.g. Block can be Copy)
-    pub tile_entities: HashMap<Pos, TileEntity>,
 }
 
 impl World {
@@ -80,7 +98,6 @@ impl World {
             heightmap: vec![0; chunk_count * 16 * 16],
             watermap: vec![None; chunk_count * 16 * 16],
             entities: vec![],
-            tile_entities: HashMap::new(),
         };
 
         // Load chunks. Collecting indexes to vec neccessary for zip
@@ -122,10 +139,6 @@ impl World {
             for entity in &self.entities {
                 entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
             }
-            let mut tile_entities_chunked = vec![vec![]; chunk_count];
-            for (pos, tile_entity) in &self.tile_entities {
-                tile_entities_chunked[self.chunk_index((*pos).into())].push((*pos, tile_entity));
-            }
 
             // Sadly chunk_provider saveing isn't thread safe
             (self.chunk_min.1..=self.chunk_max.1)
@@ -133,17 +146,9 @@ impl World {
                 .zip(self.sections.chunks_exact(16))
                 .zip(self.biome.chunks_exact(16 * 16))
                 .zip(entities_chunked)
-                .zip(tile_entities_chunked)
-                .for_each(|((((index, sections), biome), entities), tile_entities)| {
-                    save_chunk(
-                        &chunk_provider,
-                        index.into(),
-                        sections,
-                        biome,
-                        &entities,
-                        &tile_entities,
-                    )
-                    .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
+                .for_each(|(((index, sections), biome), entities)| {
+                    save_chunk(&chunk_provider, index.into(), sections, biome, &entities)
+                        .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
                 });
         }
 
@@ -316,7 +321,7 @@ fn load_chunk(
             'column: for section_index in (0..16).rev() {
                 if let Some(section) = &sections[section_index] {
                     for y in (0..16).rev() {
-                        let block = section.blocks[x + z * 16 + y * 16 * 16];
+                        let block = &section.blocks[x + z * 16 + y * 16 * 16];
                         let height = (section_index * 16 + y) as u8;
                         if match block {
                             Block::Log(..) => false,
@@ -347,7 +352,6 @@ fn save_chunk(
     sections: &[Option<Box<Section>>],
     biomes: &[Biome],
     entities: &[&Entity],
-    tile_entities: &[(Pos, &TileEntity)],
 ) -> Result<(), ChunkSaveError> {
     chunk_provider.save_chunk(index.0, index.1, {
         let mut nbt = CompoundTag::new();
@@ -374,6 +378,9 @@ fn save_chunk(
                 biomes.iter().map(|biome| biome.to_bytes() as i8).collect(),
             );
 
+            // Collect tile entities
+            let mut tile_entities = Vec::new();
+
             nbt.insert_compound_tag_vec("Sections", {
                 sections
                     .iter()
@@ -385,6 +392,7 @@ fn save_chunk(
                             let mut block_ids = Vec::new();
                             let mut block_data = Vec::new();
                             for (i, block) in section.blocks.iter().enumerate() {
+                                // Store id (byte) and data (nibble)
                                 let (id, data) = block.to_bytes();
                                 block_ids.push(id as i8);
                                 if i % 2 == 0 {
@@ -392,6 +400,19 @@ fn save_chunk(
                                 } else {
                                     let prev_data = block_data.last_mut().unwrap();
                                     *prev_data = ((*prev_data as u8) + (data << 4)) as i8;
+                                }
+
+                                // Collect TileEntity data
+                                {
+                                    let section_base =
+                                        Pos(index.0 * 16, y_index as u8 * 16, index.1 * 16);
+                                    let pos = section_base
+                                        + Vec3(
+                                            i as i32 % 16,
+                                            i as i32 / (16 * 16),
+                                            i as i32 % (16 * 16) / 16,
+                                        );
+                                    tile_entities.extend(block.tile_entity_nbt(pos));
                                 }
                             }
                             nbt.insert_i8_vec("Blocks", block_ids);
@@ -412,13 +433,7 @@ fn save_chunk(
 
             nbt.insert_compound_tag_vec("Entities", entities.iter().map(|e| e.to_nbt()).collect());
 
-            nbt.insert_compound_tag_vec(
-                "TileEntities",
-                tile_entities
-                    .iter()
-                    .map(|(pos, tile_entity)| tile_entity.to_nbt(*pos))
-                    .collect(),
-            );
+            nbt.insert_compound_tag_vec("TileEntities", tile_entities);
 
             nbt
         });
@@ -433,8 +448,9 @@ pub struct Section {
 
 impl Default for Section {
     fn default() -> Self {
+        const AIR: Block = Block::Air;
         Section {
-            blocks: [Block::Air; 16 * 16 * 16],
+            blocks: [AIR; 16 * 16 * 16],
         }
     }
 }

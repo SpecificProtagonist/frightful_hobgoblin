@@ -37,7 +37,7 @@ pub fn make_divider(
 
 fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small: bool) {
     // Maybe have the tree species be a parameter instead for consistency at biome borders?
-    let leaf_block = Block::Leaves(world.biome(start).default_tree_species());
+    let leaf_block = &Block::Leaves(world.biome(start).default_tree_species());
     let mut prev = prev.at_height(0);
     for column in ColumnLineIter::new(start, end) {
         let pos = column.at_height(world.heightmap(column) + 1);

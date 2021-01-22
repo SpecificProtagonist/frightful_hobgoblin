@@ -21,26 +21,22 @@ impl<'a, T: WorldView> BuildRecorder<'a, T> {
         let BuildRecorder(world, mut record) = self;
         record
             .blocks
-            .retain(|pos, (block, tile_entity)| (world.get(*pos) != block) | tile_entity.is_some());
+            .retain(|pos, block| (world.get(*pos) != block));
         record
     }
 }
 
 impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
     fn get(&self, pos: Pos) -> &Block {
-        self.1
-            .blocks
-            .get(&pos)
-            .map_or(self.0.get(pos), |(block, _)| block)
+        self.1.blocks.get(&pos).unwrap_or_else(|| self.0.get(pos))
     }
 
     fn get_mut(&mut self, pos: Pos) -> &mut Block {
         let BuildRecorder(world, record) = self;
-        &mut record
+        record
             .blocks
             .entry(pos)
-            .or_insert_with(|| (*world.get(pos), None))
-            .0
+            .or_insert_with(|| world.get(pos).clone())
     }
 
     fn biome(&self, column: Column) -> Biome {
@@ -85,18 +81,15 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
 }
 
 pub struct BuildRecord {
-    blocks: LinkedHashMap<Pos, (Block, Option<TileEntity>)>,
+    blocks: LinkedHashMap<Pos, Block>,
     heightmap: HashMap<Column, u8>,
     watermap: HashMap<Column, Option<NonZeroU8>>,
 }
 
 impl BuildRecord {
     pub fn apply_to(&self, world: &mut impl WorldView) {
-        for (pos, (block, tile_entity)) in &self.blocks {
-            *world.get_mut(*pos) = *block;
-            /*if let Some(tile_entity) = tile_entity {
-                *world.get_tile_entity_mut(pos) = Some(tile_entity);
-            }*/
+        for (pos, block) in &self.blocks {
+            world.set(*pos, block);
         }
         for (column, height) in &self.heightmap {
             *world.heightmap_mut(*column) = *height;
@@ -108,8 +101,8 @@ impl BuildRecord {
 
     pub fn commands(&self) -> Commands {
         let mut commands = vec![];
-        for (pos, (block, tile_entity)) in self.blocks.iter() {
-            if let Some(tile_entity) = tile_entity {
+        for (pos, block) in self.blocks.iter() {
+            if let Some(tile_entity) = block.tile_entity_nbt(*pos) {
                 commands.push(format!(
                     "setblock {} {} {} {} {} replace {}",
                     pos.0,
@@ -117,7 +110,7 @@ impl BuildRecord {
                     pos.2,
                     block.name(),
                     block.to_bytes().1,
-                    tile_entity.to_nbt(*pos)
+                    tile_entity
                 ));
             } else {
                 commands.push(format!(

@@ -5,6 +5,7 @@ use std::{
     fs::*,
     io::{self, *},
     path::*,
+    sync::Arc,
 };
 use Action::*;
 
@@ -19,10 +20,19 @@ pub enum Action {
     DropBlock,
     Walk(Vec<Column>), // TODO: store exact path (for walking on other stories, walking between heightmap updates, ...)
     Build(BuildRecord),
+    BuildInstant(BuildRecord),
 }
 
 // Maybe add replay speed?
 pub type Commands = Vec<String>;
+
+pub fn apply_builds(world: &mut World, villagers: &[Villager]) {
+    for action in villagers.iter().flat_map(|v| &v.actions) {
+        if let Action::Build(record) = action {
+            record.apply_to(world);
+        }
+    }
+}
 
 const TICKS_PER_UPDATE: i32 = 7;
 // Villager movement speed in blocks/tick
@@ -142,10 +152,16 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
         for (action_id, action) in actions.iter().enumerate() {
             commands.extend(
                 match action {
-                    Pickup(block) => pickup(id, *block),
+                    Pickup(block) => pickup(id, block),
                     DropBlock => drop_block(id),
                     Walk(path) => walk(world, id, path),
                     Build(recording) => recording.commands(),
+                    BuildInstant(recording) => {
+                        let function_name = format!("{}/build_instant_{}", name, action_id);
+                        let commands = vec![trigger_parallel(&function_name)];
+                        functions.push((function_name, recording.commands()));
+                        commands
+                    }
                 }
                 .into_iter(),
             );
@@ -164,7 +180,7 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
     Ok(())
 }
 
-fn pickup(id: u16, block: Block) -> Commands {
+fn pickup(id: u16, block: &Block) -> Commands {
     // falling_block data changes aren't show till the player relogs
     // Therefore: use armor stands, teleported to villager in update.mcfunction
     vec![format!(
@@ -272,10 +288,9 @@ fn export_parallel_executions(
 /// Creates command blocks for sequentially executing commands
 fn export_sequential_executions(world: &mut World, command_chains: Vec<(EntityID, Commands)>) {
     fn make_reset(world: &mut World, pos: Pos) {
-        *world.get_mut(pos + Vec3(0, -1, 0)) = CommandBlock;
-        world.tile_entities.insert(
+        world.set(
             pos + Vec3(0, -1, 0),
-            TileEntity::CommandBlock("setblock ~ ~1 ~ stone".into()),
+            CommandBlock(Arc::new("setblock ~ ~1 ~ stone".into())),
         );
     }
     let area = world.redstone_processing_area();
@@ -294,28 +309,24 @@ fn export_sequential_executions(world: &mut World, command_chains: Vec<(EntityID
                     pos.1 += 2;
                 }
                 // TODO: fix: triggering via redstone block takes a tick, so following timings can be of slightly
-                *world.get_mut(old_pos) = CommandBlock;
-                world.tile_entities.insert(
+                world.set(
                     old_pos,
-                    TileEntity::CommandBlock(format!(
+                    CommandBlock(Arc::new(format!(
                         "setblock {} {} {} redstone_block",
                         pos.0, pos.1, pos.2
-                    )),
+                    ))),
                 );
                 make_reset(world, pos);
                 pos.0 += 1;
             }
-            *world.get_mut(pos) = Repeater(HDir::XPos, 0);
+            world.set(pos, Repeater(HDir::XPos, 0));
             // Encase in bedrock to prevent lava destroying redstone
-            *world.get_mut(pos + Vec3(0, 1, 0)) = Bedrock;
-            *world.get_mut(pos + Vec3(0, 0, -1)) = Bedrock;
-            *world.get_mut(pos + Vec3(0, 0, 1)) = Bedrock;
+            world.set(pos + Vec3(0, 1, 0), Bedrock);
+            world.set(pos + Vec3(0, 0, -1), Bedrock);
+            world.set(pos + Vec3(0, 0, 1), Bedrock);
 
             pos.0 += 1;
-            *world.get_mut(pos) = CommandBlock;
-            world
-                .tile_entities
-                .insert(pos, TileEntity::CommandBlock(command));
+            world.set(pos, CommandBlock(Arc::new(command)));
             pos.0 += 1;
         }
 
