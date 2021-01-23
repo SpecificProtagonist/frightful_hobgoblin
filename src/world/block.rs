@@ -192,10 +192,21 @@ impl Block {
             13 => Soil(Soil::Gravel),
             60 => Soil(Soil::Farmland),
             7 => Bedrock,
-            8 => Block::Air, // Flowing water
-            9 => Water,
-            10 => Block::Air, // Flowing lava
-            11 => Lava,
+            8 | 9 => {
+                if data == 0 {
+                    Block::Water
+                } else {
+                    Block::Air
+                    // TODO: Fix up the water source if the flow overlapps buildings/paths
+                }
+            }
+            10 | 11 => {
+                if data == 0 {
+                    Block::Lava
+                } else {
+                    Block::Air
+                }
+            }
             17 => Log(
                 TreeSpecies::from_u8(data % 4).unwrap(),
                 match data >> 4 {
