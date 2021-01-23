@@ -1,5 +1,5 @@
 use crate::*;
-use image::{GenericImage, GenericImageView, Rgb, RgbImage};
+use image::{Rgb, RgbImage};
 
 #[derive(Copy, Clone, PartialEq, Eq)]
 pub enum Color {

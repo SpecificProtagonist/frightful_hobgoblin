@@ -1,4 +1,4 @@
-use crate::world::TreeSpecies;
+use crate::{world::TreeSpecies, Soil};
 use rand::random;
 pub use BiomeType::*;
 pub use Temperature::*;
@@ -469,6 +469,20 @@ impl Biome {
                 }
             }
             _ => self.default_tree_species(),
+        }
+    }
+
+    pub fn default_topsoil(self) -> Soil {
+        match self {
+            Biome { base: Desert, .. } => Soil::Sand,
+            Biome { base: Ocean, .. } => Soil::Sand,
+            Biome { base: Beach, .. } => Soil::Sand,
+            Biome { base: Taiga, .. } => Soil::CoarseDirt,
+            Biome { base: Mesa, .. } => Soil::CoarseDirt,
+            Biome {
+                base: ExtremeHills, ..
+            } => Soil::Gravel,
+            _ => Soil::Dirt,
         }
     }
 

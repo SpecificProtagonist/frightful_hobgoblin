@@ -1,7 +1,7 @@
 use crate::geometry::*;
 use crate::world::*;
 
-pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
+pub fn make_tiny(world: &mut impl WorldView, base_pos: Pos, species: TreeSpecies) {
     let log_block = &Log(species, LogType::FullBark, LogOrigin::Natural);
     let leaf_block = &Leaves(species);
 
@@ -41,7 +41,7 @@ pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
     }
 }
 
-pub fn make_straight(world: &mut World, pos: Pos, species: TreeSpecies) {
+pub fn make_straight(world: &mut impl WorldView, pos: Pos, species: TreeSpecies) {
     let log_block = &Log(species, LogType::FullBark, LogOrigin::Natural);
     let leaf_block = &Leaves(species);
 

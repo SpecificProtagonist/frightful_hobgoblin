@@ -11,6 +11,7 @@ pub use Block::*;
 #[repr(u8)]
 pub enum Block {
     Air,
+    RawStone(RawStone),
     Stone(Stone),
     Water,
     Lava,
@@ -66,11 +67,21 @@ pub enum TreeSpecies {
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
-pub enum Stone {
+pub enum RawStone {
     Stone,
     Granite,
     Diorite,
     Andesite,
+}
+
+// Represents man-placed stone, even when the same blocks could occure naturally
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(u8)]
+pub enum Stone {
+    Cobble,
+    Stonebrick,
+    Brick,
+    // Todo: Sandstone, (Polished) Stones, Cracked/Mossy
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -173,17 +184,16 @@ pub enum Slab {
     Wooden(TreeSpecies),
 }
 
-// Can the serialize & deserialize-funtions somehow be unified?A
-// maybe a macro could help
 impl Block {
+    // Deserialisation only neccessary for naturally occuring blocks
     pub fn from_bytes(id: u8, data: u8) -> Self {
         match id {
             0 => Air,
             1 => match data {
-                0 => Stone(Stone::Stone),
-                1 => Stone(Stone::Granite),
-                3 => Stone(Stone::Diorite),
-                5 => Stone(Stone::Andesite),
+                0 => RawStone(RawStone::Stone),
+                1 => RawStone(RawStone::Granite),
+                3 => RawStone(RawStone::Diorite),
+                5 => RawStone(RawStone::Andesite),
                 _ => Other { id, data },
             },
             2 => Soil(Soil::Grass),
@@ -267,15 +277,20 @@ impl Block {
     pub fn to_bytes(&self) -> (u8, u8) {
         match self {
             Air => (0, 0),
-            Stone(mineral) => (
+            RawStone(mineral) => (
                 1,
                 match mineral {
-                    Stone::Stone => 0,
-                    Stone::Granite => 1,
-                    Stone::Diorite => 3,
-                    Stone::Andesite => 5,
+                    RawStone::Stone => 0,
+                    RawStone::Granite => 1,
+                    RawStone::Diorite => 3,
+                    RawStone::Andesite => 5,
                 },
             ),
+            Stone(stone) => match stone {
+                Stone::Cobble => (4, 0),
+                Stone::Brick => (45, 0),
+                Stone::Stonebrick => (98, 0),
+            },
             Soil(soil_type) => match soil_type {
                 Soil::Grass => (2, 0),
                 Soil::Dirt => (3, 0),
@@ -368,7 +383,7 @@ impl Block {
     pub fn name(&self) -> &'static str {
         match self {
             Air => "air",
-            Stone(_) => "stone",
+            RawStone(_) => "stone",
             Soil(soil_type) => match soil_type {
                 Soil::Grass => "grass",
                 Soil::Dirt | Soil::CoarseDirt | Soil::Podzol => "dirt",
@@ -376,6 +391,11 @@ impl Block {
                 Soil::Gravel => "gravel",
                 Soil::Farmland => "farmland",
                 Soil::Path => "grass_path",
+            },
+            Stone(stone) => match stone {
+                Stone::Cobble => "cobblestone",
+                Stone::Brick => "brick_block",
+                Stone::Stonebrick => "stonebrick",
             },
             Water => "water",
             Lava => "lava",

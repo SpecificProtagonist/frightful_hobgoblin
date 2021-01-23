@@ -132,11 +132,11 @@ impl Rect {
 }
 
 impl Polyline {
-    pub fn iter(&self) -> BorderIterator {
+    pub fn iter(&self, style: LineStyle) -> BorderIterator {
         BorderIterator {
             points: &self.0,
             i: 0,
-            current_iter: ColumnLineIter::new(self.0[0], self.0[1]),
+            current_iter: ColumnLineIter::new(self.0[0], self.0[1], style),
             closed: false,
         }
     }
@@ -165,7 +165,7 @@ impl Polygon {
     }
     */
 
-    // This doesn't include borders
+    // TODO important: Make sure this doesn't include borders! (also add version that does)
     pub fn contains(&self, column: Column) -> bool {
         let mut inside = false;
 
@@ -223,11 +223,11 @@ impl Polygon {
         }
     }
 
-    pub fn border(&self) -> BorderIterator {
+    pub fn border(&self, style: LineStyle) -> BorderIterator {
         BorderIterator {
             points: &self.0,
             i: 0,
-            current_iter: ColumnLineIter::new(self.0[0], self.0[1]),
+            current_iter: ColumnLineIter::new(self.0[0], self.0[1], style),
             closed: true,
         }
     }
@@ -295,6 +295,7 @@ impl Iterator for BorderIterator<'_> {
                     self.current_iter = ColumnLineIter::new(
                         self.points[self.i],
                         self.points[(self.i + 1) % self.points.len()],
+                        self.current_iter.style,
                     );
                     self.current_iter.next()
                 } else {
@@ -549,22 +550,76 @@ impl SubAssign<Vec3> for Vec3 {
     }
 }
 
-pub struct ColumnLineIter(bresenham::Bresenham);
+// TODO important: bool/enum whether to column should neighbor directly or whether diagonally is enough
+pub struct ColumnLineIter {
+    inner: bresenham::Bresenham,
+    style: LineStyle,
+    prev: Column,
+    enqueued: Option<Column>,
+}
+
+#[derive(Copy, Clone, Eq, PartialEq, Debug)]
+pub enum LineStyle {
+    /// Allow column only connecting via corners
+    Thin,
+    /// Make full connections
+    Thick,
+    /// Like Thick, but chose side to insert filler columns randomly
+    ThickWobbly,
+}
 
 impl Iterator for ColumnLineIter {
     type Item = Column;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.0.next().map(|(x, z)| Column(x as i32, z as i32))
+        if let Some(column) = self.enqueued.take() {
+            return Some(column);
+        }
+        let next = self.inner.next().map(|(x, z)| Column(x as i32, z as i32))?;
+
+        if self.style == LineStyle::Thin {
+            return Some(next);
+        }
+
+        if (self.prev.0 != next.0) & (self.prev.1 != next.1) {
+            let interpol = if self.style == LineStyle::ThickWobbly {
+                if rand(0.5) {
+                    Column(self.prev.0, next.1)
+                } else {
+                    Column(next.0, self.prev.1)
+                }
+            } else {
+                if self.prev.0 < next.0 {
+                    Column(self.prev.0, next.1)
+                } else if self.prev.0 > next.0 {
+                    Column(next.0, self.prev.1)
+                } else if self.prev.1 < next.1 {
+                    Column(self.prev.0, next.1)
+                } else {
+                    Column(next.0, self.prev.1)
+                }
+            };
+            self.enqueued = Some(next);
+            self.prev = next;
+            Some(interpol)
+        } else {
+            self.prev = next;
+            Some(next)
+        }
     }
 }
 
 impl ColumnLineIter {
-    pub fn new(start: Column, end: Column) -> ColumnLineIter {
-        ColumnLineIter(bresenham::Bresenham::new(
-            (start.0 as isize, start.1 as isize),
-            (end.0 as isize, end.1 as isize),
-        ))
+    pub fn new(start: Column, end: Column, style: LineStyle) -> ColumnLineIter {
+        ColumnLineIter {
+            inner: bresenham::Bresenham::new(
+                (start.0 as isize, start.1 as isize),
+                (end.0 as isize, end.1 as isize),
+            ),
+            style,
+            prev: start,
+            enqueued: None,
+        }
     }
 }
 

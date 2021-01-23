@@ -4,27 +4,32 @@ use crate::world::*;
 #[derive(Debug, Copy, Clone)]
 pub enum DividerType {
     Hedge { small: bool },
-    Fence { gapless: bool },
-    Wall { gapless: bool },
+    Fence(LineStyle),
+    Wall(LineStyle),
 }
 
-pub fn make_divider_single(world: &mut World, start: Column, end: Column, kind: DividerType) {
+pub fn make_divider_single(
+    world: &mut impl WorldView,
+    start: Column,
+    end: Column,
+    kind: DividerType,
+) {
     match kind {
         DividerType::Hedge { small } => make_hedge(world, start, end, start, small),
-        DividerType::Fence { gapless } => make_fence(world, start, end, start, false, gapless),
-        DividerType::Wall { gapless } => make_fence(world, start, end, start, true, gapless),
+        DividerType::Fence(style) => make_fence(world, start, end, start, false, style),
+        DividerType::Wall(style) => make_fence(world, start, end, start, true, style),
     }
 }
 
 pub fn make_divider(
-    world: &mut World,
+    world: &mut impl WorldView,
     mut segments: impl Iterator<Item = (Column, Column)>,
     kind: DividerType,
 ) {
     let mut make = |(start, end), prev| match kind {
         DividerType::Hedge { small } => make_hedge(world, start, end, prev, small),
-        DividerType::Fence { gapless } => make_fence(world, start, end, prev, false, gapless),
-        DividerType::Wall { gapless } => make_fence(world, start, end, prev, true, gapless),
+        DividerType::Fence(style) => make_fence(world, start, end, prev, false, style),
+        DividerType::Wall(style) => make_fence(world, start, end, prev, true, style),
     };
     if let Some(mut segment) = segments.next() {
         make(segment, segment.0);
@@ -35,11 +40,11 @@ pub fn make_divider(
     }
 }
 
-fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small: bool) {
+fn make_hedge(world: &mut impl WorldView, start: Column, end: Column, prev: Column, small: bool) {
     // Maybe have the tree species be a parameter instead for consistency at biome borders?
     let leaf_block = &Block::Leaves(world.biome(start).default_tree_species());
     let mut prev = prev.at_height(0);
-    for column in ColumnLineIter::new(start, end) {
+    for column in ColumnLineIter::new(start, end, LineStyle::ThickWobbly) {
         let pos = column.at_height(world.heightmap(column) + 1);
         world.set_if_not_solid(pos, leaf_block);
         if prev.1 > pos.1 {
@@ -94,16 +99,16 @@ fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small
 // Even with gapless, there can be gaps if the terrain is too steep, but it looks a bit awkward otherwise
 // Todo: Mobs can escape if inside is higher than ground under fence
 // (best fix: raise ground in that case, but only in that case. If that's too hard, maybe just set chattep movement rate to 0)
-fn make_fence(
-    world: &mut World,
+fn make_fence<T: WorldView>(
+    world: &mut T,
     start: Column,
     end: Column,
     prev: Column,
     stone: bool,
-    gapless: bool,
+    style: LineStyle,
 ) {
     let wooden_fence_type = Fence::Wood(world.biome(start).default_tree_species());
-    let place_fence_block = |world: &mut World, pos: Pos| {
+    let place_fence_block = |world: &mut T, pos: Pos| {
         world.set_if_not_solid(
             pos,
             Block::Fence(if stone {
@@ -116,29 +121,9 @@ fn make_fence(
     };
 
     let mut prev = prev.at_height(world.heightmap(prev) + 1);
-    for column in ColumnLineIter::new(start, end) {
+    for column in ColumnLineIter::new(start, end, style) {
         let pos = column.at_height(world.heightmap(column) + 1);
         place_fence_block(world, pos);
-        if gapless {
-            if column == start {}
-            if (prev.0 != pos.0) & (prev.2 != pos.2) {
-                let fix_column = if rand(0.5) {
-                    Column(prev.0, pos.2)
-                } else {
-                    Column(pos.0, prev.2)
-                };
-                let fix_pos = fix_column.at_height(world.heightmap(fix_column) + 1);
-                place_fence_block(world, fix_pos);
-                // Bride height variation (don't bother if too steep)
-                if prev.1 == fix_pos.1 + 1 {
-                    place_fence_block(world, fix_pos + Vec3(0, 1, 0));
-                }
-                if prev.1 + 1 == fix_pos.1 {
-                    place_fence_block(world, prev + Vec3(0, 1, 0));
-                }
-                prev = fix_pos;
-            }
-        }
         // Bride height variation (don't bother if too steep)
         if prev.1 == pos.1 + 1 {
             place_fence_block(world, pos + Vec3(0, 1, 0));
