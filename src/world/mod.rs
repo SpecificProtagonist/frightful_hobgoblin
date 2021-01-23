@@ -6,7 +6,7 @@ use anvil_region::*;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::{num::NonZeroU8, path::PathBuf};
+use std::path::PathBuf;
 
 use crate::geometry::*;
 pub use biome::*;
@@ -26,8 +26,8 @@ pub trait WorldView {
     fn heightmap(&self, column: Column) -> u8;
     fn heightmap_mut(&mut self, column: Column) -> &mut u8;
 
-    fn watermap(&self, column: Column) -> Option<NonZeroU8>;
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8>;
+    fn watermap(&self, column: Column) -> Option<u8>;
+    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8>;
 
     fn area(&self) -> Rect;
 
@@ -69,7 +69,7 @@ pub struct World {
     sections: Vec<Option<Box<Section>>>,
     biome: Vec<Biome>,
     heightmap: Vec<u8>,
-    watermap: Vec<Option<NonZeroU8>>,
+    watermap: Vec<Option<u8>>,
     pub entities: Vec<Entity>,
 }
 
@@ -253,11 +253,11 @@ impl WorldView for World {
         &mut self.heightmap[index]
     }
 
-    fn watermap(&self, column: Column) -> Option<NonZeroU8> {
+    fn watermap(&self, column: Column) -> Option<u8> {
         self.watermap[self.column_index(column)]
     }
 
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<NonZeroU8> {
+    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
@@ -276,7 +276,7 @@ fn load_chunk(
     sections: &mut [Option<Box<Section>>],
     biomes: &mut [Biome],
     heightmap: &mut [u8],
-    watermap: &mut [Option<NonZeroU8>],
+    watermap: &mut [Option<u8>],
 ) -> Result<(), ChunkLoadError> {
     let nbt = chunk_provider.load_chunk(index.0, index.1)?;
     let version = nbt.get_i32("DataVersion").unwrap();
@@ -316,6 +316,7 @@ fn load_chunk(
         }
     }
 
+    // Build water- & heightmap
     for x in 0..16 {
         for z in 0..16 {
             'column: for section_index in (0..16).rev() {
@@ -329,13 +330,8 @@ fn load_chunk(
                         } {
                             heightmap[x + z * 16] = height;
                             break 'column;
-                        } else if match block {
-                            Block::Water => height > 0,
-                            _ => false,
-                        } {
-                            watermap[x + z * 16].get_or_insert(unsafe {
-                                NonZeroU8::new_unchecked((section_index * 16 + y) as u8)
-                            });
+                        } else if matches!(block, Block::Water) {
+                            watermap[x + z * 16].get_or_insert((section_index * 16 + y) as u8);
                         }
                     }
                 }

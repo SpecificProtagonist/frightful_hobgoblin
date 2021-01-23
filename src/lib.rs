@@ -1,6 +1,7 @@
 // Flat module hierarchy is ok for now
 mod behavior;
 mod build_recorder;
+pub mod debug_image;
 mod geometry;
 pub mod make_divider;
 pub mod make_house;

@@ -38,6 +38,8 @@ fn main() {
         (time_behavior_save - time_generated).as_secs_f64(),
         (time_saved - time_behavior_save).as_secs_f64()
     );
+
+    debug_image::heightmap(&world).save("heightmap.png");
 }
 
 fn generate(world: &mut World, area: Rect) -> Vec<Villager> {

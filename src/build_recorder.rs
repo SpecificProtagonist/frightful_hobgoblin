@@ -59,7 +59,7 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
             .or_insert_with(|| world.heightmap(column))
     }
 
-    fn watermap(&self, column: Column) -> Option<std::num::NonZeroU8> {
+    fn watermap(&self, column: Column) -> Option<u8> {
         *self
             .1
             .watermap
@@ -67,7 +67,7 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
             .unwrap_or(&self.0.watermap(column))
     }
 
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<std::num::NonZeroU8> {
+    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8> {
         let BuildRecorder(world, record) = self;
         record
             .watermap
@@ -83,7 +83,7 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
 pub struct BuildRecord {
     blocks: LinkedHashMap<Pos, Block>,
     heightmap: HashMap<Column, u8>,
-    watermap: HashMap<Column, Option<NonZeroU8>>,
+    watermap: HashMap<Column, Option<u8>>,
 }
 
 impl BuildRecord {
