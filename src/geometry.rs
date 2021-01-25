@@ -524,6 +524,19 @@ impl MulAssign<f32> for Vec2 {
     }
 }
 
+impl Mul<i32> for Vec2 {
+    type Output = Vec2;
+    fn mul(self, rhs: i32) -> Self::Output {
+        Self((self.0 * rhs) as i32, (self.1 * rhs) as i32)
+    }
+}
+
+impl MulAssign<i32> for Vec2 {
+    fn mul_assign(&mut self, rhs: i32) {
+        *self = *self * rhs;
+    }
+}
+
 impl Add<Vec3> for Vec3 {
     type Output = Vec3;
     fn add(self, rhs: Vec3) -> Self::Output {

@@ -259,6 +259,7 @@ impl Block {
             40 => GroundPlant(GroundPlant::Small(SmallPlant::RedMushroom)),
             81 => GroundPlant(GroundPlant::Cactus),
             83 => GroundPlant(GroundPlant::Reeds),
+            89 => Glowstone,
             175 => GroundPlant(GroundPlant::Tall {
                 plant: match id % 8 {
                     0 => TallPlant::Sunflower,
@@ -493,4 +494,35 @@ impl Block {
             _ => true,
         }
     }
+
+    pub fn light_properties(&self) -> LightProperties {
+        match self {
+            Lava | Glowstone => LightProperties {
+                emission: 15,
+                transparent: true,
+                filter_skylight: true,
+            },
+            Water | Leaves(_) => LightProperties {
+                emission: 0,
+                transparent: true,
+                filter_skylight: false,
+            },
+            Air | Repeater { .. } | GroundPlant(_) => LightProperties {
+                emission: 0,
+                transparent: true,
+                filter_skylight: false,
+            },
+            _ => LightProperties {
+                emission: 0,
+                transparent: false,
+                filter_skylight: true,
+            },
+        }
+    }
+}
+
+pub struct LightProperties {
+    pub emission: u8,
+    pub transparent: bool,
+    pub filter_skylight: bool,
 }

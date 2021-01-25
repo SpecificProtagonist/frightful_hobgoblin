@@ -6,7 +6,7 @@ use anvil_region::*;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::path::PathBuf;
+use std::{mem::swap, path::PathBuf};
 
 use crate::geometry::*;
 pub use biome::*;
@@ -16,13 +16,13 @@ pub use entity::*;
 const MAX_VERSION: i32 = 1343;
 
 // Ugh, can't impl Index and IndexMut because of orphan rules
-// TODO: figure out tile entities!
 pub trait WorldView {
     fn get(&self, pos: Pos) -> &Block;
     fn get_mut(&mut self, pos: Pos) -> &mut Block;
 
     fn biome(&self, column: Column) -> Biome;
 
+    /// Height of the ground, ignores vegetation
     fn heightmap(&self, column: Column) -> u8;
     fn heightmap_mut(&mut self, column: Column) -> &mut u8;
 
@@ -63,9 +63,10 @@ impl BlockOrRef for &Block {
 // Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
     pub path: PathBuf,
-    // Loaded area; aligned with chunk borders (-> usually larger than area specified in new())
+    /// Loaded area; aligned with chunk borders (-> usually larger than area specified in new())
     pub chunk_min: ChunkIndex,
     pub chunk_max: ChunkIndex,
+    /// Sections in Z->X->Y order
     sections: Vec<Option<Box<Section>>>,
     biome: Vec<Biome>,
     heightmap: Vec<u8>,
@@ -140,15 +141,25 @@ impl World {
                 entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
             }
 
+            let light = calculate_block_light(&self);
+
             // Sadly chunk_provider saveing isn't thread safe
             (self.chunk_min.1..=self.chunk_max.1)
                 .flat_map(|z| (self.chunk_min.1..=self.chunk_max.1).map(move |x| (x, z)))
                 .zip(self.sections.chunks_exact(16))
                 .zip(self.biome.chunks_exact(16 * 16))
                 .zip(entities_chunked)
-                .for_each(|(((index, sections), biome), entities)| {
-                    save_chunk(&chunk_provider, index.into(), sections, biome, &entities)
-                        .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
+                .zip(light)
+                .for_each(|((((index, sections), biome), entities), light)| {
+                    save_chunk(
+                        &chunk_provider,
+                        index.into(),
+                        sections,
+                        biome,
+                        &entities,
+                        light,
+                    )
+                    .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
                 });
         }
 
@@ -348,6 +359,7 @@ fn save_chunk(
     sections: &[Option<Box<Section>>],
     biomes: &[Biome],
     entities: &[&Entity],
+    light: ChunkLight,
 ) -> Result<(), ChunkSaveError> {
     chunk_provider.save_chunk(index.0, index.1, {
         let mut nbt = CompoundTag::new();
@@ -358,7 +370,7 @@ fn save_chunk(
             nbt.insert_i32("zPos", index.1);
 
             nbt.insert_i64("LastUpdate", 0);
-            nbt.insert_i8("LightPopulated", 0);
+            nbt.insert_i8("LightPopulated", 1);
             nbt.insert_i8("TerrainPopulated", 1);
             nbt.insert_i64("InhabitetTime", 0);
 
@@ -414,10 +426,17 @@ fn save_chunk(
                             nbt.insert_i8_vec("Blocks", block_ids);
                             nbt.insert_i8_vec("Data", block_data);
 
-                            // Todo: correct lighting (without these tags, minecraft rejects the chunk)
-                            // maybe use commandblocks to force light update?
-                            nbt.insert_i8_vec("BlockLight", vec![0; 16 * 16 * 16 / 2]);
-                            nbt.insert_i8_vec("SkyLight", vec![0; 16 * 16 * 16 / 2]);
+                            let light =
+                                &light[y_index * (16 * 16 * 16)..(y_index + 1) * 16 * 16 * 16];
+                            let mut block_light = Vec::new();
+                            let mut sky_light = Vec::new();
+                            for i in (0..(16 * 16 * 16)).step_by(2) {
+                                block_light
+                                    .push((light[i].block + (light[i + 1].block << 4)) as i8);
+                                sky_light.push((light[i].sky + (light[i + 1].sky << 4)) as i8);
+                            }
+                            nbt.insert_i8_vec("BlockLight", block_light);
+                            nbt.insert_i8_vec("SkyLight", sky_light);
 
                             Some(nbt)
                         } else {
@@ -449,4 +468,120 @@ impl Default for Section {
             blocks: [AIR; 16 * 16 * 16],
         }
     }
+}
+
+#[derive(Clone, Copy)]
+struct Light {
+    block: u8,
+    sky: u8,
+}
+type ChunkLight = [Light; 16 * 16 * 256];
+
+fn calculate_block_light(world: &World) -> Vec<ChunkLight> {
+    let width_chunks = (world.chunk_max.0 - world.chunk_min.0 + 1) as usize;
+    let num_chunks = width_chunks * (world.chunk_max.0 - world.chunk_min.0 + 1) as usize;
+    let mut light_buffer = vec![[Light { block: 0, sky: 0 }; 16 * 16 * 256]; num_chunks];
+    let mut back_buffer = light_buffer.clone();
+
+    let chunk_offset = |index: usize| -> Vec2 {
+        Vec2(
+            world.chunk_min.0 + (index % width_chunks) as i32,
+            world.chunk_min.1 + (index / width_chunks) as i32,
+        ) * 16
+    };
+
+    fn index_in_chunk(pos: Pos) -> usize {
+        pos.0 as usize + pos.2 as usize * 16 + pos.1 as usize * 256
+    }
+
+    // Fill in areas of direct sunlight
+    light_buffer
+        .par_iter_mut()
+        .enumerate()
+        .for_each(|(index, buffer)| {
+            let chunk_offset = chunk_offset(index);
+            for x in 0..16 {
+                for z in 0..16 {
+                    for y in (0..=255).rev() {
+                        if world
+                            .get(Pos(x, y, z) + chunk_offset)
+                            .light_properties()
+                            .filter_skylight
+                        {
+                            break;
+                        } else {
+                            buffer[index_in_chunk(Pos(x, y, z))].sky = 15;
+                        }
+                    }
+                }
+            }
+        });
+
+    // Flood fill block-light & sky-light simultaneously
+    for _ in 0..15 {
+        back_buffer
+            .par_iter_mut()
+            .enumerate()
+            .for_each(|(index, back_buffer)| {
+                let mut chunk = Cuboid {
+                    min: Pos(0, 1, 0), // Don't update layers 0 and 255; TODO: fix this
+                    max: Pos(15, 254, 15),
+                };
+
+                // Skip border
+                // TODO: fix this (low priority as this creates a helpfull border marker for now)
+                if index < width_chunks {
+                    chunk.min.2 = 1
+                }
+                if index >= num_chunks - width_chunks {
+                    chunk.max.2 = 14
+                }
+                if index % width_chunks == 0 {
+                    chunk.min.0 = 1
+                }
+                if index % width_chunks == 15 {
+                    chunk.max.0 = 14
+                }
+
+                let chunk_offset = chunk_offset(index);
+                for pos in chunk.iter() {
+                    let block = world.get(pos + chunk_offset).light_properties();
+                    if block.transparent {
+                        let mut light = Light {
+                            block: block.emission,
+                            sky: light_buffer[index][index_in_chunk(pos)].sky,
+                        };
+                        for pos in &[
+                            pos + Vec2(-1, 0),
+                            pos + Vec2(1, 0),
+                            pos + Vec2(0, -1),
+                            pos + Vec2(0, 1),
+                            pos + Vec3(0, -1, 0),
+                            pos + Vec3(0, 1, 0),
+                        ] {
+                            let neighbor = if pos.0 < 0 {
+                                light_buffer[index - 1][index_in_chunk(*pos + Vec2(16, 0))]
+                            } else if pos.0 > 15 {
+                                light_buffer[index + 1][index_in_chunk(*pos - Vec2(16, 0))]
+                            } else if pos.2 < 0 {
+                                light_buffer[index - width_chunks]
+                                    [index_in_chunk(*pos + Vec2(0, 16))]
+                            } else if pos.2 > 15 {
+                                light_buffer[index + width_chunks]
+                                    [index_in_chunk(*pos - Vec2(0, 16))]
+                            } else {
+                                light_buffer[index][index_in_chunk(*pos)]
+                            };
+                            light.block = light.block.max(neighbor.block.saturating_sub(1));
+                            light.sky = light.sky.max(neighbor.sky.saturating_sub(1));
+                        }
+
+                        back_buffer[index_in_chunk(pos)] = light;
+                    }
+                }
+            });
+        swap(&mut light_buffer, &mut back_buffer);
+    }
+
+    light_buffer
 }
