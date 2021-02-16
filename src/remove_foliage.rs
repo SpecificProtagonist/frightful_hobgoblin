@@ -11,7 +11,7 @@ pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
             world.heightmap(column)
         };
         for y in base_height + 1..=base_height + 2 {
-            let block = world.get_mut(column.at_height(y));
+            let block = world.get_mut(column.at(y));
             if match block {
                 GroundPlant(..) => true,
                 _ => false,
@@ -25,8 +25,8 @@ pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
 pub fn remove_trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
     for column in area.iter() {
         let y = world.heightmap(column) + 1;
-        if let Block::Log(..) = world.get(column.at_height(y)) {
-            remove_tree(world, column.at_height(y), leave_stumps);
+        if let Block::Log(..) = world.get(column.at(y)) {
+            remove_tree(world, column.at(y), leave_stumps);
         }
     }
 }

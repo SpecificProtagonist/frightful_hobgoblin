@@ -42,7 +42,7 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
     // Global scoreboard keeper
     world.entities.push(Entity {
         id: None,
-        pos: world.area().center().at_height(0),
+        pos: world.area().center().at(0),
         data: EntityType::Marker,
         tags: vec!["global_scoreboard".into()],
     });
@@ -112,7 +112,8 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
             "execute 0-0-0-{}-0 0 0 0 \
              execute @s[tag=idle] 0 0 0 \
              function mc-gen:{}/on_idle",
-            id, name
+            id,
+            mangle(name)
         ));
         // For carried blocks
         loop_fn.push(format!(
@@ -142,7 +143,7 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
         // Right now all actions just get concatenated, this will change later
         let action_trigger_id = EntityID(0, 0, 1, id, 0);
         functions.push((
-            format!("{}/on_idle", name),
+            format!("{}/on_idle", mangle(name)),
             vec![
                 "scoreboard players tag @s remove idle".into(),
                 trigger_sequential(action_trigger_id),
@@ -157,7 +158,7 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
                     Walk(path) => walk(world, id, path),
                     Build(recording) => recording.commands(),
                     BuildInstant(recording) => {
-                        let function_name = format!("{}/build_instant_{}", name, action_id);
+                        let function_name = format!("{}/build_instant_{}", mangle(name), action_id);
                         let commands = vec![trigger_parallel(&function_name)];
                         functions.push((function_name, recording.commands()));
                         commands
@@ -246,7 +247,7 @@ fn positions(world: &World, path: &[Column]) -> Vec<(f32, f32, f32)> {
                 // TODO: fix this
                 height = height.max(
                     world.heightmap(column) as f32
-                        + match world.get(column.at_height(world.heightmap(column) + 1)) {
+                        + match world.get(column.at(world.heightmap(column) + 1)) {
                             Block::Slab { upper: false, .. } => 1.5,
                             _ => 1.0,
                         },
@@ -259,8 +260,12 @@ fn positions(world: &World, path: &[Column]) -> Vec<(f32, f32, f32)> {
     points
 }
 
-fn trigger_parallel(name: &str) -> String {
-    format!("function mc-gen:{}", name)
+fn mangle(name: &str) -> String {
+    name.to_lowercase().replace(' ', "_")
+}
+
+fn trigger_parallel(fn_name: &str) -> String {
+    format!("function mc-gen:{}", fn_name)
 }
 
 fn trigger_sequential(id: EntityID) -> String {
@@ -272,9 +277,9 @@ fn export_parallel_executions(
     fun_dir: &Path,
     functions: Vec<(String, Commands)>,
 ) -> io::Result<()> {
-    for (name, commands) in functions {
+    for (fn_name, commands) in functions {
         let mut fun_path = fun_dir.to_owned();
-        fun_path.push(format!("{}.mcfunction", name));
+        fun_path.push(format!("{}.mcfunction", fn_name));
         create_dir_all(&fun_path.parent().unwrap())?;
         let mut file = OpenOptions::new().write(true).create(true).open(fun_path)?;
         for command in commands {
@@ -294,13 +299,13 @@ fn export_sequential_executions(world: &mut World, command_chains: Vec<(EntityID
         );
     }
     let area = world.redstone_processing_area();
-    let mut pos = area.min.at_height(1);
+    let mut pos = area.min.at(1);
     for (marker_id, commands) in command_chains {
         let start = pos;
         make_reset(world, pos);
         pos.0 += 1;
         for command in commands {
-            if pos.0 >= area.max.0 {
+            if pos.0 > area.max.0 {
                 let old_pos = pos;
                 pos.2 += 2;
                 pos.0 = area.min.0;

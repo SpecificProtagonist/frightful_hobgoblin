@@ -11,11 +11,11 @@
             "cargo": {
                 "args": [
                     "build",
-                    "--bin=mc-gen",
+                    "--bin=test",
                     "--package=mc-gen"
                 ],
                 "filter": {
-                    "name": "mc-gen",
+                    "name": "test",
                     "kind": "bin"
                 }
             },

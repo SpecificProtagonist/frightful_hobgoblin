@@ -4,11 +4,11 @@ mod build_recorder;
 pub mod debug_image;
 mod geometry;
 pub mod make_divider;
-pub mod make_house;
 pub mod make_misc;
 pub mod make_name;
 pub mod make_trees;
 pub mod remove_foliage;
+pub mod structures;
 pub mod terraform;
 mod world;
 

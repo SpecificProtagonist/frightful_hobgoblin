@@ -1,5 +1,5 @@
 use itertools::Itertools;
-use std::ops::{Add, AddAssign, Mul, MulAssign, Sub, SubAssign};
+use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
 //use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
 
@@ -18,7 +18,11 @@ pub struct Vec3(pub i32, pub i32, pub i32);
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Vec2(pub i32, pub i32);
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub struct Vec2f(pub f32, pub f32);
+
 #[derive(Debug, Copy, Clone)]
+/// Both minimum and maximum are inclusive
 pub struct Rect {
     pub min: Column,
     pub max: Column,
@@ -50,6 +54,14 @@ pub enum HDir {
     XNeg,
     ZNeg,
     XPos,
+}
+
+impl HDir {
+    pub fn iter() -> impl Iterator<Item = HDir> {
+        [HDir::ZPos, HDir::XNeg, HDir::ZNeg, HDir::XPos]
+            .iter()
+            .cloned()
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -111,11 +123,11 @@ impl From<Vec2> for Vec3 {
 
 impl Rect {
     pub fn size(self) -> Vec2 {
-        self.max - self.min
+        self.max + Vec2(1, 1) - self.min
     }
 
     pub fn center(self) -> Column {
-        self.min + (self.max - self.min) * 0.5
+        self.min + self.size() * 0.5
     }
 
     pub fn contains(self, column: Column) -> bool {
@@ -125,9 +137,32 @@ impl Rect {
             & (self.max.1 >= column.1)
     }
 
+    pub fn shrink(self, amount: i32) -> Self {
+        Self {
+            min: self.min + Vec2(amount, amount),
+            max: self.max - Vec2(amount, amount),
+        }
+    }
+
     pub fn iter(self) -> impl Iterator<Item = Column> {
         (self.min.1..=self.max.1)
             .flat_map(move |z| (self.min.0..=self.max.0).map(move |x| Column(x, z)))
+    }
+
+    pub fn border(self) -> impl Iterator<Item = Column> {
+        (self.min.0..=self.max.0)
+            .map(move |x| Column(x, self.min.1))
+            .chain((self.min.1..=self.max.1).map(move |z| Column(self.max.0, z)))
+            .chain(
+                (self.min.0..=self.max.0)
+                    .rev()
+                    .map(move |x| Column(x, self.max.1)),
+            )
+            .chain(
+                (self.min.1..=self.max.1)
+                    .rev()
+                    .map(move |z| Column(self.min.0, z)),
+            )
     }
 }
 
@@ -256,10 +291,13 @@ impl Iterator for PolygonIterator<'_> {
     type Item = Column;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while self.current != self.bounds.max {
+        loop {
             let column = self.current;
             self.current.0 += 1;
             if self.current.0 > self.bounds.max.0 {
+                if self.current.1 == self.bounds.max.1 {
+                    break;
+                }
                 self.current.0 = self.bounds.min.0;
                 self.current.1 += 1;
             }
@@ -308,7 +346,7 @@ impl Iterator for BorderIterator<'_> {
 }
 
 impl Column {
-    pub fn at_height(self, y: u8) -> Pos {
+    pub fn at(self, y: u8) -> Pos {
         Pos(self.0, y, self.1)
     }
 
@@ -349,6 +387,15 @@ impl From<Pos> for ChunkIndex {
 impl From<(i32, i32)> for ChunkIndex {
     fn from((x, z): (i32, i32)) -> Self {
         ChunkIndex(x, z)
+    }
+}
+
+impl ChunkIndex {
+    pub fn area(self) -> Rect {
+        Rect {
+            min: Column(self.0 * 16, self.1 * 16),
+            max: Column(self.0 * 16, self.1 * 16) + Vec2(15, 15),
+        }
     }
 }
 
@@ -534,6 +581,32 @@ impl Mul<i32> for Vec2 {
 impl MulAssign<i32> for Vec2 {
     fn mul_assign(&mut self, rhs: i32) {
         *self = *self * rhs;
+    }
+}
+
+impl Div<i32> for Vec2 {
+    type Output = Vec2;
+    fn div(self, rhs: i32) -> Self::Output {
+        Self((self.0 % rhs) as i32, (self.1 % rhs) as i32)
+    }
+}
+
+impl DivAssign<i32> for Vec2 {
+    fn div_assign(&mut self, rhs: i32) {
+        *self = *self / rhs;
+    }
+}
+
+impl Rem<i32> for Vec2 {
+    type Output = Vec2;
+    fn rem(self, rhs: i32) -> Self::Output {
+        Self((self.0 % rhs) as i32, (self.1 % rhs) as i32)
+    }
+}
+
+impl RemAssign<i32> for Vec2 {
+    fn rem_assign(&mut self, rhs: i32) {
+        *self = *self % rhs;
     }
 }
 

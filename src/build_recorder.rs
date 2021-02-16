@@ -39,6 +39,14 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
             .or_insert_with(|| world.get(pos).clone())
     }
 
+    fn get_mut_no_update_order(&mut self, pos: Pos) -> &mut Block {
+        let BuildRecorder(world, record) = self;
+        if !record.blocks.contains_key(&pos) {
+            record.blocks.insert(pos, world.get(pos).clone());
+        }
+        record.blocks.get_mut(&pos).unwrap()
+    }
+
     fn biome(&self, column: Column) -> Biome {
         self.0.biome(column)
     }

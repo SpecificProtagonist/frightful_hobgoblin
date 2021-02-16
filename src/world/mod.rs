@@ -19,6 +19,7 @@ const MAX_VERSION: i32 = 1343;
 pub trait WorldView {
     fn get(&self, pos: Pos) -> &Block;
     fn get_mut(&mut self, pos: Pos) -> &mut Block;
+    fn get_mut_no_update_order(&mut self, pos: Pos) -> &mut Block;
 
     fn biome(&self, column: Column) -> Biome;
 
@@ -34,6 +35,9 @@ pub trait WorldView {
     /// Convenience method
     fn set(&mut self, pos: Pos, block: impl BlockOrRef) {
         *self.get_mut(pos) = block.get();
+    }
+    fn set_override(&mut self, pos: Pos, block: impl BlockOrRef) {
+        *self.get_mut_no_update_order(pos) = block.get();
     }
     /// Convenience method
     fn set_if_not_solid<'a, 's>(&'s mut self, pos: Pos, block: impl BlockOrRef) {
@@ -64,8 +68,9 @@ impl BlockOrRef for &Block {
 pub struct World {
     pub path: PathBuf,
     /// Loaded area; aligned with chunk borders (-> usually larger than area specified in new())
-    pub chunk_min: ChunkIndex,
-    pub chunk_max: ChunkIndex,
+    /// Both minimum and maximum inclusive
+    chunk_min: ChunkIndex,
+    chunk_max: ChunkIndex,
     /// Sections in Z->X->Y order
     sections: Vec<Option<Box<Section>>>,
     biome: Vec<Biome>,
@@ -234,6 +239,20 @@ impl World {
         (pos.0.rem_euclid(16) + pos.1.rem_euclid(16) as i32 * 16 * 16 + pos.2.rem_euclid(16) * 16)
             as usize
     }
+
+    fn chunk_min(&self) -> ChunkIndex {
+        self.chunk_min
+    }
+
+    fn chunk_max(&self) -> ChunkIndex {
+        self.chunk_max
+    }
+
+    pub fn chunks(&self) -> impl Iterator<Item = ChunkIndex> {
+        (self.chunk_min.0..=self.chunk_max.0)
+            .cartesian_product(self.chunk_min.1..=self.chunk_max.1)
+            .map(|(x, z)| ChunkIndex(x, z))
+    }
 }
 
 impl WorldView for World {
@@ -249,6 +268,10 @@ impl WorldView for World {
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_with(|| Box::new(Section::default()));
         &mut section.blocks[Self::block_in_section_index(pos)]
+    }
+
+    fn get_mut_no_update_order(&mut self, pos: Pos) -> &mut Block {
+        self.get_mut(pos)
     }
 
     fn biome(&self, column: Column) -> Biome {

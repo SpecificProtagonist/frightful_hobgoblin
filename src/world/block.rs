@@ -11,8 +11,9 @@ pub use Block::*;
 #[repr(u8)]
 pub enum Block {
     Air,
-    RawStone(RawStone),
     Stone(Stone),
+    /// Yes, e.g. smoothstone stairs are representable, but for my small usecase that's not a problem
+    StoneStair(Stone, HDir, bool),
     Water,
     Lava,
     Soil(Soil),
@@ -21,15 +22,23 @@ pub enum Block {
     GroundPlant(GroundPlant),
     Fence(Fence),
     Wool(Color),
+    SnowLayer,
     Glowstone,
+    GlassPane(Option<Color>),
     Hay,
-    Slab { kind: Slab, upper: bool },
+    Slab {
+        kind: Slab,
+        upper: bool,
+    },
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
     CommandBlock(Arc<String>),
     Debug(u8),
-    Other { id: u8, data: u8 },
+    Other {
+        id: u8,
+        data: u8,
+    },
 }
 
 impl Default for Block {
@@ -65,19 +74,14 @@ pub enum TreeSpecies {
     DarkOak,
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum RawStone {
-    Stone,
-    Granite,
-    Diorite,
-    Andesite,
-}
-
 // Represents man-placed stone, even when the same blocks could occure naturally
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Stone {
+    Stone,
+    Granite,
+    Diorite,
+    Andesite,
     Cobble,
     Stonebrick,
     Brick,
@@ -190,10 +194,10 @@ impl Block {
         match id {
             0 => Air,
             1 => match data {
-                0 => RawStone(RawStone::Stone),
-                1 => RawStone(RawStone::Granite),
-                3 => RawStone(RawStone::Diorite),
-                5 => RawStone(RawStone::Andesite),
+                0 => Stone(Stone::Stone),
+                1 => Stone(Stone::Granite),
+                3 => Stone(Stone::Diorite),
+                5 => Stone(Stone::Andesite),
                 _ => Other { id, data },
             },
             2 => Soil(Soil::Grass),
@@ -271,6 +275,7 @@ impl Block {
                 },
                 upper: id >= 8,
             }),
+            78 => SnowLayer,
             _ => Other { id, data },
         }
     }
@@ -278,20 +283,33 @@ impl Block {
     pub fn to_bytes(&self) -> (u8, u8) {
         match self {
             Air => (0, 0),
-            RawStone(mineral) => (
-                1,
-                match mineral {
-                    RawStone::Stone => 0,
-                    RawStone::Granite => 1,
-                    RawStone::Diorite => 3,
-                    RawStone::Andesite => 5,
-                },
-            ),
             Stone(stone) => match stone {
+                Stone::Stone => (1, 0),
+                Stone::Granite => (1, 1),
+                Stone::Diorite => (1, 3),
+                Stone::Andesite => (1, 5),
                 Stone::Cobble => (4, 0),
                 Stone::Brick => (45, 0),
                 Stone::Stonebrick => (98, 0),
             },
+            StoneStair(stone, dir, flipped) => (
+                match stone {
+                    Stone::Cobble => 67,
+                    Stone::Brick => 108,
+                    Stone::Stonebrick => 109,
+                    _ => panic!(format!(
+                        "{} stairs don't exist (at least in 1.12)",
+                        Stone(*stone).name()
+                    )),
+                },
+                if *flipped { 4 } else { 0 }
+                    + match dir {
+                        HDir::XPos => 0,
+                        HDir::XNeg => 1,
+                        HDir::ZPos => 2,
+                        HDir::ZNeg => 3,
+                    },
+            ),
             Soil(soil_type) => match soil_type {
                 Soil::Grass => (2, 0),
                 Soil::Dirt => (3, 0),
@@ -368,7 +386,15 @@ impl Block {
                 Fence::Stone { mossy: true } => (139, 1),
             },
             Wool(color) => (35, *color as u8),
+            SnowLayer => (78, 0),
             Glowstone => (89, 0),
+            GlassPane(color) => {
+                if let Some(color) = color {
+                    (160, *color as u8)
+                } else {
+                    (102, 0)
+                }
+            }
             Hay => (170, 0),
             Block::Slab { kind, upper } => match kind {
                 Slab::Wooden(species) => (126, *species as u8 + if *upper { 8 } else { 0 }),
@@ -384,7 +410,6 @@ impl Block {
     pub fn name(&self) -> &'static str {
         match self {
             Air => "air",
-            RawStone(_) => "stone",
             Soil(soil_type) => match soil_type {
                 Soil::Grass => "grass",
                 Soil::Dirt | Soil::CoarseDirt | Soil::Podzol => "dirt",
@@ -394,9 +419,19 @@ impl Block {
                 Soil::Path => "grass_path",
             },
             Stone(stone) => match stone {
+                Stone::Stone | Stone::Andesite | Stone::Diorite | Stone::Granite => "stone",
                 Stone::Cobble => "cobblestone",
                 Stone::Brick => "brick_block",
                 Stone::Stonebrick => "stonebrick",
+            },
+            StoneStair(stone, ..) => match stone {
+                Stone::Cobble => "stone_stairs",
+                Stone::Brick => "brick_stairs",
+                Stone::Stonebrick => "stone_brick_stairs",
+                _ => panic!(format!(
+                    "{} stairs don't exist (at least in 1.12)",
+                    Stone(*stone).name()
+                )),
             },
             Water => "water",
             Lava => "lava",
@@ -453,6 +488,14 @@ impl Block {
                 Fence::Stone { .. } => "cobblestone_wall",
             },
             Wool(_) => "wool",
+            SnowLayer => "snow_layer",
+            GlassPane(color) => {
+                if color.is_some() {
+                    "stained_glass_pane"
+                } else {
+                    "glass_pane"
+                }
+            }
             Glowstone => "glowstone",
             Hay => "hay_block",
             Block::Slab { kind, .. } => match kind {
@@ -485,14 +528,10 @@ impl Block {
 
     pub fn solid(&self) -> bool {
         // Todo: expand this
-        match self {
-            Air => false,
-            Water => false,
-            Lava => false,
-            GroundPlant(..) => false,
-            Leaves(..) => false,
-            _ => true,
-        }
+        !matches!(
+            self,
+            Air | Water | Lava | GroundPlant(..) | Leaves(..) | SnowLayer
+        )
     }
 
     pub fn light_properties(&self) -> LightProperties {
@@ -507,11 +546,13 @@ impl Block {
                 transparent: true,
                 filter_skylight: false,
             },
-            Air | Repeater { .. } | GroundPlant(_) => LightProperties {
-                emission: 0,
-                transparent: true,
-                filter_skylight: false,
-            },
+            Air | Repeater { .. } | GroundPlant(..) | SnowLayer | GlassPane(..) => {
+                LightProperties {
+                    emission: 0,
+                    transparent: true,
+                    filter_skylight: false,
+                }
+            }
             _ => LightProperties {
                 emission: 0,
                 transparent: false,
