@@ -1,5 +1,5 @@
+#![allow(dead_code)]
 use mc_gen::*;
-use num_traits::cast;
 use structures::*;
 
 fn main() {
@@ -15,9 +15,10 @@ fn main() {
 
     let mut world = World::new(tmp_world_save_path, tmp_area);
 
-    let villagers = test_fortified_house_animated(&mut world);
+    //let villagers = test_fortified_house_animated(&mut world);
+    test_fortified_house(&mut world);
 
-    save_behavior(&mut world, &villagers).unwrap();
+    //save_behavior(&mut world, &villagers).unwrap();
     world.save().unwrap();
 }
 
@@ -37,8 +38,15 @@ fn test_retaining_wall(world: &mut World) {
 
 fn test_fortified_house(world: &mut World) {
     let blueprints = castle::generate_blueprints(world);
-    for blueprint in blueprints {
-        blueprint.build(world);
+    let mut blocked = Vec::new();
+    for blueprint in &blueprints {
+        if blocked.len() > 20 {
+            break;
+        }
+        if blocked.iter().all(|rect| !blueprint.area.overlapps(*rect)) {
+            blocked.push(blueprint.area);
+            blueprint.build(world);
+        }
     }
 }
 

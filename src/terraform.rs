@@ -72,13 +72,13 @@ fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
     }
 }
 
-pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block: Stone) {
+pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block: BuildBlock) {
     for column in area.iter() {
-        world.set(column.at(height), Stone(block));
+        world.set(column.at(height), block.full());
         let mut y = height - 1;
         let ground_height = world.heightmap(column);
         while (y > ground_height) | soil_exposted(world, column.at(y)) {
-            world.set(column.at(y), Stone(block));
+            world.set(column.at(y), block.full());
             y -= 1;
         }
         for y in (height + 1)..=ground_height {
@@ -120,7 +120,7 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
         columns: impl Iterator<Item = Column>,
         y: u8,
         facing: HDir,
-        block: Stone,
+        block: BuildBlock,
     ) {
         let support_chance = 0.7;
         let min_height = 3;
@@ -137,9 +137,9 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
                 & !just_placed
                 & rand(support_chance)
             {
-                world.set(column.at(y), StoneStair(block, facing, false));
+                world.set(column.at(y), Stair(block, facing, Flipped(false)));
                 for y in (y - ground_distance as u8)..y {
-                    world.set(column.at(y), Stone(block));
+                    world.set(column.at(y), block.full());
                 }
                 true
             } else {

@@ -11,25 +11,17 @@ pub enum Usage {
 }
 pub struct Blueprint {
     pub area: Rect,
+    pub y: u8,
+    pub relative_height: i32,
 }
 
 impl Blueprint {
     pub fn build(&self, world: &mut impl WorldView) {
-        let wall_block = &Stone(Stone::Cobble);
-        let wall_accent_block = &Stone(Stone::Stonebrick);
-        let floor_block = &Log(
-            TreeSpecies::Spruce,
-            LogType::Normal(Axis::X),
-            LogOrigin::Manmade,
-        );
-        let stories = if rand(0.7) { 3 } else { 4 };
+        make_foundation(world, self.area, self.y, BuildBlock::Cobble);
 
-        let mut floor_height = world.heightmap(self.area.center());
-        make_foundation(world, self.area, floor_height, Stone::Cobble);
+        let mut stories = Vec::new();
 
-        for story in 0..stories {
-            let story_height = 4;
-
+        let basic_plan = {
             let mut layout = HashMap::new();
 
             // Walls
@@ -40,10 +32,33 @@ impl Blueprint {
             // Floor
             for column in self.area.shrink(1).iter() {
                 layout.insert(column, Usage::FreeInterior);
-                world.set(column.at(floor_height), floor_block);
             }
+            layout
+        };
 
-            // Windows
+        // Define stories
+        // Todo: e.g. differing heights, cellar, ...
+        {
+            let max_surrounding_height = self
+                .area
+                .grow(2)
+                .border()
+                .map(|column| world.heightmap(column))
+                .max()
+                .unwrap();
+            let num_stories =
+                (max_surrounding_height.saturating_sub(self.y) as f32 / 4.1 + 2.9) as u8;
+            let mut floor_height = self.y;
+            for _ in 0..num_stories {
+                let story_height = 4;
+                stories.push((floor_height, story_height, basic_plan.clone()));
+                floor_height += story_height;
+            }
+        }
+
+        // Windows
+        let mut possible_privy_locations = Vec::new();
+        for (floor_height, _, layout) in stories.iter_mut() {
             for column in self.area.border() {
                 if let Some(facing) = HDir::iter().find(|facing| {
                     matches!(
@@ -59,43 +74,53 @@ impl Blueprint {
                         layout.get(&(column + Vec2::from(facing).counterclockwise())),
                         Some(Usage::Wall)
                     ) & layout
-                        .get(&(column + Vec2::from(facing).clockwise()))
+                        .get(&(column + Vec2::from(facing).clockwise() * 2))
                         .is_some()
                         & layout
-                            .get(&(column + Vec2::from(facing).counterclockwise()))
+                            .get(&(column + Vec2::from(facing).counterclockwise() * 2))
                             .is_some()
                     {
                         // Make more windows highter up
                         let height = floor_height
                             .saturating_sub(world.heightmap(column - Vec2::from(facing)));
+                        if height > 5 {
+                            possible_privy_locations.push((column.at(*floor_height), facing));
+                        }
                         if rand(((height as f32 - 3.2) / 8.0).min(0.8)) {
                             layout.insert(column, Usage::Window(facing));
                         }
                     }
                 }
             }
+        }
 
+        // Actually build this
+        for (floor_height, story_height, layout) in stories {
+            build_floor(world, &layout, floor_height);
             build_walls(world, &layout, floor_height + 1, story_height, true);
             build_windows(world, &layout, floor_height);
+        }
 
-            floor_height += story_height;
+        // Privy
+        possible_privy_locations.sort_unstable_by_key(|(pos, dir)| {
+            world.heightmap(Column::from(*pos) - Vec2::from(*dir) * 2)
+        });
+
+        if let Some((pos, facing)) = possible_privy_locations.first() {
+            build_privy(world, *pos, *facing);
         }
     }
 }
 
-/// Assumes walls are already build
-fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, base_y: u8) {
+fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floor_y: u8) {
+    let floor_block = &Log(
+        TreeSpecies::Spruce,
+        LogType::Normal(Axis::X),
+        LogOrigin::Manmade,
+    );
     for (column, usage) in layout {
-        if let Usage::Window(facing) = usage {
-            world.set_override(
-                column.at(base_y + 1),
-                StoneStair(Stone::Cobble, *facing, false),
-            );
-            world.set(column.at(base_y + 2), GlassPane(Some(Color::White)));
-            world.set_override(
-                column.at(base_y + 3),
-                StoneStair(Stone::Cobble, *facing, true),
-            );
+        if matches!(usage, Usage::FreeInterior) {
+            world.set(column.at(floor_y), floor_block);
         }
     }
 }
@@ -156,139 +181,301 @@ fn build_walls(
     }
 }
 
+/// Assumes walls are already build
+fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, base_y: u8) {
+    for (column, usage) in layout {
+        if let Usage::Window(facing) = usage {
+            world.set_override(
+                column.at(base_y + 1),
+                Stair(BuildBlock::Cobble, *facing, Flipped(false)),
+            );
+            world.set(column.at(base_y + 2), GlassPane(Some(Color::Brown)));
+            world.set_override(
+                column.at(base_y + 3),
+                Stair(BuildBlock::Cobble, *facing, Flipped(true)),
+            );
+        }
+    }
+}
+
+fn build_privy(world: &mut impl WorldView, base_pos: Pos, facing: HDir) {
+    // This is a fixed (if small) structure without variation except for materials (todo)
+    // TODO: implement schematic pasting
+    let dir = Vec2::from(facing);
+    let wall_block = &Stone(Stone::Stonebrick);
+    let roof_block = &Stair(
+        BuildBlock::Wooden(world.biome(base_pos.into()).random_tree_species()),
+        facing,
+        Flipped(false),
+    );
+    world.set_override(base_pos, Stair(BuildBlock::Cobble, facing, Flipped(false)));
+    world.set_override(base_pos + dir.clockwise(), Stone(Stone::Stonebrick));
+    world.set_override(base_pos + dir.counterclockwise(), Stone(Stone::Stonebrick));
+    world.set(
+        base_pos + dir.clockwise() - dir,
+        Stair(BuildBlock::Stonebrick, facing, Flipped(true)),
+    );
+    world.set(
+        base_pos + dir.counterclockwise() - dir,
+        Stair(BuildBlock::Stonebrick, facing, Flipped(true)),
+    );
+    world.set(base_pos + Vec3(0, 1, 0) - dir + dir.clockwise(), wall_block);
+    world.set(
+        base_pos + Vec3(0, 1, 0) - dir,
+        Stair(BuildBlock::Stonebrick, facing.opposite(), Flipped(true)),
+    );
+    world.set(base_pos + Vec3(0, 1, 0) - dir - dir.clockwise(), wall_block);
+    world.set(base_pos + Vec3(0, 2, 0) - dir + dir.clockwise(), wall_block);
+    world.set(
+        base_pos + Vec3(0, 2, 0) - dir,
+        Fence(Fence::Stone { mossy: false }),
+    );
+    world.set(base_pos + Vec3(0, 2, 0) - dir - dir.clockwise(), wall_block);
+    world.set(base_pos + Vec3(0, 3, 0) - dir + dir.clockwise(), roof_block);
+    world.set(base_pos + Vec3(0, 3, 0) - dir, roof_block);
+    world.set(base_pos + Vec3(0, 3, 0) - dir - dir.clockwise(), roof_block);
+    world.set(base_pos + Vec3(0, 1, 0), Cauldron { water: 0 });
+    world.set(base_pos + Vec3(0, 2, 0), Air);
+
+    let drop_column = Column::from(base_pos) - dir;
+    let drop_column = drop_column
+        - if let Stone(Stone::Cobble) = world.get(drop_column.at(world.heightmap(drop_column))) {
+            dir
+        } else {
+            Vec2(0, 0)
+        };
+    world.set(
+        drop_column.at(world.heightmap(drop_column)),
+        Soil(Soil::SoulSand),
+    );
+}
+
 pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
-    // Find a suitable location
-    let chunk_heights = terraform::max_chunk_heights(world);
+    let mut choices = Vec::new();
+
+    // This doesn't really work that well, use a different algorithm
+    let probe_distance = 6;
+    for x in ((world.area().min.0 + probe_distance / 2)..world.area().max.0)
+        .step_by(probe_distance as usize)
+    {
+        for z in ((world.area().min.1 + probe_distance / 2)..world.area().max.1)
+            .step_by(probe_distance as usize)
+        {
+            fn ascend(world: &World, column: Column) -> Column {
+                let max_dist = 8;
+                let slope = slope(world, column);
+                column
+                    + Vec2(
+                        slope.0.clamp(-max_dist, max_dist),
+                        slope.1.clamp(-max_dist, max_dist),
+                    )
+            }
+            let column = ascend(world, Column(x, z));
+            if world.area().contains(column) {
+                let column = ascend(world, column);
+                if world.area().contains(column) {
+                    choices.push(column);
+                }
+            }
+        }
+    }
 
     // TODO:
-    let positions = vec![
+    /*let choices = vec![
         Column(60, 32),
         Column(72, 48),
         Column(2, -12),
         Column(26, -14),
         Column(44, -34),
         Column(-32, -7),
-    ];
+        Column(44, 95),
+    ];*/
 
-    positions
+    let mut choices: Vec<Blueprint> = choices
         .iter()
-        .map(|pos| Blueprint {
-            area: find_good_footprint_at(world, *pos),
-        })
-        .collect()
+        .flat_map(|pos| find_good_footprint_at(world, *pos))
+        .filter(|blueprint| blueprint.relative_height >= 0)
+        .collect();
+
+    choices.sort_unstable_by_key(|blueprint| -blueprint.relative_height);
+
+    choices
 }
 
-// TODO: return Option
-// TODO: prefer expanding to cliff
-fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Rect {
+// TODO: prefer expanding to border of steep terrain
+// TODO: limit max height difference
+fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Blueprint> {
     const MIN_LENGTH: i32 = 5;
-    const MAX_LENGTH: i32 = 12;
+    const MAX_LENGTH: i32 = 14;
     const MAX_SECONDARY_LENGTH: i32 = 8;
-    const MAX_SLOPE: i32 = 8;
+    const MAX_SLOPE: i32 = 3;
+    const MAX_HEIGHT_DIFF: u8 = 7;
 
     let mut area = Rect { min: pos, max: pos };
+    let mut min_y = world.heightmap(pos);
+    let mut max_y = min_y;
     loop {
+        // Store how much the height-range would have to be extended
+        let check_height_diff = |max_diff: &mut i32, y: i32| {
+            if min_y as i32 - y > max_diff.abs() {
+                *max_diff = y - min_y as i32;
+            } else if y - max_y as i32 > max_diff.abs() {
+                *max_diff = y - max_y as i32;
+            }
+        };
+
         // Check in which direction the terrain is the flattest
-        // TODO: simply compare directly neighboring instead of gaussian (should fit better on some sharp corners)
-        let max_slope_x_plus = (area.min.1..=area.max.1)
+        let mut height_diff_x_plus = 0;
+        let slope_x_plus = (area.min.1..=area.max.1)
             .map(|z| {
-                (world.heightmap(Column(area.max.0, z)) as i32
-                    - world.heightmap(Column(area.max.0 + 1, z)) as i32)
-                    .abs()
+                let height = world.heightmap(Column(area.max.0, z)) as i32;
+                check_height_diff(&mut height_diff_x_plus, height);
+                (height - world.heightmap(Column(area.max.0 + 1, z)) as i32).abs()
             })
             .max()
             .unwrap();
-        let max_slope_x_neg = (area.min.1..=area.max.1)
+        let mut height_diff_x_neg = 0;
+        let slope_x_neg = (area.min.1..=area.max.1)
             .map(|z| {
-                (world.heightmap(Column(area.min.0, z)) as i32
-                    - world.heightmap(Column(area.min.0 - 1, z)) as i32)
-                    .abs()
+                let height = world.heightmap(Column(area.min.0, z)) as i32;
+                check_height_diff(&mut height_diff_x_neg, height);
+                (height - world.heightmap(Column(area.min.0 - 1, z)) as i32).abs()
             })
             .max()
             .unwrap();
-        let max_slope_z_plus = (area.min.0..=area.max.0)
+        let mut height_diff_z_plus = 0;
+        let slope_z_plus = (area.min.0..=area.max.0)
             .map(|x| {
-                (world.heightmap(Column(x, area.max.1)) as i32
-                    - world.heightmap(Column(x, area.max.1 + 1)) as i32)
-                    .abs()
+                let height = world.heightmap(Column(x, area.max.1)) as i32;
+                check_height_diff(&mut height_diff_z_plus, height);
+                (height - world.heightmap(Column(x, area.max.1 + 1)) as i32).abs()
             })
             .max()
             .unwrap();
-        let max_slope_z_neg = (area.min.0..=area.max.0)
+        let mut height_diff_z_neg = 0;
+        let slope_z_neg = (area.min.0..=area.max.0)
             .map(|x| {
-                (world.heightmap(Column(x, area.min.1)) as i32
-                    - world.heightmap(Column(x, area.min.1 - 1)) as i32)
-                    .abs()
+                let height = world.heightmap(Column(x, area.min.1)) as i32;
+                check_height_diff(&mut height_diff_z_neg, height);
+                (height - world.heightmap(Column(x, area.min.1 - 1)) as i32).abs()
             })
             .max()
             .unwrap();
 
         // Chose whether to prefer expansion into positive or negative direction, encode in sign
-        let slope_x = if max_slope_x_neg < max_slope_x_plus {
-            -(max_slope_x_neg as f32)
-        } else if max_slope_x_neg > max_slope_x_plus {
-            max_slope_x_plus as f32
-        } else {
-            if rand(1.5) {
-                -(max_slope_x_neg as f32)
+        let (slope_x, height_diff_x) = {
+            let positive = if slope_x_neg < slope_x_plus {
+                false
+            } else if slope_x_neg > slope_x_plus {
+                true
             } else {
-                max_slope_x_plus as f32
+                rand(1.5)
+            };
+            if positive {
+                (slope_x_plus as f32 + 1.0, height_diff_x_plus)
+            } else {
+                (-slope_x_neg as f32 - 1.0, height_diff_x_neg)
             }
         };
-        let slope_z = if max_slope_z_neg < max_slope_z_plus {
-            -(max_slope_z_neg as f32)
-        } else if max_slope_z_neg > max_slope_z_plus {
-            max_slope_z_plus as f32
-        } else {
-            if rand(1.5) {
-                -(max_slope_z_neg as f32)
+        let (slope_z, height_diff_z) = {
+            let positive = if slope_z_neg < slope_z_plus {
+                false
+            } else if slope_z_neg > slope_z_plus {
+                true
             } else {
-                max_slope_z_plus as f32
+                rand(1.5)
+            };
+            if positive {
+                (slope_z_plus as f32 + 1.0, height_diff_z_plus)
+            } else {
+                (-slope_z_neg as f32 - 1.0, height_diff_z_neg)
             }
         };
 
-        // First ensure minimum size is met
-        if area.size().0 < MIN_LENGTH && area.size().0 <= area.size().1 {
-            if slope_x.is_sign_negative() {
-                area.min.0 -= 1;
-            } else {
-                area.max.0 += 1;
-            }
-            continue;
-        } else if area.size().1 < MIN_LENGTH {
-            if slope_z.is_sign_negative() {
-                area.min.1 -= 1;
-            } else {
-                area.max.1 += 1;
-            }
-            continue;
+        let allowed = |slope: f32, y_diff: i32| {
+            (slope.abs() <= MAX_SLOPE as f32)
+                & (y_diff.abs() as u8 + max_y.saturating_sub(min_y) + 1 <= MAX_HEIGHT_DIFF)
+        };
+
+        // If minimum size can't be reached, abort
+        if ((area.size().0 < MIN_LENGTH) & !allowed(slope_x, height_diff_x))
+            | ((area.size().1 < MIN_LENGTH) & !allowed(slope_z, height_diff_z))
+        {
+            return None;
         }
 
-        // If it is, just expand until maximum size or slope is met
+        enum Dir {
+            X,
+            Z,
+        }
+
+        let dir  =
+        // First ensure minimum size is met
+        if area.size().0 < MIN_LENGTH && area.size().0 <= area.size().1 {
+            Dir::X
+        } else if area.size().1 < MIN_LENGTH {
+            Dir::Z
+        } else
+        // Minimum size reached, just expand until maximum size or slope is met
+        // TODO: check if this introduces a bias for the x direction
         if (slope_x.abs() <= slope_z.abs())
-            & ((max_slope_x_neg <= MAX_SLOPE) | (max_slope_x_plus <= MAX_SLOPE))
+            & allowed(slope_x, height_diff_x)
             & (area.size().0 < MAX_LENGTH)
-            & ((area.size().0 < MAX_SECONDARY_LENGTH) | !(area.size().1 < MAX_LENGTH))
+            & ((area.size().0 < MAX_SECONDARY_LENGTH) | (area.size().1 < MAX_LENGTH))
         {
-            if slope_x.is_sign_negative() {
-                area.min.0 -= 1;
-            } else {
-                area.max.0 += 1;
-            }
+            Dir::X
         } else if (area.size().1 < MAX_LENGTH)
-            & ((max_slope_z_neg <= MAX_SLOPE) | (max_slope_z_plus <= MAX_SLOPE))
-            & ((area.size().1 < MAX_SECONDARY_LENGTH) | !(area.size().0 < MAX_LENGTH))
+            & allowed(slope_z, height_diff_z)
+            & ((area.size().1 < MAX_SECONDARY_LENGTH) | (area.size().0 < MAX_LENGTH))
         {
-            if slope_z.is_sign_negative() {
-                area.min.1 -= 1;
-            } else {
-                area.max.1 += 1;
-            }
+            Dir::Z
         } else {
             // Maximum size reached
             break;
+        };
+
+        let height_diff = if let Dir::X = dir {
+            if slope_x.is_sign_negative() {
+                area.min.0 -= 1;
+            } else {
+                area.max.0 += 1;
+            }
+            height_diff_x
+        } else {
+            if slope_z.is_sign_negative() {
+                area.min.1 -= 1;
+            } else {
+                area.max.1 += 1;
+            }
+            height_diff_z
+        };
+
+        if height_diff < 0 {
+            min_y = (min_y as i32 + height_diff) as u8;
+        } else {
+            max_y += height_diff as u8;
         }
     }
 
-    area
+    let y = {
+        (area
+            .iter()
+            .map(|column| world.heightmap(column) as i32)
+            .sum::<i32>()
+            / (area.size().0 * area.size().1)) as u8
+    };
+
+    Some(Blueprint {
+        area,
+        y,
+        relative_height: {
+            let mut count = 0;
+            let mut sum = 0;
+            for column in area.grow(3).border().chain(area.grow(6).border()) {
+                count += 1;
+                sum += y as i32 - world.heightmap(column) as i32;
+            }
+            sum / count
+        },
+    })
 }

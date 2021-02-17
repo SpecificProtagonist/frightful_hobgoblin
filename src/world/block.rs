@@ -12,8 +12,7 @@ pub use Block::*;
 pub enum Block {
     Air,
     Stone(Stone),
-    /// Yes, e.g. smoothstone stairs are representable, but for my small usecase that's not a problem
-    StoneStair(Stone, HDir, bool),
+    Planks(TreeSpecies),
     Water,
     Lava,
     Soil(Soil),
@@ -26,19 +25,15 @@ pub enum Block {
     Glowstone,
     GlassPane(Option<Color>),
     Hay,
-    Slab {
-        kind: Slab,
-        upper: bool,
-    },
+    Slab(BuildBlock, Flipped),
+    Stair(BuildBlock, HDir, Flipped),
+    Cauldron { water: u8 },
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
     CommandBlock(Arc<String>),
     Debug(u8),
-    Other {
-        id: u8,
-        data: u8,
-    },
+    Other { id: u8, data: u8 },
 }
 
 impl Default for Block {
@@ -99,6 +94,7 @@ pub enum Soil {
     Path,
     Podzol,
     CoarseDirt,
+    SoulSand,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -183,9 +179,25 @@ pub enum Color {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum Slab {
+pub struct Flipped(pub bool);
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum BuildBlock {
     Wooden(TreeSpecies),
+    Cobble,
+    Stonebrick,
+    Brick,
+}
+
+impl BuildBlock {
+    pub fn full(self) -> Block {
+        match self {
+            BuildBlock::Wooden(species) => Planks(species),
+            BuildBlock::Cobble => Stone(Stone::Cobble),
+            BuildBlock::Brick => Stone(Stone::Brick),
+            BuildBlock::Stonebrick => Stone(Stone::Stonebrick),
+        }
+    }
 }
 
 impl Block {
@@ -292,24 +304,7 @@ impl Block {
                 Stone::Brick => (45, 0),
                 Stone::Stonebrick => (98, 0),
             },
-            StoneStair(stone, dir, flipped) => (
-                match stone {
-                    Stone::Cobble => 67,
-                    Stone::Brick => 108,
-                    Stone::Stonebrick => 109,
-                    _ => panic!(format!(
-                        "{} stairs don't exist (at least in 1.12)",
-                        Stone(*stone).name()
-                    )),
-                },
-                if *flipped { 4 } else { 0 }
-                    + match dir {
-                        HDir::XPos => 0,
-                        HDir::XNeg => 1,
-                        HDir::ZPos => 2,
-                        HDir::ZNeg => 3,
-                    },
-            ),
+            Planks(species) => (5, *species as u8),
             Soil(soil_type) => match soil_type {
                 Soil::Grass => (2, 0),
                 Soil::Dirt => (3, 0),
@@ -319,6 +314,7 @@ impl Block {
                 Soil::Path => (208, 0),
                 Soil::CoarseDirt => (3, 1),
                 Soil::Podzol => (3, 2),
+                Soil::SoulSand => (88, 0),
             },
             Bedrock => (7, 0),
             Water => (9, 0),
@@ -396,9 +392,50 @@ impl Block {
                 }
             }
             Hay => (170, 0),
-            Block::Slab { kind, upper } => match kind {
-                Slab::Wooden(species) => (126, *species as u8 + if *upper { 8 } else { 0 }),
-            },
+            Slab(material, flipped) => {
+                let flipped = if matches!(flipped, Flipped(true)) {
+                    8
+                } else {
+                    0
+                };
+                if let BuildBlock::Wooden(species) = material {
+                    (126, *species as u8 + flipped)
+                } else {
+                    (
+                        44,
+                        match material {
+                            BuildBlock::Cobble => 3,
+                            BuildBlock::Brick => 4,
+                            BuildBlock::Stonebrick => 4,
+                            BuildBlock::Wooden(..) => panic!(),
+                        } + flipped,
+                    )
+                }
+            }
+            Stair(material, dir, flipped) => (
+                match material {
+                    BuildBlock::Wooden(TreeSpecies::Oak) => 53,
+                    BuildBlock::Wooden(TreeSpecies::Spruce) => 134,
+                    BuildBlock::Wooden(TreeSpecies::Birch) => 135,
+                    BuildBlock::Wooden(TreeSpecies::Jungle) => 136,
+                    BuildBlock::Wooden(TreeSpecies::Acacia) => 163,
+                    BuildBlock::Wooden(TreeSpecies::DarkOak) => 164,
+                    BuildBlock::Cobble => 67,
+                    BuildBlock::Brick => 108,
+                    BuildBlock::Stonebrick => 109,
+                },
+                if matches!(flipped, Flipped(true)) {
+                    4
+                } else {
+                    0
+                } + match dir {
+                    HDir::XPos => 0,
+                    HDir::XNeg => 1,
+                    HDir::ZPos => 2,
+                    HDir::ZNeg => 3,
+                },
+            ),
+            Cauldron { water } => (118, water % 4),
             Repeater(dir, delay) => (93, (*dir as u8 + 2) % 4 + delay * 4),
             Barrier => (166, 0),
             CommandBlock(_) => (137, 0),
@@ -417,6 +454,7 @@ impl Block {
                 Soil::Gravel => "gravel",
                 Soil::Farmland => "farmland",
                 Soil::Path => "grass_path",
+                Soil::SoulSand => "soul_sand",
             },
             Stone(stone) => match stone {
                 Stone::Stone | Stone::Andesite | Stone::Diorite | Stone::Granite => "stone",
@@ -424,15 +462,7 @@ impl Block {
                 Stone::Brick => "brick_block",
                 Stone::Stonebrick => "stonebrick",
             },
-            StoneStair(stone, ..) => match stone {
-                Stone::Cobble => "stone_stairs",
-                Stone::Brick => "brick_stairs",
-                Stone::Stonebrick => "stone_brick_stairs",
-                _ => panic!(format!(
-                    "{} stairs don't exist (at least in 1.12)",
-                    Stone(*stone).name()
-                )),
-            },
+            Planks(..) => "planks",
             Water => "water",
             Lava => "lava",
             Log(species, ..) => {
@@ -498,9 +528,24 @@ impl Block {
             }
             Glowstone => "glowstone",
             Hay => "hay_block",
-            Block::Slab { kind, .. } => match kind {
-                Slab::Wooden(_) => "wooden_slab",
+            Slab(material, ..) => match material {
+                BuildBlock::Wooden(_) => "wooden_slab",
+                _ => "stone_slab",
             },
+            Stair(material, ..) => match material {
+                BuildBlock::Wooden(species) => match species {
+                    TreeSpecies::Oak => "oak_stairs",
+                    TreeSpecies::Spruce => "spruce_stairs",
+                    TreeSpecies::Birch => "birch_stairs",
+                    TreeSpecies::Jungle => "jungle_stairs",
+                    TreeSpecies::Acacia => "acacia_stairs",
+                    TreeSpecies::DarkOak => "dark_oak_stairs",
+                },
+                BuildBlock::Cobble => "stone_stairs",
+                BuildBlock::Brick => "brick_stairs",
+                BuildBlock::Stonebrick => "stone_brick_stairs",
+            },
+            Cauldron { .. } => "cauldron",
             Repeater(..) => "unpowered_repeater",
             Bedrock => "bedrock",
             CommandBlock(_) => "command_block",
@@ -546,7 +591,7 @@ impl Block {
                 transparent: true,
                 filter_skylight: false,
             },
-            Air | Repeater { .. } | GroundPlant(..) | SnowLayer | GlassPane(..) => {
+            Air | Repeater { .. } | GroundPlant(..) | SnowLayer | GlassPane(..) | Fence(..) => {
                 LightProperties {
                     emission: 0,
                     transparent: true,

@@ -62,6 +62,19 @@ impl HDir {
             .iter()
             .cloned()
     }
+
+    pub fn clockwise(self) -> Self {
+        match self {
+            HDir::ZPos => HDir::XNeg,
+            HDir::XNeg => HDir::ZNeg,
+            HDir::ZNeg => HDir::XPos,
+            HDir::XPos => HDir::ZPos,
+        }
+    }
+
+    pub fn opposite(self) -> Self {
+        self.clockwise().clockwise()
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -135,6 +148,17 @@ impl Rect {
             & (self.min.1 <= column.1)
             & (self.max.0 >= column.0)
             & (self.max.1 >= column.1)
+    }
+
+    pub fn overlapps(self, other: Rect) -> bool {
+        (self.min.0 <= other.max.0)
+            & (self.max.0 >= other.min.0)
+            & (self.min.1 <= other.max.1)
+            & (self.max.1 >= other.min.1)
+    }
+
+    pub fn grow(self, amount: i32) -> Self {
+        self.shrink(-amount)
     }
 
     pub fn shrink(self, amount: i32) -> Self {
@@ -710,7 +734,7 @@ impl ColumnLineIter {
 }
 
 /* These don't really fit here, but oh well. */
-
+// TODO: Use world seed (and move to World?)
 pub fn rand(prob: f32) -> bool {
     rand::random::<f32>() < prob
 }

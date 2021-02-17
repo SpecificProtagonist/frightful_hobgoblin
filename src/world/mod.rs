@@ -253,6 +253,14 @@ impl World {
             .cartesian_product(self.chunk_min.1..=self.chunk_max.1)
             .map(|(x, z)| ChunkIndex(x, z))
     }
+
+    pub fn area(&self) -> Rect {
+        Rect {
+            min: Column(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
+            max: Column(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
+        }
+        .shrink(crate::LOAD_MARGIN)
+    }
 }
 
 impl WorldView for World {

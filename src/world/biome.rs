@@ -1,5 +1,4 @@
-use crate::{world::TreeSpecies, Soil};
-use rand::random;
+use crate::{geometry::rand, world::TreeSpecies, Soil};
 pub use BiomeType::*;
 pub use Temperature::*;
 
@@ -444,7 +443,7 @@ impl Biome {
                 temp: Moderate,
                 ..
             } => {
-                if random::<f32>() < 0.15 {
+                if rand(0.15) {
                     TreeSpecies::Birch
                 } else {
                     TreeSpecies::Oak
@@ -453,7 +452,7 @@ impl Biome {
             Biome {
                 base: ExtremeHills, ..
             } => {
-                if random::<f32>() < 0.6 {
+                if rand(0.6) {
                     TreeSpecies::Oak
                 } else {
                     TreeSpecies::Spruce
@@ -462,7 +461,7 @@ impl Biome {
             Biome {
                 base: RoofedForest, ..
             } => {
-                if random::<f32>() < 0.25 {
+                if rand(0.25) {
                     TreeSpecies::Oak
                 } else {
                     TreeSpecies::DarkOak

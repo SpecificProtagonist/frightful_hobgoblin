@@ -180,6 +180,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "fnv"
+version = "1.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3f9eec918d3f24069decb9af1554cad7c880e2da24a9afd88aca000531ab82c1"
+
+[[package]]
 name = "getrandom"
 version = "0.1.15"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -215,6 +221,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3deed196b6e7f9e44a2ae8d94225d80302d81208b1bb673fd21fe634645c85a9"
 dependencies = [
  "libc",
+]
+
+[[package]]
+name = "hierarchical_pathfinding"
+version = "0.3.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5deec46d02262eed839b190da8a3d774781459b37f04c0de123a566ec41fd61b"
+dependencies = [
+ "fnv",
 ]
 
 [[package]]
@@ -293,6 +308,7 @@ dependencies = [
  "bresenham",
  "copy_dir",
  "hashlink",
+ "hierarchical_pathfinding",
  "image",
  "itertools",
  "lazy_static",

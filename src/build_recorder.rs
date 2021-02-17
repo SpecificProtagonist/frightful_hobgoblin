@@ -1,7 +1,6 @@
 use crate::*;
 use hashlink::linked_hash_map::LinkedHashMap;
 use std::collections::HashMap;
-use std::num::NonZeroU8;
 
 pub struct BuildRecorder<'a, T: WorldView>(&'a T, BuildRecord);
 

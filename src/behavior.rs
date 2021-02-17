@@ -248,7 +248,7 @@ fn positions(world: &World, path: &[Column]) -> Vec<(f32, f32, f32)> {
                 height = height.max(
                     world.heightmap(column) as f32
                         + match world.get(column.at(world.heightmap(column) + 1)) {
-                            Block::Slab { upper: false, .. } => 1.5,
+                            Block::Slab(_, Flipped(false)) => 1.5,
                             _ => 1.0,
                         },
                 );
