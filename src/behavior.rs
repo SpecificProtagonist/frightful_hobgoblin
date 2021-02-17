@@ -299,23 +299,31 @@ fn export_sequential_executions(world: &mut World, command_chains: Vec<(EntityID
         );
     }
     let area = world.redstone_processing_area();
+
     let mut pos = area.min.at(1);
     for (marker_id, commands) in command_chains {
-        let start = pos;
+        // The command chain is triggered by placing a redstone block at the marker
+        world.entities.push(Entity {
+            id: Some(marker_id),
+            pos,
+            data: EntityType::Marker,
+            tags: vec![],
+        });
         make_reset(world, pos);
         pos.0 += 1;
         for command in commands {
-            if pos.0 > area.max.0 {
+            // Wrapparound overflow
+            if pos.0 >= area.max.0 {
                 let old_pos = pos;
-                pos.2 += 2;
-                pos.0 = area.min.0;
+                pos.2 += 1;
+                pos.0 = area.min.0 + pos.2 % 2;
                 if pos.2 > area.max.1 {
                     pos.2 = area.min.1;
-                    pos.1 += 2;
+                    pos.1 += 3;
                 }
                 // TODO: fix: triggering via redstone block takes a tick, so following timings can be of slightly
                 world.set(
-                    old_pos,
+                    old_pos + Vec3(-1, -1, 0),
                     CommandBlock(Arc::new(format!(
                         "setblock {} {} {} redstone_block",
                         pos.0, pos.1, pos.2
@@ -324,22 +332,19 @@ fn export_sequential_executions(world: &mut World, command_chains: Vec<(EntityID
                 make_reset(world, pos);
                 pos.0 += 1;
             }
+
             world.set(pos, Repeater(HDir::XPos, 0));
             // Encase in bedrock to prevent lava destroying redstone
             world.set(pos + Vec3(0, 1, 0), Bedrock);
-            world.set(pos + Vec3(0, 0, -1), Bedrock);
-            world.set(pos + Vec3(0, 0, 1), Bedrock);
+            world.set_if_not_solid(pos + Vec3(0, 0, -1), Bedrock);
+            world.set_if_not_solid(pos + Vec3(0, 0, 1), Bedrock);
 
             pos.0 += 1;
             world.set(pos, CommandBlock(Arc::new(command)));
             pos.0 += 1;
         }
-
-        world.entities.push(Entity {
-            id: Some(marker_id),
-            pos: start,
-            data: EntityType::Marker,
-            tags: vec![],
-        });
+        // Leave space after command chain to prevent the last command from
+        // getting triggered by the next marker
+        pos.0 += 1;
     }
 }
