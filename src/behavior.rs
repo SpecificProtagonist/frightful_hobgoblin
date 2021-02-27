@@ -86,7 +86,7 @@ pub fn save_behavior(world: &mut World, villagers: &[Villager]) -> io::Result<()
             data.insert_compound_tag_vec("Teams", vec![]);
             data
         });
-        nbt::encode::write_gzip_compound_tag(&mut file, nbt)?;
+        nbt::encode::write_gzip_compound_tag(&mut file, &nbt)?;
     }
 
     let mut functions = Vec::new();
@@ -246,8 +246,8 @@ fn positions(world: &World, path: &[Column]) -> Vec<(f32, f32, f32)> {
                 );
                 // TODO: fix this
                 height = height.max(
-                    world.heightmap(column) as f32
-                        + match world.get(column.at(world.heightmap(column) + 1)) {
+                    world.height(column) as f32
+                        + match world.get(column.at(world.height(column) + 1)) {
                             Block::Slab(_, Flipped(false)) => 1.5,
                             _ => 1.0,
                         },

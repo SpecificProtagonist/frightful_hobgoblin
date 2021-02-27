@@ -1,3 +1,5 @@
 /target
 
-save_path
+/.vscode
+
+/config_local*.rs

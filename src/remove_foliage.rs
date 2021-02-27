@@ -5,10 +5,10 @@ const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
 
 pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
     for column in area.iter() {
-        let base_height = if let Some(water_height) = world.watermap(column) {
+        let base_height = if let Some(water_height) = world.water_level(column) {
             water_height.into()
         } else {
-            world.heightmap(column)
+            world.height(column)
         };
         for y in base_height + 1..=base_height + 2 {
             let block = world.get_mut(column.at(y));
@@ -24,7 +24,7 @@ pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
 
 pub fn remove_trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
     for column in area.iter() {
-        let y = world.heightmap(column) + 1;
+        let y = world.height(column) + 1;
         if let Block::Log(..) = world.get(column.at(y)) {
             remove_tree(world, column.at(y), leave_stumps);
         }

@@ -11,7 +11,7 @@ impl<'a, T: WorldView> BuildRecorder<'a, T> {
             BuildRecord {
                 blocks: LinkedHashMap::new(),
                 heightmap: HashMap::new(),
-                watermap: HashMap::new(),
+                water_level: HashMap::new(),
             },
         )
     }
@@ -50,36 +50,36 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
         self.0.biome(column)
     }
 
-    fn heightmap(&self, column: Column) -> u8 {
+    fn height(&self, column: Column) -> u8 {
         *self
             .1
             .heightmap
             .get(&column)
-            .unwrap_or(&self.0.heightmap(column))
+            .unwrap_or(&self.0.height(column))
     }
 
-    fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
+    fn height_mut(&mut self, column: Column) -> &mut u8 {
         let BuildRecorder(world, record) = self;
         record
             .heightmap
             .entry(column)
-            .or_insert_with(|| world.heightmap(column))
+            .or_insert_with(|| world.height(column))
     }
 
-    fn watermap(&self, column: Column) -> Option<u8> {
+    fn water_level(&self, column: Column) -> Option<u8> {
         *self
             .1
-            .watermap
+            .water_level
             .get(&column)
-            .unwrap_or(&self.0.watermap(column))
+            .unwrap_or(&self.0.water_level(column))
     }
 
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8> {
+    fn water_level_mut(&mut self, column: Column) -> &mut Option<u8> {
         let BuildRecorder(world, record) = self;
         record
-            .watermap
+            .water_level
             .entry(column)
-            .or_insert_with(|| world.watermap(column))
+            .or_insert_with(|| world.water_level(column))
     }
 
     fn area(&self) -> Rect {
@@ -90,7 +90,7 @@ impl<T: WorldView> WorldView for BuildRecorder<'_, T> {
 pub struct BuildRecord {
     blocks: LinkedHashMap<Pos, Block>,
     heightmap: HashMap<Column, u8>,
-    watermap: HashMap<Column, Option<u8>>,
+    water_level: HashMap<Column, Option<u8>>,
 }
 
 impl BuildRecord {
@@ -99,10 +99,10 @@ impl BuildRecord {
             world.set(*pos, block);
         }
         for (column, height) in &self.heightmap {
-            *world.heightmap_mut(*column) = *height;
+            *world.height_mut(*column) = *height;
         }
-        for (column, height) in &self.watermap {
-            *world.watermap_mut(*column) = *height;
+        for (column, height) in &self.water_level {
+            *world.water_level_mut(*column) = *height;
         }
     }
 

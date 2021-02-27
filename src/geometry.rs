@@ -63,17 +63,23 @@ impl HDir {
             .cloned()
     }
 
-    pub fn clockwise(self) -> Self {
-        match self {
-            HDir::ZPos => HDir::XNeg,
-            HDir::XNeg => HDir::ZNeg,
-            HDir::ZNeg => HDir::XPos,
-            HDir::XPos => HDir::ZPos,
+    pub fn rotated(self, turns: u8) -> Self {
+        match (self as u8 + turns) % 4 {
+            1 => HDir::XNeg,
+            2 => HDir::ZNeg,
+            3 => HDir::XPos,
+            _ => HDir::ZPos,
         }
     }
 
-    pub fn opposite(self) -> Self {
-        self.clockwise().clockwise()
+    pub fn from_str(name: &str) -> Option<HDir> {
+        match name {
+            "north" => Some(HDir::ZNeg),
+            "east" => Some(HDir::XPos),
+            "south" => Some(HDir::ZPos),
+            "west" => Some(HDir::XNeg),
+            _ => None,
+        }
     }
 }
 
@@ -95,6 +101,26 @@ impl Vec2 {
 
     pub fn counterclockwise(self) -> Vec2 {
         Vec2(-self.1, self.0)
+    }
+}
+
+impl Vec3 {
+    /// Turns around the y axis
+    pub fn rotated(self, turns: u8) -> Self {
+        match turns % 4 {
+            1 => Vec3(-self.2, self.1, self.0),
+            2 => Vec3(-self.0, self.1, -self.2),
+            3 => Vec3(self.2, self.1, -self.0),
+            _ => self,
+        }
+    }
+
+    pub fn mirrord(self, axis: Axis) -> Self {
+        match axis {
+            Axis::X => Vec3(-self.0, self.1, self.2),
+            Axis::Y => Vec3(self.0, -self.1, self.2),
+            Axis::Z => Vec3(self.0, self.1, -self.2),
+        }
     }
 }
 
@@ -135,6 +161,13 @@ impl From<Vec2> for Vec3 {
 }
 
 impl Rect {
+    pub fn new_centered(center: Column, size: Vec2) -> Rect {
+        Rect {
+            min: center - size / 2,
+            max: center + size / 2,
+        }
+    }
+
     pub fn size(self) -> Vec2 {
         self.max + Vec2(1, 1) - self.min
     }
@@ -611,7 +644,7 @@ impl MulAssign<i32> for Vec2 {
 impl Div<i32> for Vec2 {
     type Output = Vec2;
     fn div(self, rhs: i32) -> Self::Output {
-        Self((self.0 % rhs) as i32, (self.1 % rhs) as i32)
+        Self((self.0 / rhs) as i32, (self.1 / rhs) as i32)
     }
 }
 

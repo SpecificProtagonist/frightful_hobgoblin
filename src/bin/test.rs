@@ -1,29 +1,28 @@
 #![allow(dead_code)]
+use config::*;
 use mc_gen::*;
 use structures::*;
 
 fn main() {
-    let tmp_world_load_path: &str = concat!(include_str!("../../save_path"), "mc-gen base");
-    let tmp_world_save_path: &str = concat!(include_str!("../../save_path"), "mc-gen generated");
-    let tmp_area = Rect {
-        min: Column(-100, -100),
-        max: Column(100, 100),
-    };
+    drop(std::fs::remove_dir_all(SAVE_WRITE_PATH));
+    copy_dir::copy_dir(SAVE_READ_PATH, SAVE_WRITE_PATH).expect("Failed to create save");
 
-    drop(std::fs::remove_dir_all(tmp_world_save_path));
-    copy_dir::copy_dir(tmp_world_load_path, tmp_world_save_path).expect("Failed to create save");
+    let area = Rect::new_centered(Column(AREA[0], AREA[1]), Vec2(AREA[2], AREA[3]));
 
-    let mut world = World::new(tmp_world_save_path, tmp_area);
+    let mut world = World::new(SAVE_WRITE_PATH, area);
 
     //let villagers = test_fortified_house_animated(&mut world);
     test_fortified_house(&mut world);
+
+    let test_pos = area.center().at(world.height(area.center()) + 1);
+    structures::Template::get("quarry_hut").build(&mut world, test_pos, HDir::XNeg);
 
     //save_behavior(&mut world, &villagers).unwrap();
     world.save().unwrap();
 }
 
 fn test_retaining_wall(world: &mut World) {
-    let height = world.heightmap(Column(0, 0));
+    let height = world.height(Column(0, 0));
     let corners = vec![
         Column(22, -6),
         Column(18, 0),

@@ -2,7 +2,11 @@ mod biome;
 mod block;
 mod entity;
 
-use anvil_region::*;
+use anvil_region::{
+    position::{RegionChunkPosition, RegionPosition},
+    provider::{FolderRegionProvider, RegionProvider},
+};
+use anyhow::Result;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
@@ -24,11 +28,11 @@ pub trait WorldView {
     fn biome(&self, column: Column) -> Biome;
 
     /// Height of the ground, ignores vegetation
-    fn heightmap(&self, column: Column) -> u8;
-    fn heightmap_mut(&mut self, column: Column) -> &mut u8;
+    fn height(&self, column: Column) -> u8;
+    fn height_mut(&mut self, column: Column) -> &mut u8;
 
-    fn watermap(&self, column: Column) -> Option<u8>;
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8>;
+    fn water_level(&self, column: Column) -> Option<u8>;
+    fn water_level_mut(&mut self, column: Column) -> &mut Option<u8>;
 
     fn area(&self) -> Rect;
 
@@ -86,7 +90,7 @@ impl World {
             region_path.push("region");
             region_path.into_os_string().into_string().unwrap()
         };
-        let chunk_provider = AnvilChunkProvider::new(&region_path);
+        let chunk_provider = FolderRegionProvider::new(&region_path);
         let chunk_min: ChunkIndex =
             (area.min - Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
         let chunk_max: ChunkIndex =
@@ -130,76 +134,76 @@ impl World {
         world
     }
 
-    pub fn save(&self) -> Result<(), ChunkSaveError> {
+    pub fn save(&self) -> Result<()> {
         // Write chunks
-        {
-            let mut region_path = self.path.clone();
-            region_path.push("region");
-            // Internally, AnvilChunkProvider stores a path. So why require a str??
-            let region_path = region_path.into_os_string().into_string().unwrap();
-            let chunk_provider = AnvilChunkProvider::new(&region_path);
+        let mut region_path = self.path.clone();
+        region_path.push("region");
+        // Internally, AnvilChunkProvider stores a path. So why require a str??
+        let region_path = region_path.into_os_string().into_string().unwrap();
+        let chunk_provider = FolderRegionProvider::new(&region_path);
 
-            let chunk_count = ((self.chunk_max.0 - self.chunk_min.0 + 1)
-                * (self.chunk_max.1 - self.chunk_min.1 + 1)) as usize;
-            let mut entities_chunked = vec![vec![]; chunk_count];
-            for entity in &self.entities {
-                entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
-            }
-
-            let light = calculate_block_light(&self);
-
-            // Sadly chunk_provider saveing isn't thread safe
-            (self.chunk_min.1..=self.chunk_max.1)
-                .flat_map(|z| (self.chunk_min.1..=self.chunk_max.1).map(move |x| (x, z)))
-                .zip(self.sections.chunks_exact(16))
-                .zip(self.biome.chunks_exact(16 * 16))
-                .zip(entities_chunked)
-                .zip(light)
-                .for_each(|((((index, sections), biome), entities), light)| {
-                    save_chunk(
-                        &chunk_provider,
-                        index.into(),
-                        sections,
-                        biome,
-                        &entities,
-                        light,
-                    )
-                    .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
-                });
+        let chunk_count = ((self.chunk_max.0 - self.chunk_min.0 + 1)
+            * (self.chunk_max.1 - self.chunk_min.1 + 1)) as usize;
+        let mut entities_chunked = vec![vec![]; chunk_count];
+        for entity in &self.entities {
+            entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
         }
+
+        let light = calculate_block_light(&self);
+
+        // Sadly chunk_provider saveing isn't thread safe
+        (self.chunk_min.1..=self.chunk_max.1)
+            .flat_map(|z| (self.chunk_min.1..=self.chunk_max.1).map(move |x| (x, z)))
+            .zip(self.sections.chunks_exact(16))
+            .zip(self.biome.chunks_exact(16 * 16))
+            .zip(entities_chunked)
+            .zip(light)
+            .for_each(|((((index, sections), biome), entities), light)| {
+                save_chunk(
+                    &chunk_provider,
+                    index.into(),
+                    sections,
+                    biome,
+                    &entities,
+                    light,
+                )
+                .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
+            });
 
         // Edit metadata
-        {
-            let level_nbt_path =
-                self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
-            let mut file = std::fs::File::open(&level_nbt_path).expect("Failed to open level.dat");
-            let mut nbt =
-                nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
-            let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
+        let level_nbt_path =
+            self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
+        let mut file = std::fs::File::open(&level_nbt_path).expect("Failed to open level.dat");
+        let mut nbt =
+            nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
+        let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
 
-            let name: &mut String = data.get_mut("LevelName").expect("Corrupt level.dat");
-            name.push_str(" [generated]");
+        let name: &mut String = data.get_mut("LevelName").expect("Corrupt level.dat");
+        name.push_str(" [generated]");
 
-            let timestamp: &mut i64 = data.get_mut("LastPlayed").unwrap();
-            *timestamp += 10;
+        data.insert(
+            "LastPlayed",
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .unwrap()
+                .as_millis() as i64,
+        );
 
-            data.insert_i8("Difficulty", 0);
+        data.insert_i8("Difficulty", 0);
 
-            let gamerules: &mut CompoundTag = data.get_mut("GameRules").unwrap();
-            gamerules.insert_str("commandBlockOutput", "false");
-            gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
+        let gamerules: &mut CompoundTag = data.get_mut("GameRules").unwrap();
+        gamerules.insert_str("commandBlockOutput", "false");
+        gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
 
-            // Set spawn to the center of the area to ensure all command blocks stay loaded
-            data.insert_i32("SpawnX", self.area().center().0);
-            data.insert_i32("SpawnZ", self.area().center().1);
+        // Set spawn to the center of the area to ensure all command blocks stay loaded
+        data.insert_i32("SpawnX", self.area().center().0);
+        data.insert_i32("SpawnZ", self.area().center().1);
 
-            let mut file = std::fs::OpenOptions::new()
-                .write(true)
-                .open(&level_nbt_path)
-                .expect("Failed to open level.dat");
-            nbt::encode::write_gzip_compound_tag(&mut file, nbt)
-                .expect("Failed to write level.dat");
-        }
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&level_nbt_path)
+            .expect("Failed to open level.dat");
+        nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
         Ok(())
     }
 
@@ -240,11 +244,11 @@ impl World {
             as usize
     }
 
-    fn chunk_min(&self) -> ChunkIndex {
+    pub fn chunk_min(&self) -> ChunkIndex {
         self.chunk_min
     }
 
-    fn chunk_max(&self) -> ChunkIndex {
+    pub fn chunk_max(&self) -> ChunkIndex {
         self.chunk_max
     }
 
@@ -286,20 +290,20 @@ impl WorldView for World {
         self.biome[self.column_index(column)]
     }
 
-    fn heightmap(&self, column: Column) -> u8 {
+    fn height(&self, column: Column) -> u8 {
         self.heightmap[self.column_index(column)]
     }
 
-    fn heightmap_mut(&mut self, column: Column) -> &mut u8 {
+    fn height_mut(&mut self, column: Column) -> &mut u8 {
         let index = self.column_index(column);
         &mut self.heightmap[index]
     }
 
-    fn watermap(&self, column: Column) -> Option<u8> {
+    fn water_level(&self, column: Column) -> Option<u8> {
         self.watermap[self.column_index(column)]
     }
 
-    fn watermap_mut(&mut self, column: Column) -> &mut Option<u8> {
+    fn water_level_mut(&mut self, column: Column) -> &mut Option<u8> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
@@ -313,14 +317,16 @@ impl WorldView for World {
 }
 
 fn load_chunk(
-    chunk_provider: &AnvilChunkProvider,
+    chunk_provider: &FolderRegionProvider,
     index: ChunkIndex,
     sections: &mut [Option<Box<Section>>],
     biomes: &mut [Biome],
     heightmap: &mut [u8],
     watermap: &mut [Option<u8>],
-) -> Result<(), ChunkLoadError> {
-    let nbt = chunk_provider.load_chunk(index.0, index.1)?;
+) -> Result<()> {
+    let nbt = chunk_provider
+        .get_region(RegionPosition::from_chunk_position(index.0, index.1))?
+        .read_chunk(RegionChunkPosition::from_chunk_position(index.0, index.1))?;
     let version = nbt.get_i32("DataVersion").unwrap();
     if version > MAX_VERSION {
         // Todo: 1.13+ support (palette)
@@ -385,106 +391,113 @@ fn load_chunk(
 }
 
 fn save_chunk(
-    chunk_provider: &AnvilChunkProvider,
+    chunk_provider: &FolderRegionProvider,
     index: ChunkIndex,
     sections: &[Option<Box<Section>>],
     biomes: &[Biome],
     entities: &[&Entity],
     light: ChunkLight,
-) -> Result<(), ChunkSaveError> {
-    chunk_provider.save_chunk(index.0, index.1, {
-        let mut nbt = CompoundTag::new();
-        nbt.insert_i32("DataVersion", 1343);
-        nbt.insert_compound_tag("Level", {
-            let mut nbt = CompoundTag::new();
-            nbt.insert_i32("xPos", index.0);
-            nbt.insert_i32("zPos", index.1);
+) -> Result<()> {
+    chunk_provider
+        .get_region(RegionPosition::from_chunk_position(index.0, index.1))?
+        .write_chunk(
+            RegionChunkPosition::from_chunk_position(index.0, index.1),
+            {
+                let mut nbt = CompoundTag::new();
+                nbt.insert_i32("DataVersion", 1343);
+                nbt.insert_compound_tag("Level", {
+                    let mut nbt = CompoundTag::new();
+                    nbt.insert_i32("xPos", index.0);
+                    nbt.insert_i32("zPos", index.1);
 
-            nbt.insert_i64("LastUpdate", 0);
-            nbt.insert_i8("LightPopulated", 1);
-            nbt.insert_i8("TerrainPopulated", 1);
-            nbt.insert_i64("InhabitetTime", 0);
+                    nbt.insert_i64("LastUpdate", 0);
+                    nbt.insert_i8("LightPopulated", 1);
+                    nbt.insert_i8("TerrainPopulated", 1);
+                    nbt.insert_i64("InhabitetTime", 0);
 
-            nbt.insert_compound_tag_vec("Entities", Vec::new());
-            nbt.insert_compound_tag_vec("TileEntities", Vec::new());
-            // Todo: correct heightmap
-            nbt.insert_i8_vec("HeightMap", vec![0; 16 * 16]);
+                    nbt.insert_compound_tag_vec("Entities", Vec::new());
+                    nbt.insert_compound_tag_vec("TileEntities", Vec::new());
+                    // Todo: correct heightmap
+                    nbt.insert_i8_vec("HeightMap", vec![0; 16 * 16]);
 
-            // Minecraft actually loads the chunk if the biomes tag is missing,
-            // but regenerates the biomes incorrectly
-            nbt.insert_i8_vec(
-                "Biomes",
-                biomes.iter().map(|biome| biome.to_bytes() as i8).collect(),
-            );
+                    // Minecraft actually loads the chunk if the biomes tag is missing,
+                    // but regenerates the biomes incorrectly
+                    nbt.insert_i8_vec(
+                        "Biomes",
+                        biomes.iter().map(|biome| biome.to_bytes() as i8).collect(),
+                    );
 
-            // Collect tile entities
-            let mut tile_entities = Vec::new();
+                    // Collect tile entities
+                    let mut tile_entities = Vec::new();
 
-            nbt.insert_compound_tag_vec("Sections", {
-                sections
-                    .iter()
-                    .enumerate()
-                    .filter_map(|(y_index, section)| {
-                        if let Some(section) = section {
-                            let mut nbt = CompoundTag::new();
-                            nbt.insert_i8("Y", y_index as i8);
-                            let mut block_ids = Vec::new();
-                            let mut block_data = Vec::new();
-                            for (i, block) in section.blocks.iter().enumerate() {
-                                // Store id (byte) and data (nibble)
-                                let (id, data) = block.to_bytes();
-                                block_ids.push(id as i8);
-                                if i % 2 == 0 {
-                                    block_data.push(data as i8);
-                                } else {
-                                    let prev_data = block_data.last_mut().unwrap();
-                                    *prev_data = ((*prev_data as u8) + (data << 4)) as i8;
-                                }
+                    nbt.insert_compound_tag_vec("Sections", {
+                        sections
+                            .iter()
+                            .enumerate()
+                            .filter_map(|(y_index, section)| {
+                                if let Some(section) = section {
+                                    let mut nbt = CompoundTag::new();
+                                    nbt.insert_i8("Y", y_index as i8);
+                                    let mut block_ids = Vec::new();
+                                    let mut block_data = Vec::new();
+                                    for (i, block) in section.blocks.iter().enumerate() {
+                                        // Store id (byte) and data (nibble)
+                                        let (id, data) = block.to_bytes();
+                                        block_ids.push(id as i8);
+                                        if i % 2 == 0 {
+                                            block_data.push(data as i8);
+                                        } else {
+                                            let prev_data = block_data.last_mut().unwrap();
+                                            *prev_data = ((*prev_data as u8) + (data << 4)) as i8;
+                                        }
 
-                                // Collect TileEntity data
-                                {
-                                    let section_base =
-                                        Pos(index.0 * 16, y_index as u8 * 16, index.1 * 16);
-                                    let pos = section_base
-                                        + Vec3(
-                                            i as i32 % 16,
-                                            i as i32 / (16 * 16),
-                                            i as i32 % (16 * 16) / 16,
+                                        // Collect TileEntity data
+                                        {
+                                            let section_base =
+                                                Pos(index.0 * 16, y_index as u8 * 16, index.1 * 16);
+                                            let pos = section_base
+                                                + Vec3(
+                                                    i as i32 % 16,
+                                                    i as i32 / (16 * 16),
+                                                    i as i32 % (16 * 16) / 16,
+                                                );
+                                            tile_entities.extend(block.tile_entity_nbt(pos));
+                                        }
+                                    }
+                                    nbt.insert_i8_vec("Blocks", block_ids);
+                                    nbt.insert_i8_vec("Data", block_data);
+
+                                    let light = &light
+                                        [y_index * (16 * 16 * 16)..(y_index + 1) * 16 * 16 * 16];
+                                    let mut block_light = Vec::new();
+                                    let mut sky_light = Vec::new();
+                                    for i in (0..(16 * 16 * 16)).step_by(2) {
+                                        block_light.push(
+                                            (light[i].block + (light[i + 1].block << 4)) as i8,
                                         );
-                                    tile_entities.extend(block.tile_entity_nbt(pos));
+                                        sky_light
+                                            .push((light[i].sky + (light[i + 1].sky << 4)) as i8);
+                                    }
+                                    nbt.insert_i8_vec("BlockLight", block_light);
+                                    nbt.insert_i8_vec("SkyLight", sky_light);
+
+                                    Some(nbt)
+                                } else {
+                                    None
                                 }
-                            }
-                            nbt.insert_i8_vec("Blocks", block_ids);
-                            nbt.insert_i8_vec("Data", block_data);
+                            })
+                    });
 
-                            let light =
-                                &light[y_index * (16 * 16 * 16)..(y_index + 1) * 16 * 16 * 16];
-                            let mut block_light = Vec::new();
-                            let mut sky_light = Vec::new();
-                            for i in (0..(16 * 16 * 16)).step_by(2) {
-                                block_light
-                                    .push((light[i].block + (light[i + 1].block << 4)) as i8);
-                                sky_light.push((light[i].sky + (light[i + 1].sky << 4)) as i8);
-                            }
-                            nbt.insert_i8_vec("BlockLight", block_light);
-                            nbt.insert_i8_vec("SkyLight", sky_light);
+                    nbt.insert_compound_tag_vec("Entities", entities.iter().map(|e| e.to_nbt()));
 
-                            Some(nbt)
-                        } else {
-                            None
-                        }
-                    })
-                    .collect()
-            });
+                    nbt.insert_compound_tag_vec("TileEntities", tile_entities);
 
-            nbt.insert_compound_tag_vec("Entities", entities.iter().map(|e| e.to_nbt()).collect());
-
-            nbt.insert_compound_tag_vec("TileEntities", tile_entities);
-
-            nbt
-        });
-        nbt
-    })
+                    nbt
+                });
+                nbt
+            },
+        )?;
+    Ok(())
 }
 
 #[derive(Clone)]
@@ -551,7 +564,7 @@ fn calculate_block_light(world: &World) -> Vec<ChunkLight> {
     // Flood fill block-light & sky-light simultaneously
     for _ in 0..15 {
         back_buffer
-            .par_iter_mut()
+            .iter_mut()
             .enumerate()
             .for_each(|(index, back_buffer)| {
                 let mut chunk = Cuboid {
@@ -561,6 +574,7 @@ fn calculate_block_light(world: &World) -> Vec<ChunkLight> {
 
                 // Skip border
                 // TODO: fix this (low priority as this creates a helpfull border marker for now)
+                // Maybe just don't process the outer chunks and keep and use their original light values
                 if index < width_chunks {
                     chunk.min.2 = 1
                 }
@@ -574,9 +588,9 @@ fn calculate_block_light(world: &World) -> Vec<ChunkLight> {
                     chunk.max.0 = 14
                 }
 
-                let chunk_offset = chunk_offset(index);
+                let chunk_off = chunk_offset(index);
                 for pos in chunk.iter() {
-                    let block = world.get(pos + chunk_offset).light_properties();
+                    let block = world.get(pos + chunk_off).light_properties();
                     if block.transparent {
                         let mut light = Light {
                             block: block.emission,
@@ -593,7 +607,8 @@ fn calculate_block_light(world: &World) -> Vec<ChunkLight> {
                             let neighbor = if pos.0 < 0 {
                                 light_buffer[index - 1][index_in_chunk(*pos + Vec2(16, 0))]
                             } else if pos.0 > 15 {
-                                light_buffer[index + 1][index_in_chunk(*pos - Vec2(16, 0))]
+                                let buff = &light_buffer[index + 1];
+                                buff[index_in_chunk(*pos - Vec2(16, 0))]
                             } else if pos.2 < 0 {
                                 light_buffer[index - width_chunks]
                                     [index_in_chunk(*pos + Vec2(0, 16))]

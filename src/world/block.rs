@@ -69,6 +69,20 @@ pub enum TreeSpecies {
     DarkOak,
 }
 
+impl TreeSpecies {
+    pub fn from_str(name: &str) -> Option<TreeSpecies> {
+        match name {
+            "oak" => Some(TreeSpecies::Oak),
+            "spruce" => Some(TreeSpecies::Spruce),
+            "birch" => Some(TreeSpecies::Birch),
+            "jungle" => Some(TreeSpecies::Jungle),
+            "acacia" => Some(TreeSpecies::Acacia),
+            "dark_oak" => Some(TreeSpecies::DarkOak),
+            _ => None,
+        }
+    }
+}
+
 // Represents man-placed stone, even when the same blocks could occure naturally
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
@@ -571,12 +585,87 @@ impl Block {
         }
     }
 
+    /// This is for loading of the structure block format and very much incomplete
+    /// (and panics on invalid blocks)
+    pub fn from_nbt(nbt: &CompoundTag) -> Option<Block> {
+        let name = nbt.get_str("Name").expect("Invalid block: no name");
+        let name = name.strip_prefix("minecraft:")?;
+        let default_props = CompoundTag::new();
+        let props = nbt.get_compound_tag("Properties").unwrap_or(&default_props);
+
+        fn stair(material: BuildBlock, props: &CompoundTag) -> Block {
+            Stair(
+                material,
+                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                Flipped(props.get_str("half").unwrap() == "top"),
+            )
+        }
+
+        Some(match name {
+            "air" => Air,
+            "log" => {
+                let log_type = match props.get_str("axis").unwrap() {
+                    "x" => LogType::Normal(Axis::X),
+                    "y" => LogType::Normal(Axis::Y),
+                    "z" => LogType::Normal(Axis::Z),
+                    "none" => LogType::FullBark,
+                    unknown => panic!("Invalid log axis {}", unknown),
+                };
+                let species = TreeSpecies::from_str(props.get_str("variant").unwrap()).unwrap();
+                Log(species, log_type, LogOrigin::Manmade)
+            }
+            "dirt" => Soil(match props.get_str("variant").unwrap() {
+                "coarse_dirt" => Soil::CoarseDirt,
+                _ => return None,
+            }),
+            "fence" => Fence(Fence::Wood(TreeSpecies::Oak)),
+            "cobblestone_wall" => match props.get_str("variant").unwrap() {
+                "cobblestone" => Fence(Fence::Stone { mossy: false }),
+                _ => return None,
+            },
+            "wooden_slab" => Slab(
+                BuildBlock::Wooden(
+                    TreeSpecies::from_str(props.get_str("variant").unwrap()).unwrap(),
+                ),
+                Flipped(props.get_str("half").unwrap() == "top"),
+            ),
+            "oak_stairs" => stair(BuildBlock::Wooden(TreeSpecies::Oak), props),
+            "stone_brick_stairs" => stair(BuildBlock::Stonebrick, props),
+            "stonebrick" => match props.get_str("variant").unwrap() {
+                "stonebrick" => Stone(Stone::Stonebrick),
+                _ => return None,
+            },
+            "cauldron" => Cauldron {
+                water: props.get_str("level").unwrap().parse().unwrap(),
+            },
+            "wooden_door" => {
+                // TODO
+                Air
+            }
+            _ => return None,
+        })
+    }
+
     pub fn solid(&self) -> bool {
         // Todo: expand this
         !matches!(
             self,
             Air | Water | Lava | GroundPlant(..) | Leaves(..) | SnowLayer
         )
+    }
+
+    pub fn rotated(&self, turns: u8) -> Self {
+        match self {
+            Log(species, LogType::Normal(Axis::X), origin) => {
+                Log(*species, LogType::Normal(Axis::Z), *origin)
+            }
+            Log(species, LogType::Normal(Axis::Z), origin) => {
+                Log(*species, LogType::Normal(Axis::X), *origin)
+            }
+            Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
+            Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
+            _ => self.clone(),
+        }
     }
 
     pub fn light_properties(&self) -> LightProperties {
@@ -589,7 +678,7 @@ impl Block {
             Water | Leaves(_) => LightProperties {
                 emission: 0,
                 transparent: true,
-                filter_skylight: false,
+                filter_skylight: true,
             },
             Air | Repeater { .. } | GroundPlant(..) | SnowLayer | GlassPane(..) | Fence(..) => {
                 LightProperties {

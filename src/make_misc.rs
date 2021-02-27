@@ -7,7 +7,7 @@ use rand::prelude::*;
 // Would allow for very easy creation & good quality, but less parametricism
 
 pub fn make_scarecrow(world: &mut World, column: Column) {
-    let mut pos = column.at(world.heightmap(column) + 1);
+    let mut pos = column.at(world.height(column) + 1);
     let fence_block = &Fence(Fence::Wood(world.biome(column).random_tree_species()));
     let direction = HDir::from_u8(thread_rng().gen_range(0, 4)).unwrap();
 

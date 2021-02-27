@@ -52,10 +52,10 @@ pub fn heightmap_with(world: &World, min: u8, max: u8) -> MapImage {
     for column in world.area().iter() {
         image.set(
             column,
-            if world.watermap(column).is_some() {
+            if world.water_level(column).is_some() {
                 Color::Water
             } else {
-                let height = world.heightmap(column);
+                let height = world.height(column);
                 Color::Grey((height.saturating_sub(min) as u32 * 256 / (max - min) as u32) as u8)
             },
         )

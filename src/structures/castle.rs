@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 
 use crate::*;
+use structures::Template;
 use terraform::*;
 
 #[derive(Copy, Clone, Eq, PartialEq, Hash, Debug)]
@@ -43,7 +44,7 @@ impl Blueprint {
                 .area
                 .grow(2)
                 .border()
-                .map(|column| world.heightmap(column))
+                .map(|column| world.height(column))
                 .max()
                 .unwrap();
             let num_stories =
@@ -62,7 +63,7 @@ impl Blueprint {
             for column in self.area.border() {
                 if let Some(facing) = HDir::iter().find(|facing| {
                     matches!(
-                        layout.get(&(column + Vec2::from(*facing))),
+                        layout.get(&(column - Vec2::from(*facing))),
                         Some(Usage::FreeInterior)
                     )
                 }) {
@@ -81,8 +82,16 @@ impl Blueprint {
                             .is_some()
                     {
                         // Make more windows highter up
-                        let height = floor_height
-                            .saturating_sub(world.heightmap(column - Vec2::from(facing)));
+                        let height_outside = world
+                            .height(column + Vec2::from(facing))
+                            .max(world.height(column + Vec2::from(facing) * 3))
+                            .max(world.height(
+                                column + Vec2::from(facing) + Vec2::from(facing.rotated(1)) * 2,
+                            ))
+                            .max(world.height(
+                                column + Vec2::from(facing) + Vec2::from(facing.rotated(3)) * 2,
+                            ));
+                        let height = floor_height.saturating_sub(height_outside);
                         if height > 5 {
                             possible_privy_locations.push((column.at(*floor_height), facing));
                         }
@@ -103,7 +112,7 @@ impl Blueprint {
 
         // Privy
         possible_privy_locations.sort_unstable_by_key(|(pos, dir)| {
-            world.heightmap(Column::from(*pos) - Vec2::from(*dir) * 2)
+            world.height(Column::from(*pos) - Vec2::from(*dir) * 2)
         });
 
         if let Some((pos, facing)) = possible_privy_locations.first() {
@@ -187,69 +196,36 @@ fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, ba
         if let Usage::Window(facing) = usage {
             world.set_override(
                 column.at(base_y + 1),
-                Stair(BuildBlock::Cobble, *facing, Flipped(false)),
+                Stair(BuildBlock::Cobble, facing.rotated(2), Flipped(false)),
             );
             world.set(column.at(base_y + 2), GlassPane(Some(Color::Brown)));
             world.set_override(
                 column.at(base_y + 3),
-                Stair(BuildBlock::Cobble, *facing, Flipped(true)),
+                Stair(BuildBlock::Cobble, facing.rotated(2), Flipped(true)),
             );
         }
     }
 }
 
 fn build_privy(world: &mut impl WorldView, base_pos: Pos, facing: HDir) {
-    // This is a fixed (if small) structure without variation except for materials (todo)
-    // TODO: implement schematic pasting
-    let dir = Vec2::from(facing);
-    let wall_block = &Stone(Stone::Stonebrick);
-    let roof_block = &Stair(
-        BuildBlock::Wooden(world.biome(base_pos.into()).random_tree_species()),
-        facing,
-        Flipped(false),
-    );
-    world.set_override(base_pos, Stair(BuildBlock::Cobble, facing, Flipped(false)));
-    world.set_override(base_pos + dir.clockwise(), Stone(Stone::Stonebrick));
-    world.set_override(base_pos + dir.counterclockwise(), Stone(Stone::Stonebrick));
-    world.set(
-        base_pos + dir.clockwise() - dir,
-        Stair(BuildBlock::Stonebrick, facing, Flipped(true)),
-    );
-    world.set(
-        base_pos + dir.counterclockwise() - dir,
-        Stair(BuildBlock::Stonebrick, facing, Flipped(true)),
-    );
-    world.set(base_pos + Vec3(0, 1, 0) - dir + dir.clockwise(), wall_block);
-    world.set(
-        base_pos + Vec3(0, 1, 0) - dir,
-        Stair(BuildBlock::Stonebrick, facing.opposite(), Flipped(true)),
-    );
-    world.set(base_pos + Vec3(0, 1, 0) - dir - dir.clockwise(), wall_block);
-    world.set(base_pos + Vec3(0, 2, 0) - dir + dir.clockwise(), wall_block);
-    world.set(
-        base_pos + Vec3(0, 2, 0) - dir,
-        Fence(Fence::Stone { mossy: false }),
-    );
-    world.set(base_pos + Vec3(0, 2, 0) - dir - dir.clockwise(), wall_block);
-    world.set(base_pos + Vec3(0, 3, 0) - dir + dir.clockwise(), roof_block);
-    world.set(base_pos + Vec3(0, 3, 0) - dir, roof_block);
-    world.set(base_pos + Vec3(0, 3, 0) - dir - dir.clockwise(), roof_block);
-    world.set(base_pos + Vec3(0, 1, 0), Cauldron { water: 0 });
-    world.set(base_pos + Vec3(0, 2, 0), Air);
+    Template::get("castle_privy").build(world, base_pos, facing);
 
-    let drop_column = Column::from(base_pos) - dir;
+    let drop_column = Column::from(base_pos) + Vec2::from(facing);
     let drop_column = drop_column
-        - if let Stone(Stone::Cobble) = world.get(drop_column.at(world.heightmap(drop_column))) {
-            dir
+        + if let Stone(Stone::Cobble) = world.get(drop_column.at(world.height(drop_column))) {
+            Vec2::from(facing)
         } else {
             Vec2(0, 0)
         };
     world.set(
-        drop_column.at(world.heightmap(drop_column)),
+        drop_column.at(world.height(drop_column)),
         Soil(Soil::SoulSand),
     );
 }
 
+// TODO: don't build on existing villages!
+// TODO: Don't build in water!
+// TODO: don't build on overhangs if the overhand it very thin/unsupported
 pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
     let mut choices = Vec::new();
 
@@ -280,17 +256,6 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
         }
     }
 
-    // TODO:
-    /*let choices = vec![
-        Column(60, 32),
-        Column(72, 48),
-        Column(2, -12),
-        Column(26, -14),
-        Column(44, -34),
-        Column(-32, -7),
-        Column(44, 95),
-    ];*/
-
     let mut choices: Vec<Blueprint> = choices
         .iter()
         .flat_map(|pos| find_good_footprint_at(world, *pos))
@@ -312,7 +277,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
     const MAX_HEIGHT_DIFF: u8 = 7;
 
     let mut area = Rect { min: pos, max: pos };
-    let mut min_y = world.heightmap(pos);
+    let mut min_y = world.height(pos);
     let mut max_y = min_y;
     loop {
         // Store how much the height-range would have to be extended
@@ -328,36 +293,36 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
         let mut height_diff_x_plus = 0;
         let slope_x_plus = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.heightmap(Column(area.max.0, z)) as i32;
+                let height = world.height(Column(area.max.0, z)) as i32;
                 check_height_diff(&mut height_diff_x_plus, height);
-                (height - world.heightmap(Column(area.max.0 + 1, z)) as i32).abs()
+                (height - world.height(Column(area.max.0 + 1, z)) as i32).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_x_neg = 0;
         let slope_x_neg = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.heightmap(Column(area.min.0, z)) as i32;
+                let height = world.height(Column(area.min.0, z)) as i32;
                 check_height_diff(&mut height_diff_x_neg, height);
-                (height - world.heightmap(Column(area.min.0 - 1, z)) as i32).abs()
+                (height - world.height(Column(area.min.0 - 1, z)) as i32).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_plus = 0;
         let slope_z_plus = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.heightmap(Column(x, area.max.1)) as i32;
+                let height = world.height(Column(x, area.max.1)) as i32;
                 check_height_diff(&mut height_diff_z_plus, height);
-                (height - world.heightmap(Column(x, area.max.1 + 1)) as i32).abs()
+                (height - world.height(Column(x, area.max.1 + 1)) as i32).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_neg = 0;
         let slope_z_neg = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.heightmap(Column(x, area.min.1)) as i32;
+                let height = world.height(Column(x, area.min.1)) as i32;
                 check_height_diff(&mut height_diff_z_neg, height);
-                (height - world.heightmap(Column(x, area.min.1 - 1)) as i32).abs()
+                (height - world.height(Column(x, area.min.1 - 1)) as i32).abs()
             })
             .max()
             .unwrap();
@@ -460,7 +425,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
     let y = {
         (area
             .iter()
-            .map(|column| world.heightmap(column) as i32)
+            .map(|column| world.height(column) as i32)
             .sum::<i32>()
             / (area.size().0 * area.size().1)) as u8
     };
@@ -473,7 +438,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
             let mut sum = 0;
             for column in area.grow(3).border().chain(area.grow(6).border()) {
                 count += 1;
-                sum += y as i32 - world.heightmap(column) as i32;
+                sum += y as i32 - world.height(column) as i32;
             }
             sum / count
         },

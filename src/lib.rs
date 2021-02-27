@@ -17,5 +17,10 @@ pub use build_recorder::*;
 pub use geometry::*;
 pub use world::*;
 
-// How far outside of the borders of the work area is loaded
+/// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;
+
+/// The config isn't commited to git because it just contains the paths to the world folders
+pub mod config {
+    include!("../config_local.rs");
+}

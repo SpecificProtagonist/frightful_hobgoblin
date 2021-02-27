@@ -20,15 +20,19 @@ checksum = "f6789e291be47ace86a60303502173d84af8327e3627ecf334356ee0f87a164c"
 
 [[package]]
 name = "anvil-region"
-version = "0.4.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d8e1613ef793128ec9fb0bacd879a09bc5590e9757d81eb3104b2fd08fb5c59f"
+version = "0.7.0"
 dependencies = [
  "bitvec",
  "byteorder",
  "log",
  "named-binary-tag",
 ]
+
+[[package]]
+name = "anyhow"
+version = "1.0.38"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "afddf7f520a80dbf76e6f50a35bca42a2331ef227a28b3b6dc5c2e2338d114b1"
 
 [[package]]
 name = "autocfg"
@@ -304,6 +308,7 @@ name = "mc-gen"
 version = "0.1.0"
 dependencies = [
  "anvil-region",
+ "anyhow",
  "bimap",
  "bresenham",
  "copy_dir",
@@ -349,9 +354,7 @@ dependencies = [
 
 [[package]]
 name = "named-binary-tag"
-version = "0.3.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7ae8ccc227f1ca068299ad32bcac0da2d2cf90b1b51c4679d0cc30900703ba60"
+version = "0.5.0"
 dependencies = [
  "byteorder",
  "flate2",

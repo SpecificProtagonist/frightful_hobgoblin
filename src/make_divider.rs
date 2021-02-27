@@ -45,7 +45,7 @@ fn make_hedge(world: &mut impl WorldView, start: Column, end: Column, prev: Colu
     let leaf_block = &Block::Leaves(world.biome(start).default_tree_species());
     let mut prev = prev.at(0);
     for column in ColumnLineIter::new(start, end, LineStyle::ThickWobbly) {
-        let pos = column.at(world.heightmap(column) + 1);
+        let pos = column.at(world.height(column) + 1);
         world.set_if_not_solid(pos, leaf_block);
         if prev.1 > pos.1 {
             world.set_if_not_solid(pos + Vec3(0, 1, 0), leaf_block);
@@ -64,7 +64,7 @@ fn make_hedge(world: &mut impl WorldView, start: Column, end: Column, prev: Colu
                 world.set_if_not_solid(prev + Vec3(0, 2, 0), leaf_block);
             }
             let mut try_place = |col: Column| {
-                let new_pos = col.at(world.heightmap(col) + 1);
+                let new_pos = col.at(world.height(col) + 1);
                 if (new_pos.1 == pos.1) | (new_pos.1 == pos.1 + 1) {
                     world.set_if_not_solid(new_pos, leaf_block);
                     true
@@ -120,9 +120,9 @@ fn make_fence<T: WorldView>(
         )
     };
 
-    let mut prev = prev.at(world.heightmap(prev) + 1);
+    let mut prev = prev.at(world.height(prev) + 1);
     for column in ColumnLineIter::new(start, end, style) {
-        let pos = column.at(world.heightmap(column) + 1);
+        let pos = column.at(world.height(column) + 1);
         place_fence_block(world, pos);
         // Bride height variation (don't bother if too steep)
         if prev.1 == pos.1 + 1 {

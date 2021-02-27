@@ -89,7 +89,7 @@ impl Entity {
             ]),
         );
 
-        nbt.insert_str_vec("Tags", self.tags.iter().map(AsRef::as_ref).collect());
+        nbt.insert_str_vec("Tags", self.tags.iter());
 
         match &self.data {
             Chattel(Sheep(color)) => {

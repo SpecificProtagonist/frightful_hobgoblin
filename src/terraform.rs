@@ -27,7 +27,7 @@ pub fn make_retaining_wall(
     };
 
     for column in area.border(LineStyle::ThickWobbly) {
-        let mut y = world.heightmap(column);
+        let mut y = world.height(column);
         // Check if wall is neccessary
         if y > height || (y == height && !side_exposted(world, column.at(y))) {
             // Todo: also skip this column if the only exposed side is within the polygon
@@ -48,24 +48,24 @@ pub fn make_retaining_wall(
             *above = crest.clone()
         }
 
-        *world.heightmap_mut(column) = height;
+        *world.height_mut(column) = height;
     }
 
     // Then fill
     // TODO: bottom to top
     for column in area.iter() {
-        if world.heightmap(column) < height {
+        if world.height(column) < height {
             let soil = &Soil(get_filling_soil(world, column));
-            for y in world.heightmap(column)..=height {
+            for y in world.height(column)..=height {
                 world.set(column.at(y), soil)
             }
-            *world.heightmap_mut(column) = height;
+            *world.height_mut(column) = height;
         }
     }
 }
 
 fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
-    if let Soil(soil) = *world.get(column.at(world.heightmap(column))) {
+    if let Soil(soil) = *world.get(column.at(world.height(column))) {
         soil
     } else {
         world.biome(column).default_topsoil()
@@ -76,7 +76,7 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
     for column in area.iter() {
         world.set(column.at(height), block.full());
         let mut y = height - 1;
-        let ground_height = world.heightmap(column);
+        let ground_height = world.height(column);
         while (y > ground_height) | soil_exposted(world, column.at(y)) {
             world.set(column.at(y), block.full());
             y -= 1;
@@ -128,7 +128,7 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
         let mut just_placed = false;
         for column in columns {
             let column = column - Vec2::from(facing);
-            let mut ground_distance = y.saturating_sub(world.heightmap(column));
+            let mut ground_distance = y.saturating_sub(world.height(column));
             while soil_exposted(world, column.at(y - ground_distance - 1)) {
                 ground_distance += 1;
             }
@@ -164,7 +164,7 @@ pub fn average_height(world: &impl WorldView, area: impl Iterator<Item = Column>
     let mut sum = 0.0;
     let mut count = 0;
     for column in area {
-        sum += world.heightmap(column) as f32;
+        sum += world.height(column) as f32;
         count += 1;
     }
     (sum / count as f32) as u8
@@ -174,7 +174,7 @@ pub fn slope(world: &impl WorldView, column: Column) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
         for dz in -1..=1 {
-            neighbors[(4 + dx + 3 * dz) as usize] = world.heightmap(column + Vec2(dx, dz)) as i32;
+            neighbors[(4 + dx + 3 * dz) as usize] = world.height(column + Vec2(dx, dz)) as i32;
         }
     }
     // Sobel kernel
@@ -226,7 +226,7 @@ pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, u8> {
                 chunk
                     .area()
                     .iter()
-                    .map(|column| world.heightmap(column))
+                    .map(|column| world.height(column))
                     .max()
                     .unwrap(),
             )
