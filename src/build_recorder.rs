@@ -111,22 +111,20 @@ impl BuildRecord {
         for (pos, block) in self.blocks.iter() {
             if let Some(tile_entity) = block.tile_entity_nbt(*pos) {
                 commands.push(format!(
-                    "setblock {} {} {} {} {} replace {}",
+                    "setblock {} {} {} {}{}",
                     pos.0,
                     pos.1,
                     pos.2,
-                    block.name(),
-                    block.to_bytes().1,
+                    block.blockstate(),
                     tile_entity
                 ));
             } else {
                 commands.push(format!(
-                    "setblock {} {} {} {} {}",
+                    "setblock {} {} {} {}",
                     pos.0,
                     pos.1,
                     pos.2,
-                    block.name(),
-                    block.to_bytes().1,
+                    block.blockstate(),
                 ));
             }
         }

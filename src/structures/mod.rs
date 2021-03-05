@@ -3,7 +3,7 @@ use std::{collections::HashMap, fs::File, path::Path, sync::Mutex};
 use lazy_static::lazy_static;
 use nbt::{decode::read_gzip_compound_tag, CompoundTag, CompoundTagError, Tag};
 
-use crate::{config, Block, HDir, Pos, Vec3, WorldView};
+use crate::{Block, HDir, Pos, Vec3, WorldView};
 
 pub mod castle;
 
@@ -35,7 +35,7 @@ impl Template {
     /// Panics when file is not found, isn't a valid structure or contains unknown blocks
     /// (since file is not specified by user)
     fn load(name: &str) -> Self {
-        let mut path = Path::new(config::TEMPLATE_PATH).join(name);
+        let mut path = Path::new("templates").join(name);
         path.set_extension("nbt");
         let mut file = File::open(&path).expect(&format!("Structure file {:?} not found", path));
         let nbt = read_gzip_compound_tag(&mut file).expect(&format!("Invalid nbt: {:?}", path));
@@ -68,13 +68,21 @@ impl Template {
                 let pos = read_pos(nbt.get("blockPos").unwrap());
                 let nbt = nbt.get_compound_tag("nbt").unwrap();
                 if let Ok("minecraft:armor_stand") = nbt.get_str("id") {
-                    let name = nbt.get_str("CustomName").unwrap().into();
                     let tags: Vec<String> = nbt
                         .get_str_vec("Tags")
                         .unwrap_or(Vec::new())
                         .iter()
                         .map(|tag| (*tag).to_owned())
                         .collect();
+                    // For some reason, CustomName doesn't work anymore?
+                    let name = tags
+                        .iter()
+                        .find(|tag| tag.starts_with("name:"))
+                        .expect("Unnamed marker")
+                        .strip_prefix("name:")
+                        .unwrap()
+                        .to_owned();
+
                     let dir = if tags.contains(&String::from("xpos")) {
                         Some(HDir::XPos)
                     } else if tags.contains(&String::from("xneg")) {
@@ -101,11 +109,7 @@ impl Template {
         let palette: Vec<Block> = nbt
             .get_compound_tag_vec("palette")?
             .iter()
-            .map(|nbt| {
-                Block::from_nbt(nbt).unwrap_or_else(|| {
-                    panic!("Failed to load template {}: Unknown block: {}", name, nbt)
-                })
-            })
+            .map(|nbt| Block::from_nbt(nbt))
             .collect();
 
         let mut blocks = HashMap::new();

@@ -47,6 +47,16 @@ pub enum Axis {
     Z,
 }
 
+impl Axis {
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Axis::X => "x",
+            Axis::Y => "y",
+            Axis::Z => "z",
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum HDir {
@@ -79,6 +89,15 @@ impl HDir {
             "south" => Some(HDir::ZPos),
             "west" => Some(HDir::XNeg),
             _ => None,
+        }
+    }
+
+    pub fn to_str(self) -> &'static str {
+        match self {
+            HDir::ZNeg => "north",
+            HDir::XPos => "east",
+            HDir::ZPos => "south",
+            HDir::XNeg => "west",
         }
     }
 }

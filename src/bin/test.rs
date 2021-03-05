@@ -14,9 +14,6 @@ fn main() {
     //let villagers = test_fortified_house_animated(&mut world);
     test_fortified_house(&mut world);
 
-    let test_pos = area.center().at(world.height(area.center()) + 1);
-    structures::Template::get("quarry_hut").build(&mut world, test_pos, HDir::XNeg);
-
     //save_behavior(&mut world, &villagers).unwrap();
     world.save().unwrap();
 }

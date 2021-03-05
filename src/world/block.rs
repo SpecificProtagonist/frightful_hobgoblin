@@ -1,11 +1,13 @@
-use std::sync::Arc;
+use std::{borrow::Cow, fmt::Display, sync::Arc};
 
 pub use self::GroundPlant::*;
 use crate::geometry::*;
-use nbt::CompoundTag;
+use nbt::{CompoundTag, CompoundTagError};
 use num_derive::FromPrimitive;
-use num_traits::FromPrimitive;
+
 pub use Block::*;
+pub use Color::*;
+pub use TreeSpecies::*;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
@@ -16,7 +18,7 @@ pub enum Block {
     Water,
     Lava,
     Soil(Soil),
-    Log(TreeSpecies, LogType, LogOrigin),
+    Log(TreeSpecies, LogType),
     Leaves(TreeSpecies),
     GroundPlant(GroundPlant),
     Fence(Fence),
@@ -32,8 +34,7 @@ pub enum Block {
     Barrier,
     Bedrock,
     CommandBlock(Arc<String>),
-    Debug(u8),
-    Other { id: u8, data: u8 },
+    Other(Arc<Blockstate>),
 }
 
 impl Default for Block {
@@ -47,15 +48,6 @@ impl Default for Block {
 pub enum LogType {
     Normal(Axis),
     FullBark,
-}
-
-// So far this is only used to check whether this log can sustain leaves
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum LogOrigin {
-    Natural,
-    Stump,
-    Manmade,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive)]
@@ -80,6 +72,23 @@ impl TreeSpecies {
             "dark_oak" => Some(TreeSpecies::DarkOak),
             _ => None,
         }
+    }
+
+    pub fn to_str(self) -> &'static str {
+        match self {
+            Oak => "oak",
+            Spruce => "spruce",
+            Birch => "birch",
+            Jungle => "jungle",
+            Acacia => "acacia",
+            DarkOak => "dark_oak",
+        }
+    }
+}
+
+impl Display for TreeSpecies {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
     }
 }
 
@@ -117,9 +126,9 @@ pub enum GroundPlant {
     Sapling(TreeSpecies),
     Cactus,
     Reeds,
-    Pumpkin(HDir),
+    Pumpkin,
     Small(SmallPlant),
-    Tall { plant: TallPlant, upper: bool },
+    Tall(TallPlant, Flipped),
     Crop(Crop),
 }
 
@@ -163,6 +172,7 @@ pub enum Crop {
     Beetroot,
 }
 
+// TODO: expand and replace with BuildBlock
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Fence {
@@ -192,6 +202,33 @@ pub enum Color {
     Black,
 }
 
+impl Display for Color {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            match self {
+                White => "white",
+                Orange => "orange",
+                Magenta => "magenta",
+                LightBlue => "light_blue",
+                Yellow => "yellow",
+                Lime => "lime",
+                Pink => "pink",
+                Gray => "gray",
+                LightGray => "light_gray",
+                Cyan => "cyan",
+                Purple => "purple",
+                Blue => "blue",
+                Brown => "brown",
+                Green => "green",
+                Red => "red",
+                Black => "black",
+            }
+        )
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub struct Flipped(pub bool);
 
@@ -214,358 +251,193 @@ impl BuildBlock {
     }
 }
 
-impl Block {
-    // Deserialisation only neccessary for naturally occuring blocks
-    pub fn from_bytes(id: u8, data: u8) -> Self {
-        match id {
-            0 => Air,
-            1 => match data {
-                0 => Stone(Stone::Stone),
-                1 => Stone(Stone::Granite),
-                3 => Stone(Stone::Diorite),
-                5 => Stone(Stone::Andesite),
-                _ => Other { id, data },
-            },
-            2 => Soil(Soil::Grass),
-            3 => Soil(Soil::Dirt),
-            12 => Soil(Soil::Sand),
-            13 => Soil(Soil::Gravel),
-            60 => Soil(Soil::Farmland),
-            7 => Bedrock,
-            8 | 9 => {
-                if data == 0 {
-                    Block::Water
-                } else {
-                    Block::Air
-                    // TODO: Fix up the water source if the flow overlapps buildings/paths
-                }
-            }
-            10 | 11 => {
-                if data == 0 {
-                    Block::Lava
-                } else {
-                    Block::Air
-                }
-            }
-            17 => Log(
-                TreeSpecies::from_u8(data % 4).unwrap(),
-                match data >> 4 {
-                    3 => LogType::FullBark,
-                    dir => LogType::Normal(Axis::from_u8(dir).unwrap()),
-                },
-                LogOrigin::Natural,
-            ),
-            162 => Log(
-                TreeSpecies::from_u8(data % 4 + 4).unwrap(),
-                match data >> 4 {
-                    3 => LogType::FullBark,
-                    dir => LogType::Normal(Axis::from_u8(dir).unwrap()),
-                },
-                LogOrigin::Natural,
-            ),
-            18 => Leaves(TreeSpecies::from_u8(data % 4).unwrap()),
-            161 => Leaves(TreeSpecies::from_u8(data % 4 + 4).unwrap()),
-            6 => GroundPlant(GroundPlant::Sapling(
-                TreeSpecies::from_u8(data % 8).unwrap(),
-            )),
-            31 => GroundPlant(GroundPlant::Small(match data {
-                0 => SmallPlant::Grass,
-                _ => SmallPlant::Fern,
-            })),
-            32 => GroundPlant(GroundPlant::Small(SmallPlant::DeadBush)),
-            37 => GroundPlant(GroundPlant::Small(SmallPlant::Dandelion)),
-            38 => GroundPlant(GroundPlant::Small(match data {
-                0 => SmallPlant::Poppy,
-                1 => SmallPlant::BlueOrchid,
-                2 => SmallPlant::Allium,
-                3 => SmallPlant::AzureBluet,
-                4 => SmallPlant::RedTulip,
-                5 => SmallPlant::OrangeTulip,
-                6 => SmallPlant::WhiteTulip,
-                7 => SmallPlant::PinkTulip,
-                _ => SmallPlant::OxeyeDaisy,
-            })),
-            39 => GroundPlant(GroundPlant::Small(SmallPlant::BrownMushroom)),
-            40 => GroundPlant(GroundPlant::Small(SmallPlant::RedMushroom)),
-            81 => GroundPlant(GroundPlant::Cactus),
-            83 => GroundPlant(GroundPlant::Reeds),
-            89 => Glowstone,
-            175 => GroundPlant(GroundPlant::Tall {
-                plant: match id % 8 {
-                    0 => TallPlant::Sunflower,
-                    1 => TallPlant::Lilac,
-                    2 => TallPlant::Grass,
-                    3 => TallPlant::Fern,
-                    4 => TallPlant::Rose,
-                    _ => TallPlant::Peony,
-                },
-                upper: id >= 8,
-            }),
-            78 => SnowLayer,
-            _ => Other { id, data },
+impl Display for BuildBlock {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BuildBlock::Wooden(species) => species.fmt(f),
+            BuildBlock::Cobble => write!(f, "cobblestone"),
+            BuildBlock::Brick => write!(f, "brick"),
+            BuildBlock::Stonebrick => write!(f, "stone_brick"),
         }
     }
+}
 
-    pub fn to_bytes(&self) -> (u8, u8) {
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub struct Blockstate(
+    pub Cow<'static, str>,
+    pub Vec<(Cow<'static, str>, Cow<'static, str>)>,
+);
+
+impl Display for Blockstate {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.0)?;
+        if self.1.len() > 0 {
+            write!(f, "[")?;
+            for (i, (name, state)) in self.1.iter().enumerate() {
+                write!(f, "{}={}", name, state)?;
+                if i + 1 < self.1.len() {
+                    write!(f, ",")?;
+                }
+            }
+            write!(f, "]")?;
+        }
+        Ok(())
+    }
+}
+
+impl Block {
+    pub fn blockstate(&self) -> Blockstate {
+        impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
+            fn from(name: Name) -> Self {
+                Self(name.into(), vec![])
+            }
+        }
+
         match self {
-            Air => (0, 0),
+            Air => "air".into(),
             Stone(stone) => match stone {
-                Stone::Stone => (1, 0),
-                Stone::Granite => (1, 1),
-                Stone::Diorite => (1, 3),
-                Stone::Andesite => (1, 5),
-                Stone::Cobble => (4, 0),
-                Stone::Brick => (45, 0),
-                Stone::Stonebrick => (98, 0),
+                Stone::Stone => "stone".into(),
+                Stone::Granite => "granite".into(),
+                Stone::Diorite => "diorite".into(),
+                Stone::Andesite => "andesite".into(),
+                Stone::Cobble => "cobblestone".into(),
+                Stone::Brick => "bricks".into(),
+                Stone::Stonebrick => "stone_bricks".into(),
             },
-            Planks(species) => (5, *species as u8),
+            Planks(species) => format!("{}_planks", species).into(),
             Soil(soil_type) => match soil_type {
-                Soil::Grass => (2, 0),
-                Soil::Dirt => (3, 0),
-                Soil::Sand => (12, 0),
-                Soil::Gravel => (13, 0),
-                Soil::Farmland => (60, 0),
-                Soil::Path => (208, 0),
-                Soil::CoarseDirt => (3, 1),
-                Soil::Podzol => (3, 2),
-                Soil::SoulSand => (88, 0),
+                Soil::Grass => "grass_block".into(),
+                Soil::Dirt => "dirt".into(),
+                Soil::Sand => "sand".into(),
+                Soil::Gravel => "gravel".into(),
+                Soil::Farmland => "farmland".into(),
+                Soil::Path => "grass_path".into(),
+                Soil::CoarseDirt => "coarse_dirt".into(),
+                Soil::Podzol => "podzol".into(),
+                Soil::SoulSand => "soul_sand".into(),
             },
-            Bedrock => (7, 0),
-            Water => (9, 0),
-            Lava => (11, 0),
-            Log(species, log_type, _) => (
-                if (*species as u8) < 4 { 17 } else { 162 },
-                (match log_type {
-                    LogType::Normal(dir) => *dir as u8,
-                    LogType::FullBark => 3,
-                } << 2)
-                    + (*species as u8) % 4,
-            ),
-            Leaves(species) => (
-                if (*species as u8) < 4 { 18 } else { 161 },
-                (*species as u8) % 4 + 4, // no decay
+            Bedrock => "bedrock".into(),
+            // TODO: water level
+            Water => "water".into(),
+            Lava => "lava".into(),
+            Log(species, log_type) => match log_type {
+                LogType::Normal(axis) => Blockstate(
+                    format!("{}_log", species).into(),
+                    vec![("axis".into(), axis.to_str().into())],
+                ),
+                LogType::FullBark => Blockstate(format!("{}_wood", species).into(), vec![]),
+            },
+            Leaves(species) => Blockstate(
+                format!("{}_leaves", species).into(),
+                vec![("persistent".into(), "true".into())],
             ),
             GroundPlant(plant) => match plant {
-                GroundPlant::Sapling(species) => (6, *species as u8),
+                GroundPlant::Sapling(species) => format!("{}_sapling", species).into(),
                 GroundPlant::Small(plant) => match plant {
-                    SmallPlant::Grass => (31, 0),
-                    SmallPlant::Fern => (31, 1),
-                    SmallPlant::DeadBush => (32, 0),
-                    SmallPlant::Dandelion => (37, 0),
-                    SmallPlant::Poppy => (38, 0),
-                    SmallPlant::BlueOrchid => (38, 1),
-                    SmallPlant::Allium => (38, 2),
-                    SmallPlant::AzureBluet => (38, 3),
-                    SmallPlant::RedTulip => (38, 4),
-                    SmallPlant::OrangeTulip => (38, 5),
-                    SmallPlant::WhiteTulip => (38, 6),
-                    SmallPlant::PinkTulip => (38, 7),
-                    SmallPlant::OxeyeDaisy => (38, 8),
-                    SmallPlant::BrownMushroom => (39, 0),
-                    SmallPlant::RedMushroom => (40, 0),
+                    SmallPlant::Grass => "grass".into(),
+                    SmallPlant::Fern => "fern".into(),
+                    SmallPlant::DeadBush => "dead_bush".into(),
+                    SmallPlant::Dandelion => "dandelion".into(),
+                    SmallPlant::Poppy => "poppy".into(),
+                    SmallPlant::BlueOrchid => "blue_orchid".into(),
+                    SmallPlant::Allium => "allium".into(),
+                    SmallPlant::AzureBluet => "azure_bluet".into(),
+                    SmallPlant::RedTulip => "red_tulip".into(),
+                    SmallPlant::OrangeTulip => "orange_tulip".into(),
+                    SmallPlant::WhiteTulip => "white_tulip".into(),
+                    SmallPlant::PinkTulip => "pink_tulip".into(),
+                    SmallPlant::OxeyeDaisy => "oxeye_daisy".into(),
+                    SmallPlant::BrownMushroom => "brown_mushroom".into(),
+                    SmallPlant::RedMushroom => "red_mushroom".into(),
                 },
-                GroundPlant::Cactus => (81, 0),
-                GroundPlant::Reeds => (83, 0),
-                GroundPlant::Pumpkin(dir) => (86, *dir as u8),
-                GroundPlant::Tall { plant, upper } => (
-                    175,
+                GroundPlant::Cactus => "cactus".into(),
+                GroundPlant::Reeds => "sugar_cane".into(),
+                GroundPlant::Pumpkin => "pumpkin".into(),
+                GroundPlant::Tall(plant, Flipped(upper)) => Blockstate(
                     match plant {
-                        TallPlant::Sunflower => 0,
-                        TallPlant::Lilac => 1,
-                        TallPlant::Grass => 2,
-                        TallPlant::Fern => 3,
-                        TallPlant::Rose => 4,
-                        TallPlant::Peony => 5,
-                    } + if *upper { 8 } else { 0 },
+                        TallPlant::Sunflower => "sunflower".into(),
+                        TallPlant::Lilac => "lilac".into(),
+                        TallPlant::Grass => "tall_grass".into(),
+                        TallPlant::Fern => "large_fern".into(),
+                        TallPlant::Rose => "rose_bush".into(),
+                        TallPlant::Peony => "peony".into(),
+                    },
+                    vec![("half".into(), if *upper { "upper" } else { "lower" }.into())],
                 ),
                 GroundPlant::Crop(crop) => match crop {
-                    Crop::Wheat => (59, 7),
-                    Crop::Carrot => (141, 7),
-                    Crop::Potato => (142, 7),
-                    Crop::Beetroot => (207, 3),
+                    Crop::Wheat => Blockstate("wheat".into(), vec![("age".into(), "7".into())]),
+                    Crop::Carrot => Blockstate("carrot".into(), vec![("age".into(), "7".into())]),
+                    Crop::Potato => Blockstate("potato".into(), vec![("age".into(), "7".into())]),
+                    Crop::Beetroot => {
+                        Blockstate("beetroot".into(), vec![("age".into(), "3".into())])
+                    }
                 },
             },
             Fence(fence) => match fence {
-                Fence::Wood(TreeSpecies::Oak) => (85, 0),
-                Fence::Wood(TreeSpecies::Spruce) => (188, 0),
-                Fence::Wood(TreeSpecies::Birch) => (189, 0),
-                Fence::Wood(TreeSpecies::Jungle) => (190, 0),
-                Fence::Wood(TreeSpecies::DarkOak) => (191, 0),
-                Fence::Wood(TreeSpecies::Acacia) => (192, 0),
-                Fence::Stone { mossy: false } => (139, 0),
-                Fence::Stone { mossy: true } => (139, 1),
+                Fence::Wood(species) => format!("{}_fence", species).into(),
+                Fence::Stone { mossy: false } => "cobblestone_wall".into(),
+                Fence::Stone { mossy: true } => "mossy_cobblestone_wall".into(),
             },
-            Wool(color) => (35, *color as u8),
-            SnowLayer => (78, 0),
-            Glowstone => (89, 0),
+            Wool(color) => format!("{}_wool", color).into(),
+            SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
+            Glowstone => "glowstone".into(),
             GlassPane(color) => {
                 if let Some(color) = color {
-                    (160, *color as u8)
+                    format!("{}_stained_glass_pane", color).into()
                 } else {
-                    (102, 0)
+                    "glass_pane".into()
                 }
             }
-            Hay => (170, 0),
-            Slab(material, flipped) => {
-                let flipped = if matches!(flipped, Flipped(true)) {
-                    8
-                } else {
-                    0
-                };
-                if let BuildBlock::Wooden(species) = material {
-                    (126, *species as u8 + flipped)
-                } else {
-                    (
-                        44,
-                        match material {
-                            BuildBlock::Cobble => 3,
-                            BuildBlock::Brick => 4,
-                            BuildBlock::Stonebrick => 4,
-                            BuildBlock::Wooden(..) => panic!(),
-                        } + flipped,
-                    )
-                }
-            }
-            Stair(material, dir, flipped) => (
-                match material {
-                    BuildBlock::Wooden(TreeSpecies::Oak) => 53,
-                    BuildBlock::Wooden(TreeSpecies::Spruce) => 134,
-                    BuildBlock::Wooden(TreeSpecies::Birch) => 135,
-                    BuildBlock::Wooden(TreeSpecies::Jungle) => 136,
-                    BuildBlock::Wooden(TreeSpecies::Acacia) => 163,
-                    BuildBlock::Wooden(TreeSpecies::DarkOak) => 164,
-                    BuildBlock::Cobble => 67,
-                    BuildBlock::Brick => 108,
-                    BuildBlock::Stonebrick => 109,
-                },
-                if matches!(flipped, Flipped(true)) {
-                    4
-                } else {
-                    0
-                } + match dir {
-                    HDir::XPos => 0,
-                    HDir::XNeg => 1,
-                    HDir::ZPos => 2,
-                    HDir::ZNeg => 3,
-                },
+            Hay => "hay_block".into(),
+            Slab(material, Flipped(flipped)) => Blockstate(
+                format!("{}_slab", material).into(),
+                vec![(
+                    "type".into(),
+                    if *flipped { "top" } else { "bottom" }.into(),
+                )],
             ),
-            Cauldron { water } => (118, water % 4),
-            Repeater(dir, delay) => (93, (*dir as u8 + 2) % 4 + delay * 4),
-            Barrier => (166, 0),
-            CommandBlock(_) => (137, 0),
-            Debug(data) => (251, *data),
-            Other { id, data } => (*id, *data),
-        }
-    }
-
-    pub fn name(&self) -> &'static str {
-        match self {
-            Air => "air",
-            Soil(soil_type) => match soil_type {
-                Soil::Grass => "grass",
-                Soil::Dirt | Soil::CoarseDirt | Soil::Podzol => "dirt",
-                Soil::Sand => "sand",
-                Soil::Gravel => "gravel",
-                Soil::Farmland => "farmland",
-                Soil::Path => "grass_path",
-                Soil::SoulSand => "soul_sand",
-            },
-            Stone(stone) => match stone {
-                Stone::Stone | Stone::Andesite | Stone::Diorite | Stone::Granite => "stone",
-                Stone::Cobble => "cobblestone",
-                Stone::Brick => "brick_block",
-                Stone::Stonebrick => "stonebrick",
-            },
-            Planks(..) => "planks",
-            Water => "water",
-            Lava => "lava",
-            Log(species, ..) => {
-                if (*species as u8) < 4 {
-                    "log"
-                } else {
-                    "log2"
-                }
-            }
-            Leaves(species) => {
-                if (*species as u8) < 4 {
-                    "leaves"
-                } else {
-                    "leaves2"
-                }
-            }
-            GroundPlant(plant) => match plant {
-                GroundPlant::Sapling(_) => "sapling",
-                GroundPlant::Small(plant) => match plant {
-                    SmallPlant::Grass | SmallPlant::Fern => "tallgrass",
-                    SmallPlant::DeadBush => "deadbush",
-                    SmallPlant::Dandelion => "yellow_flower",
-                    SmallPlant::Poppy
-                    | SmallPlant::BlueOrchid
-                    | SmallPlant::Allium
-                    | SmallPlant::AzureBluet
-                    | SmallPlant::RedTulip
-                    | SmallPlant::OrangeTulip
-                    | SmallPlant::WhiteTulip
-                    | SmallPlant::PinkTulip
-                    | SmallPlant::OxeyeDaisy => "red_flower",
-                    SmallPlant::BrownMushroom => "brown_mushroom",
-                    SmallPlant::RedMushroom => "red_mushroom",
-                },
-                GroundPlant::Cactus => "cactus",
-                GroundPlant::Reeds => "reeds",
-                GroundPlant::Pumpkin(_) => "pumpkin",
-                GroundPlant::Tall { .. } => "double_plant",
-                GroundPlant::Crop(crop) => match crop {
-                    Crop::Wheat => "wheat",
-                    Crop::Carrot => "carrots",
-                    Crop::Potato => "potatoes",
-                    Crop::Beetroot => "beetroots",
-                },
-            },
-            Fence(fence) => match fence {
-                Fence::Wood(TreeSpecies::Oak) => "fence",
-                Fence::Wood(TreeSpecies::Spruce) => "spruce_fence",
-                Fence::Wood(TreeSpecies::Birch) => "birch_fence",
-                Fence::Wood(TreeSpecies::Jungle) => "jungle_fence",
-                Fence::Wood(TreeSpecies::DarkOak) => "dark_oak_fence",
-                Fence::Wood(TreeSpecies::Acacia) => "acacia_fence",
-                Fence::Stone { .. } => "cobblestone_wall",
-            },
-            Wool(_) => "wool",
-            SnowLayer => "snow_layer",
-            GlassPane(color) => {
-                if color.is_some() {
-                    "stained_glass_pane"
-                } else {
-                    "glass_pane"
-                }
-            }
-            Glowstone => "glowstone",
-            Hay => "hay_block",
-            Slab(material, ..) => match material {
-                BuildBlock::Wooden(_) => "wooden_slab",
-                _ => "stone_slab",
-            },
-            Stair(material, ..) => match material {
-                BuildBlock::Wooden(species) => match species {
-                    TreeSpecies::Oak => "oak_stairs",
-                    TreeSpecies::Spruce => "spruce_stairs",
-                    TreeSpecies::Birch => "birch_stairs",
-                    TreeSpecies::Jungle => "jungle_stairs",
-                    TreeSpecies::Acacia => "acacia_stairs",
-                    TreeSpecies::DarkOak => "dark_oak_stairs",
-                },
-                BuildBlock::Cobble => "stone_stairs",
-                BuildBlock::Brick => "brick_stairs",
-                BuildBlock::Stonebrick => "stone_brick_stairs",
-            },
-            Cauldron { .. } => "cauldron",
-            Repeater(..) => "unpowered_repeater",
-            Bedrock => "bedrock",
-            CommandBlock(_) => "command_block",
-            Barrier => "barrier",
-            Debug(_) => "concrete",
-            Other { .. } => panic!(),
+            Stair(material, dir, Flipped(flipped)) => Blockstate(
+                format!("{}_stairs", material).into(),
+                vec![
+                    (
+                        "half".into(),
+                        if *flipped { "top" } else { "bottom" }.into(),
+                    ),
+                    ("facing".into(), dir.to_str().into()),
+                ],
+            ),
+            Cauldron { water } => Blockstate(
+                "cauldron".into(),
+                vec![(
+                    "level".into(),
+                    match water {
+                        0 => "0".into(),
+                        1 => "1".into(),
+                        2 => "2".into(),
+                        3 => "3".into(),
+                        _ => panic!("Cauldron water level {}", water),
+                    },
+                )],
+            ),
+            Repeater(dir, delay) => Blockstate(
+                "repeater".into(),
+                vec![
+                    (
+                        "delay".into(),
+                        match delay {
+                            1 => "1".into(),
+                            2 => "2".into(),
+                            3 => "3".into(),
+                            4 => "4".into(),
+                            _ => panic!("Repeater delay {}", delay),
+                        },
+                    ),
+                    ("facing".into(), dir.to_str().into()),
+                ],
+            ),
+            Barrier => "barrier".into(),
+            CommandBlock(_) => "command_block".into(),
+            Other(blockstate) => (**blockstate).clone(), // Unneccesary clone?
         }
     }
 
@@ -587,9 +459,9 @@ impl Block {
 
     /// This is for loading of the structure block format and very much incomplete
     /// (and panics on invalid blocks)
-    pub fn from_nbt(nbt: &CompoundTag) -> Option<Block> {
+    pub fn from_nbt(nbt: &CompoundTag) -> Block {
         let name = nbt.get_str("Name").expect("Invalid block: no name");
-        let name = name.strip_prefix("minecraft:")?;
+        let name = name.strip_prefix("minecraft:").unwrap_or(name);
         let default_props = CompoundTag::new();
         let props = nbt.get_compound_tag("Properties").unwrap_or(&default_props);
 
@@ -601,49 +473,118 @@ impl Block {
             )
         }
 
-        Some(match name {
-            "air" => Air,
-            "log" => {
-                let log_type = match props.get_str("axis").unwrap() {
+        fn log(species: TreeSpecies, props: &CompoundTag) -> Block {
+            Log(
+                species,
+                match props.get_str("axis").unwrap() {
                     "x" => LogType::Normal(Axis::X),
                     "y" => LogType::Normal(Axis::Y),
                     "z" => LogType::Normal(Axis::Z),
                     "none" => LogType::FullBark,
                     unknown => panic!("Invalid log axis {}", unknown),
-                };
-                let species = TreeSpecies::from_str(props.get_str("variant").unwrap()).unwrap();
-                Log(species, log_type, LogOrigin::Manmade)
-            }
-            "dirt" => Soil(match props.get_str("variant").unwrap() {
-                "coarse_dirt" => Soil::CoarseDirt,
-                _ => return None,
-            }),
-            "fence" => Fence(Fence::Wood(TreeSpecies::Oak)),
-            "cobblestone_wall" => match props.get_str("variant").unwrap() {
-                "cobblestone" => Fence(Fence::Stone { mossy: false }),
-                _ => return None,
-            },
-            "wooden_slab" => Slab(
-                BuildBlock::Wooden(
-                    TreeSpecies::from_str(props.get_str("variant").unwrap()).unwrap(),
+                },
+            )
+        }
+
+        fn known_block<'a>(
+            name: &str,
+            props: &'a CompoundTag,
+        ) -> Result<Block, CompoundTagError<'a>> {
+            // TMP
+            //return Err(CompoundTagError::TagNotFound { name: "" });
+            // TODO: expand this
+            Ok(match name {
+                "air" | "cave_air" => Air,
+                "stone" => Stone(Stone::Stone),
+                "granite" => Stone(Stone::Granite),
+                "diorite" => Stone(Stone::Diorite),
+                "andesite" => Stone(Stone::Andesite),
+                "cobblestone" => Stone(Stone::Cobble),
+                "bricks" => Stone(Stone::Brick),
+                "stone_bricks" => Stone(Stone::Stonebrick),
+                "bedrock" => Bedrock,
+                "gravel" => Soil(Soil::Gravel),
+                "grass_block" => Soil(Soil::Grass),
+                "sand" => Soil(Soil::Sand),
+                "dirt" if matches!(props.get_str("variant"), Err(_)) => Soil(Soil::Dirt),
+                "dirt" if matches!(props.get_str("variant")?, "coarse_dirt") => {
+                    Soil(Soil::CoarseDirt)
+                }
+                "oak_log" => log(TreeSpecies::Oak, props),
+                "spruce_log" => log(TreeSpecies::Spruce, props),
+                "birch_log" => log(TreeSpecies::Birch, props),
+                "jungle_log" => log(TreeSpecies::Jungle, props),
+                "acacia_log" => log(TreeSpecies::Acacia, props),
+                "dark_oak_log" => log(TreeSpecies::DarkOak, props),
+                "oak_leaves" => Leaves(TreeSpecies::Oak),
+                "spruce_leaves" => Leaves(TreeSpecies::Spruce),
+                "birch_leaves" => Leaves(TreeSpecies::Birch),
+                "jungle_leaves" => Leaves(TreeSpecies::Jungle),
+                "acacie_leaves" => Leaves(TreeSpecies::Acacia),
+                "dark_oak_leaves" => Leaves(TreeSpecies::DarkOak),
+                "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
+                "fence" => Fence(Fence::Wood(TreeSpecies::Oak)),
+                "cobblestone_wall" if matches!(props.get_str("variant")?, "cobblestone") => {
+                    Fence(Fence::Stone { mossy: false })
+                }
+                "wooden_slab" => Slab(
+                    BuildBlock::Wooden(TreeSpecies::from_str(props.get_str("variant")?).unwrap()),
+                    Flipped(props.get_str("half")? == "top"),
                 ),
-                Flipped(props.get_str("half").unwrap() == "top"),
-            ),
-            "oak_stairs" => stair(BuildBlock::Wooden(TreeSpecies::Oak), props),
-            "stone_brick_stairs" => stair(BuildBlock::Stonebrick, props),
-            "stonebrick" => match props.get_str("variant").unwrap() {
-                "stonebrick" => Stone(Stone::Stonebrick),
-                _ => return None,
-            },
-            "cauldron" => Cauldron {
-                water: props.get_str("level").unwrap().parse().unwrap(),
-            },
-            "wooden_door" => {
-                // TODO
-                Air
-            }
-            _ => return None,
+                "oak_stairs" => stair(BuildBlock::Wooden(TreeSpecies::Oak), props),
+                "stone_brick_stairs" => stair(BuildBlock::Stonebrick, props),
+                "cauldron" => Cauldron {
+                    water: props.get_str("level")?.parse().unwrap(),
+                },
+                "wooden_door" => {
+                    // TODO
+                    Air
+                }
+                // This is quite hacky, maybe just use anyhow?
+                _ => Err(CompoundTagError::TagNotFound {
+                    name: "this is an unknown block",
+                })?,
+            })
+        }
+
+        known_block(name, props).unwrap_or_else(|_| {
+            Other(Arc::new(Blockstate(
+                name.to_owned().into(),
+                if let Ok(props) = nbt.get_compound_tag("Properties") {
+                    props
+                        .iter()
+                        .map(|(name, value)| {
+                            (
+                                name.clone().into(),
+                                if let nbt::Tag::String(value) = value {
+                                    value.clone().into()
+                                } else {
+                                    panic!("Non-string blockstate value")
+                                },
+                            )
+                        })
+                        .collect()
+                } else {
+                    Vec::new()
+                },
+            )))
         })
+    }
+
+    pub fn to_nbt(&self) -> CompoundTag {
+        let blockstate = self.blockstate();
+        let mut nbt = CompoundTag::new();
+        nbt.insert("Name", blockstate.0.into_owned());
+        if blockstate.1.len() > 0 {
+            nbt.insert("Properties", {
+                let mut props = CompoundTag::new();
+                for (prop, value) in blockstate.1 {
+                    props.insert_str(prop, value);
+                }
+                props
+            });
+        }
+        nbt
     }
 
     pub fn solid(&self) -> bool {
@@ -656,48 +597,11 @@ impl Block {
 
     pub fn rotated(&self, turns: u8) -> Self {
         match self {
-            Log(species, LogType::Normal(Axis::X), origin) => {
-                Log(*species, LogType::Normal(Axis::Z), *origin)
-            }
-            Log(species, LogType::Normal(Axis::Z), origin) => {
-                Log(*species, LogType::Normal(Axis::X), *origin)
-            }
+            Log(species, LogType::Normal(Axis::X)) => Log(*species, LogType::Normal(Axis::Z)),
+            Log(species, LogType::Normal(Axis::Z)) => Log(*species, LogType::Normal(Axis::X)),
             Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
             Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
             _ => self.clone(),
         }
     }
-
-    pub fn light_properties(&self) -> LightProperties {
-        match self {
-            Lava | Glowstone => LightProperties {
-                emission: 15,
-                transparent: true,
-                filter_skylight: true,
-            },
-            Water | Leaves(_) => LightProperties {
-                emission: 0,
-                transparent: true,
-                filter_skylight: true,
-            },
-            Air | Repeater { .. } | GroundPlant(..) | SnowLayer | GlassPane(..) | Fence(..) => {
-                LightProperties {
-                    emission: 0,
-                    transparent: true,
-                    filter_skylight: false,
-                }
-            }
-            _ => LightProperties {
-                emission: 0,
-                transparent: false,
-                filter_skylight: true,
-            },
-        }
-    }
-}
-
-pub struct LightProperties {
-    pub emission: u8,
-    pub transparent: bool,
-    pub filter_skylight: bool,
 }

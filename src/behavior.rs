@@ -185,10 +185,9 @@ fn pickup(id: u16, block: &Block) -> Commands {
     // falling_block data changes aren't show till the player relogs
     // Therefore: use armor stands, teleported to villager in update.mcfunction
     vec![format!(
-        "entitydata {} {{ArmorItems:[{{}},{{}},{{}},{{Count:1,id:{},Damage:{}}}]}}",
+        "entitydata {} {{ArmorItems:[{{}},{{}},{{}},{{Count:1,id:{}}}]}}",
         EntityID(0, 0, 2, id, 0),
-        block.name(),
-        block.to_bytes().1
+        block.blockstate().0,
     )]
 }
 

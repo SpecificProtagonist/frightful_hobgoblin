@@ -42,7 +42,8 @@ pub fn make_scarecrow(world: &mut World, column: Column) {
     world.set(pos + Vec2::from(direction).clockwise(), fence_block);
     world.set(pos + Vec2::from(direction).counterclockwise(), fence_block);
     pos += Vec3(0, 1, 0);
-    world.set(pos, GroundPlant(GroundPlant::Pumpkin(direction)));
+    // TODO: carve
+    world.set(pos, GroundPlant(GroundPlant::Pumpkin));
 }
 
 pub fn make_signpost() {}

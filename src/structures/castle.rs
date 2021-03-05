@@ -122,11 +122,7 @@ impl Blueprint {
 }
 
 fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floor_y: u8) {
-    let floor_block = &Log(
-        TreeSpecies::Spruce,
-        LogType::Normal(Axis::X),
-        LogOrigin::Manmade,
-    );
+    let floor_block = &Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
     for (column, usage) in layout {
         if matches!(usage, Usage::FreeInterior) {
             world.set(column.at(floor_y), floor_block);
@@ -208,7 +204,7 @@ fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, ba
 }
 
 fn build_privy(world: &mut impl WorldView, base_pos: Pos, facing: HDir) {
-    Template::get("castle_privy").build(world, base_pos, facing);
+    Template::get("castle/privy").build(world, base_pos, facing);
 
     let drop_column = Column::from(base_pos) + Vec2::from(facing);
     let drop_column = drop_column

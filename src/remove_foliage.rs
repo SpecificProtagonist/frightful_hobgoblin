@@ -52,12 +52,9 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                 for x in -1..=1 {
                     for z in -1..=1 {
                         let pos = Pos(pos.0 + x, pos.1, pos.2 + z);
-                        if let Log(s, log_type, LogOrigin::Natural) = *world.get(pos) {
+                        if let Log(s, log_type) = *world.get(pos) {
                             if s == species {
-                                world.set(
-                                    pos - Vec3(0, 1, 0),
-                                    Log(species, log_type, LogOrigin::Stump),
-                                );
+                                world.set(pos - Vec3(0, 1, 0), Log(species, log_type));
                             }
                         }
                     }
@@ -76,7 +73,7 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                 for z in -1..=1 {
                     let block_below = world.get(Pos(pos.0 + x, pos.1 - 1, pos.2 + z)).clone();
                     let block = world.get_mut(Pos(pos.0 + x, pos.1, pos.2 + z));
-                    if let Log(s, log_type, LogOrigin::Natural) = block {
+                    if let Log(s, log_type) = block {
                         if *s == species {
                             // Check block below in case of diagonal branch close to the ground
                             // when leave_stumps and stump height is 1 (mostly happens with dark oak)
@@ -85,7 +82,7 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                                 _ => false,
                             }) & (rand::random::<f32>() < STUMP_HEIGHT_2_CHANCE)
                             {
-                                *block = Log(species, *log_type, LogOrigin::Stump);
+                                *block = Log(species, *log_type);
                             } else {
                                 *block = Air;
                             }
@@ -105,10 +102,10 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                         for z in -1..=1 {
                             let pos = Pos(pos.0 + x, (pos.1 as i32 + y) as u8, pos.2 + z);
                             let block = world.get_mut(pos);
-                            if let Log(s, log_type, LogOrigin::Natural) = block {
+                            if let Log(s, log_type) = block {
                                 if *s == species {
                                     *block = if pos.1 <= stump_height {
-                                        Log(species, *log_type, LogOrigin::Stump)
+                                        Log(species, *log_type)
                                     } else {
                                         Air
                                     };
@@ -170,7 +167,7 @@ pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                             ]
                             .iter()
                             .map(|neightbor: &Pos| match blocks[index(*neightbor)] {
-                                (Log(s, _, LogOrigin::Natural), _) if s == species => 0,
+                                (Log(s, _), _) if s == species => 0,
                                 (Leaves(..), distane) => distane,
                                 _ => decay_distance as u8,
                             })

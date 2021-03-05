@@ -5,6 +5,8 @@ use crate::{
 pub use BiomeType::*;
 pub use Temperature::*;
 
+// TODO: check if new biomes were added after 1.12
+
 #[derive(Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum BiomeType {
