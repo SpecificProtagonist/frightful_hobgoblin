@@ -18,7 +18,7 @@ pub struct Blueprint {
 
 impl Blueprint {
     pub fn build(&self, world: &mut impl WorldView) {
-        make_foundation(world, self.area, self.y, BuildBlock::Cobble);
+        make_foundation(world, self.area, self.y, Cobble);
 
         let mut stories = Vec::new();
 
@@ -141,7 +141,7 @@ fn build_walls(
     for (column, usage) in layout {
         if matches!(usage, Usage::Wall | Usage::Window(..)) {
             for y in base_y..(base_y + height) {
-                world.set(column.at(y), Stone(Stone::Cobble));
+                world.set(column.at(y), FullBlock(Cobble));
             }
         }
     }
@@ -167,7 +167,7 @@ fn build_walls(
                 ))
             {
                 for y in base_y..(base_y + height) {
-                    world.set_override(column.at(y), Stone(Stone::Stonebrick));
+                    world.set_override(column.at(y), FullBlock(Stonebrick));
                     if (base_y + height - y) % 2 == 0 {
                         for column in &[
                             column + Vec2(-1, 0),
@@ -176,7 +176,7 @@ fn build_walls(
                             column + Vec2(0, 1),
                         ] {
                             if let Some(Usage::Wall) = layout.get(column) {
-                                world.set_override(column.at(y), Stone(Stone::Stonebrick));
+                                world.set_override(column.at(y), FullBlock(Stonebrick));
                             }
                         }
                     }
@@ -192,12 +192,12 @@ fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, ba
         if let Usage::Window(facing) = usage {
             world.set_override(
                 column.at(base_y + 1),
-                Stair(BuildBlock::Cobble, facing.rotated(2), Flipped(false)),
+                Stair(Material::Cobble, facing.rotated(2), Flipped(false)),
             );
             world.set(column.at(base_y + 2), GlassPane(Some(Color::Brown)));
             world.set_override(
                 column.at(base_y + 3),
-                Stair(BuildBlock::Cobble, facing.rotated(2), Flipped(true)),
+                Stair(Material::Cobble, facing.rotated(2), Flipped(true)),
             );
         }
     }
@@ -208,7 +208,7 @@ fn build_privy(world: &mut impl WorldView, base_pos: Pos, facing: HDir) {
 
     let drop_column = Column::from(base_pos) + Vec2::from(facing);
     let drop_column = drop_column
-        + if let Stone(Stone::Cobble) = world.get(drop_column.at(world.height(drop_column))) {
+        + if let FullBlock(Cobble) = world.get(drop_column.at(world.height(drop_column))) {
             Vec2::from(facing)
         } else {
             Vec2(0, 0)

@@ -15,15 +15,13 @@ pub fn make_retaining_wall(
     height: u8,
     crest: WallCrest,
 ) {
+    let material = Cobble;
     // Placement order matters for replay -> build wall first
-    let wall_block = &Stone(Stone::Cobble);
     let crest = &match crest {
         WallCrest::None => Air,
-        WallCrest::Full => wall_block.clone(),
-        WallCrest::Fence => {
-            Block::Fence(Fence::Wood(world.biome(area.0[0]).default_tree_species()))
-        }
-        WallCrest::Wall => Block::Fence(Fence::Stone { mossy: false }),
+        WallCrest::Full => FullBlock(material),
+        WallCrest::Fence => Block::Fence(Wood(world.biome(area.0[0]).default_tree_species())),
+        WallCrest::Wall => Fence(material),
     };
 
     for column in area.border(LineStyle::ThickWobbly) {
@@ -39,7 +37,7 @@ pub fn make_retaining_wall(
             y -= 1;
         }
         for y in y..=height {
-            world.set(column.at(y), wall_block)
+            world.set(column.at(y), FullBlock(material))
         }
         let above = world.get_mut(column.at(height + 1));
         if matches!((crest, &above), (Air, GroundPlant(_))) {
@@ -72,13 +70,13 @@ fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
     }
 }
 
-pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block: BuildBlock) {
+pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, material: Material) {
     for column in area.iter() {
-        world.set(column.at(height), block.full());
+        world.set(column.at(height), FullBlock(material));
         let mut y = height - 1;
         let ground_height = world.height(column);
         while (y > ground_height) | soil_exposted(world, column.at(y)) {
-            world.set(column.at(y), block.full());
+            world.set(column.at(y), FullBlock(material));
             y -= 1;
         }
         for y in (height + 1)..=ground_height {
@@ -91,28 +89,28 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
         ((area.min.0 + 1)..area.max.0).map(|x| Column(x, area.min.1)),
         height,
         HDir::ZPos,
-        block,
+        material,
     );
     make_support(
         world,
         ((area.min.0 + 1)..area.max.0).map(|x| Column(x, area.max.1)),
         height,
         HDir::ZNeg,
-        block,
+        material,
     );
     make_support(
         world,
         ((area.min.1 + 1)..area.max.1).map(|z| Column(area.min.0, z)),
         height,
         HDir::XPos,
-        block,
+        material,
     );
     make_support(
         world,
         ((area.min.1 + 1)..area.max.1).map(|z| Column(area.max.0, z)),
         height,
         HDir::XNeg,
-        block,
+        material,
     );
 
     fn make_support(
@@ -120,7 +118,7 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
         columns: impl Iterator<Item = Column>,
         y: u8,
         facing: HDir,
-        block: BuildBlock,
+        material: Material,
     ) {
         let support_chance = 0.7;
         let min_height = 3;
@@ -137,9 +135,9 @@ pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, block
                 & !just_placed
                 & rand(support_chance)
             {
-                world.set(column.at(y), Stair(block, facing, Flipped(false)));
+                world.set(column.at(y), Stair(material, facing, Flipped(false)));
                 for y in (y - ground_distance as u8)..y {
-                    world.set(column.at(y), block.full());
+                    world.set(column.at(y), FullBlock(material));
                 }
                 true
             } else {

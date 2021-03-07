@@ -7,28 +7,29 @@ use num_derive::FromPrimitive;
 
 pub use Block::*;
 pub use Color::*;
+pub use Material::*;
 pub use TreeSpecies::*;
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Block {
     Air,
-    Stone(Stone),
+    FullBlock(Material),
+    Slab(Material, Flipped),
+    Stair(Material, HDir, Flipped),
     Planks(TreeSpecies),
+    Fence(Material),
     Water,
     Lava,
     Soil(Soil),
     Log(TreeSpecies, LogType),
     Leaves(TreeSpecies),
     GroundPlant(GroundPlant),
-    Fence(Fence),
     Wool(Color),
     SnowLayer,
     Glowstone,
     GlassPane(Option<Color>),
     Hay,
-    Slab(BuildBlock, Flipped),
-    Stair(BuildBlock, HDir, Flipped),
     Cauldron { water: u8 },
     Repeater(HDir, u8),
     Barrier,
@@ -64,12 +65,12 @@ pub enum TreeSpecies {
 impl TreeSpecies {
     pub fn from_str(name: &str) -> Option<TreeSpecies> {
         match name {
-            "oak" => Some(TreeSpecies::Oak),
-            "spruce" => Some(TreeSpecies::Spruce),
-            "birch" => Some(TreeSpecies::Birch),
-            "jungle" => Some(TreeSpecies::Jungle),
-            "acacia" => Some(TreeSpecies::Acacia),
-            "dark_oak" => Some(TreeSpecies::DarkOak),
+            "oak" => Some(Oak),
+            "spruce" => Some(Spruce),
+            "birch" => Some(Birch),
+            "jungle" => Some(Jungle),
+            "acacia" => Some(Acacia),
+            "dark_oak" => Some(DarkOak),
             _ => None,
         }
     }
@@ -90,20 +91,6 @@ impl Display for TreeSpecies {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
     }
-}
-
-// Represents man-placed stone, even when the same blocks could occure naturally
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum Stone {
-    Stone,
-    Granite,
-    Diorite,
-    Andesite,
-    Cobble,
-    Stonebrick,
-    Brick,
-    // Todo: Sandstone, (Polished) Stones, Cracked/Mossy
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -172,14 +159,6 @@ pub enum Crop {
     Beetroot,
 }
 
-// TODO: expand and replace with BuildBlock
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum Fence {
-    Wood(TreeSpecies),
-    Stone { mossy: bool },
-}
-
 // Note: for dyes, id order is reversed
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
@@ -233,31 +212,58 @@ impl Display for Color {
 pub struct Flipped(pub bool);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum BuildBlock {
-    Wooden(TreeSpecies),
+pub enum Material {
+    Stone,
+    Granite,
+    PolishedGranite,
+    Diorite,
+    PolishedDiorite,
+    Andesite,
+    PolishedAndesite,
+    Wood(TreeSpecies),
     Cobble,
+    MossyCobble,
     Stonebrick,
+    MossyStonebrick,
     Brick,
+    Sandstone,
+    SmoothSandstone,
+    RedSandstone,
+    SmoothRedSandstone,
+    Blackstone,
+    PolishedBlackstone,
+    PolishedBlackstoneBrick,
 }
 
-impl BuildBlock {
-    pub fn full(self) -> Block {
-        match self {
-            BuildBlock::Wooden(species) => Planks(species),
-            BuildBlock::Cobble => Stone(Stone::Cobble),
-            BuildBlock::Brick => Stone(Stone::Brick),
-            BuildBlock::Stonebrick => Stone(Stone::Stonebrick),
-        }
+impl Display for Material {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.to_str())
     }
 }
 
-impl Display for BuildBlock {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl Material {
+    pub fn to_str(self) -> &'static str {
         match self {
-            BuildBlock::Wooden(species) => species.fmt(f),
-            BuildBlock::Cobble => write!(f, "cobblestone"),
-            BuildBlock::Brick => write!(f, "brick"),
-            BuildBlock::Stonebrick => write!(f, "stone_brick"),
+            Stone => "stone",
+            Diorite => "diorite",
+            PolishedDiorite => "polished_diorite",
+            Granite => "granite",
+            PolishedGranite => "polished_granite",
+            Andesite => "andesite",
+            PolishedAndesite => "polished_andesite",
+            Wood(species) => species.to_str(),
+            Cobble => "cobblestone",
+            MossyCobble => "mossy_cobblestone",
+            Brick => "brick",
+            Stonebrick => "stone_brick",
+            MossyStonebrick => "mossy_stone_brick",
+            Sandstone => "sandstone",
+            SmoothSandstone => "smooth_sandstone",
+            RedSandstone => "red_sandstone",
+            SmoothRedSandstone => "smooth_red_sandstone",
+            Blackstone => "blackstone",
+            PolishedBlackstone => "polished_blackstone",
+            PolishedBlackstoneBrick => "polished_blackstone_brick",
         }
     }
 }
@@ -295,14 +301,11 @@ impl Block {
 
         match self {
             Air => "air".into(),
-            Stone(stone) => match stone {
-                Stone::Stone => "stone".into(),
-                Stone::Granite => "granite".into(),
-                Stone::Diorite => "diorite".into(),
-                Stone::Andesite => "andesite".into(),
-                Stone::Cobble => "cobblestone".into(),
-                Stone::Brick => "bricks".into(),
-                Stone::Stonebrick => "stone_bricks".into(),
+            FullBlock(material) => match material {
+                Brick => "bricks".into(),
+                Stonebrick => "stone_bricks".into(),
+                PolishedBlackstoneBrick => "polished_blackstone_bricks".into(),
+                material => material.to_str().into(),
             },
             Planks(species) => format!("{}_planks", species).into(),
             Soil(soil_type) => match soil_type {
@@ -373,10 +376,9 @@ impl Block {
                     }
                 },
             },
-            Fence(fence) => match fence {
-                Fence::Wood(species) => format!("{}_fence", species).into(),
-                Fence::Stone { mossy: false } => "cobblestone_wall".into(),
-                Fence::Stone { mossy: true } => "mossy_cobblestone_wall".into(),
+            Fence(material) => match material {
+                Wood(species) => format!("{}_fence", species).into(),
+                material => format!("{}_wall", material).into(),
             },
             Wool(color) => format!("{}_wool", color).into(),
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
@@ -465,7 +467,15 @@ impl Block {
         let default_props = CompoundTag::new();
         let props = nbt.get_compound_tag("Properties").unwrap_or(&default_props);
 
-        fn stair(material: BuildBlock, props: &CompoundTag) -> Block {
+        fn slab(material: Material, props: &CompoundTag) -> Block {
+            match props.get_str("type").unwrap() {
+                "top" => Slab(material, Flipped(true)),
+                "double" => FullBlock(material),
+                _ => Slab(material, Flipped(false)),
+            }
+        }
+
+        fn stair(material: Material, props: &CompoundTag) -> Block {
             Stair(
                 material,
                 HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
@@ -490,18 +500,16 @@ impl Block {
             name: &str,
             props: &'a CompoundTag,
         ) -> Result<Block, CompoundTagError<'a>> {
-            // TMP
-            //return Err(CompoundTagError::TagNotFound { name: "" });
             // TODO: expand this
             Ok(match name {
                 "air" | "cave_air" => Air,
-                "stone" => Stone(Stone::Stone),
-                "granite" => Stone(Stone::Granite),
-                "diorite" => Stone(Stone::Diorite),
-                "andesite" => Stone(Stone::Andesite),
-                "cobblestone" => Stone(Stone::Cobble),
-                "bricks" => Stone(Stone::Brick),
-                "stone_bricks" => Stone(Stone::Stonebrick),
+                "stone" => FullBlock(Stone),
+                "granite" => FullBlock(Granite),
+                "diorite" => FullBlock(Diorite),
+                "andesite" => FullBlock(Andesite),
+                "cobblestone" => FullBlock(Cobble),
+                "bricks" => FullBlock(Brick),
+                "stone_bricks" => FullBlock(Stonebrick),
                 "bedrock" => Bedrock,
                 "gravel" => Soil(Soil::Gravel),
                 "grass_block" => Soil(Soil::Grass),
@@ -510,36 +518,38 @@ impl Block {
                 "dirt" if matches!(props.get_str("variant")?, "coarse_dirt") => {
                     Soil(Soil::CoarseDirt)
                 }
-                "oak_log" => log(TreeSpecies::Oak, props),
-                "spruce_log" => log(TreeSpecies::Spruce, props),
-                "birch_log" => log(TreeSpecies::Birch, props),
-                "jungle_log" => log(TreeSpecies::Jungle, props),
-                "acacia_log" => log(TreeSpecies::Acacia, props),
-                "dark_oak_log" => log(TreeSpecies::DarkOak, props),
-                "oak_leaves" => Leaves(TreeSpecies::Oak),
-                "spruce_leaves" => Leaves(TreeSpecies::Spruce),
-                "birch_leaves" => Leaves(TreeSpecies::Birch),
-                "jungle_leaves" => Leaves(TreeSpecies::Jungle),
-                "acacie_leaves" => Leaves(TreeSpecies::Acacia),
-                "dark_oak_leaves" => Leaves(TreeSpecies::DarkOak),
+                "oak_log" => log(Oak, props),
+                "spruce_log" => log(Spruce, props),
+                "birch_log" => log(Birch, props),
+                "jungle_log" => log(Jungle, props),
+                "acacia_log" => log(Acacia, props),
+                "dark_oak_log" => log(DarkOak, props),
+                "oak_leaves" => Leaves(Oak),
+                "spruce_leaves" => Leaves(Spruce),
+                "birch_leaves" => Leaves(Birch),
+                "jungle_leaves" => Leaves(Jungle),
+                "acacie_leaves" => Leaves(Acacia),
+                "dark_oak_leaves" => Leaves(DarkOak),
                 "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
-                "fence" => Fence(Fence::Wood(TreeSpecies::Oak)),
-                "cobblestone_wall" if matches!(props.get_str("variant")?, "cobblestone") => {
-                    Fence(Fence::Stone { mossy: false })
-                }
-                "wooden_slab" => Slab(
-                    BuildBlock::Wooden(TreeSpecies::from_str(props.get_str("variant")?).unwrap()),
-                    Flipped(props.get_str("half")? == "top"),
-                ),
-                "oak_stairs" => stair(BuildBlock::Wooden(TreeSpecies::Oak), props),
-                "stone_brick_stairs" => stair(BuildBlock::Stonebrick, props),
+                "fence" => Fence(Wood(Oak)),
+                "cobblestone_wall" => Fence(MossyCobble),
+                "mossy_cobblestone_wall" => Fence(MossyCobble),
+                "oak_slab" => slab(Wood(Oak), props),
+                "spruce_slab" => slab(Wood(Spruce), props),
+                "birch_slab" => slab(Wood(Birch), props),
+                "jungle_slab" => slab(Wood(Jungle), props),
+                "acacia_slab" => slab(Wood(Acacia), props),
+                "dark_oak_slab" => slab(Wood(DarkOak), props),
+                "oak_stairs" => stair(Wood(Oak), props),
+                "spruce_stairs" => stair(Wood(Spruce), props),
+                "birch_stairs" => stair(Wood(Birch), props),
+                "jungle_stairs" => stair(Wood(Jungle), props),
+                "acacia_stairs" => stair(Wood(Acacia), props),
+                "dark_oak_stairs" => stair(Wood(DarkOak), props),
+                "stone_brick_stairs" => stair(Stonebrick, props),
                 "cauldron" => Cauldron {
                     water: props.get_str("level")?.parse().unwrap(),
                 },
-                "wooden_door" => {
-                    // TODO
-                    Air
-                }
                 // This is quite hacky, maybe just use anyhow?
                 _ => Err(CompoundTagError::TagNotFound {
                     name: "this is an unknown block",
