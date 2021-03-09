@@ -23,6 +23,14 @@ impl<'a, T: WorldView> BuildRecorder<'a, T> {
             .retain(|pos, block| (world.get(*pos) != block));
         record
     }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Pos, &Block)> {
+        self.1.blocks.iter()
+    }
+
+    pub fn iter_mut(&mut self) -> impl Iterator<Item = (&Pos, &mut Block)> {
+        self.1.blocks.iter_mut()
+    }
 }
 
 impl<T: WorldView> WorldView for BuildRecorder<'_, T> {

@@ -18,7 +18,7 @@ pub struct Blueprint {
 
 impl Blueprint {
     pub fn build(&self, world: &mut impl WorldView) {
-        make_foundation(world, self.area, self.y, Cobble);
+        make_foundation_straight(world, self.area, self.y, Cobble);
 
         let mut stories = Vec::new();
 
@@ -31,7 +31,7 @@ impl Blueprint {
             }
 
             // Floor
-            for column in self.area.shrink(1).iter() {
+            for column in self.area.shrink(1) {
                 layout.insert(column, Usage::FreeInterior);
             }
             layout
@@ -420,7 +420,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
 
     let y = {
         (area
-            .iter()
+            .into_iter()
             .map(|column| world.height(column) as i32)
             .sum::<i32>()
             / (area.size().0 * area.size().1)) as u8

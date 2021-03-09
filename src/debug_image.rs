@@ -49,7 +49,7 @@ pub fn heightmap(world: &World) -> MapImage {
 
 pub fn heightmap_with(world: &World, min: u8, max: u8) -> MapImage {
     let mut image = MapImage::new(world.area());
-    for column in world.area().iter() {
+    for column in world.area() {
         image.set(
             column,
             if world.water_level(column).is_some() {

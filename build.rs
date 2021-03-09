@@ -10,7 +10,7 @@ pub fn main() -> Result<(), std::io::Error> {
             let namespace = file.file_name();
             let dir = Path::join(&file.path(), "structures");
 
-            std::fs::create_dir_all(format!("template/{}", namespace.to_string_lossy()))?;
+            std::fs::create_dir_all(format!("templates/{}", namespace.to_string_lossy()))?;
 
             for file in std::fs::read_dir(dir)? {
                 let file = file?;

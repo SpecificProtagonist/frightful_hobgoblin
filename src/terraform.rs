@@ -70,8 +70,63 @@ fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
     }
 }
 
-pub fn make_foundation(world: &mut impl WorldView, area: Rect, height: u8, material: Material) {
-    for column in area.iter() {
+pub fn make_foundation_sloped(
+    world: &mut impl WorldView,
+    mut area: Rect,
+    height: u8,
+    material: Material,
+) {
+    // TODO: proper placement order
+
+    remove_foliage::trees(world, area, false);
+    for column in area {
+        world.set(column.at(height), FullBlock(material));
+    }
+
+    let mut y = height - 1;
+    let mut width_increased_last_layer = false;
+    let mut outmost_is_wall = false;
+    let mut block_placed_this_layer = true;
+
+    while block_placed_this_layer {
+        block_placed_this_layer = false;
+        for column in area.shrink(1) {
+            world.set_if_not_solid(column.at(y), FullBlock(material));
+        }
+        for column in area.border() {
+            if !world.get(column.at(y)).solid() || side_exposted(world, column.at(y)) {
+                block_placed_this_layer = true;
+                world.set(column.at(y), FullBlock(material));
+            }
+        }
+        if outmost_is_wall {
+            for column in area.grow(1).border() {
+                if !world.get(column.at(y)).solid() {
+                    block_placed_this_layer = true;
+                    world.set(column.at(y), Fence(material));
+                }
+            }
+        }
+
+        y -= 1;
+
+        if !width_increased_last_layer {
+            if outmost_is_wall {
+                area = area.grow(1);
+            }
+            outmost_is_wall ^= true;
+        }
+        width_increased_last_layer ^= true;
+    }
+}
+
+pub fn make_foundation_straight(
+    world: &mut impl WorldView,
+    area: Rect,
+    height: u8,
+    material: Material,
+) {
+    for column in area {
         world.set(column.at(height), FullBlock(material));
         let mut y = height - 1;
         let ground_height = world.height(column);
@@ -223,7 +278,7 @@ pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, u8> {
                 chunk,
                 chunk
                     .area()
-                    .iter()
+                    .into_iter()
                     .map(|column| world.height(column))
                     .max()
                     .unwrap(),

@@ -26,11 +26,15 @@ pub enum Block {
     Leaves(TreeSpecies),
     GroundPlant(GroundPlant),
     Wool(Color),
+    Terracotta(Option<Color>),
+    SmoothQuartz,
     SnowLayer,
     Glowstone,
     GlassPane(Option<Color>),
+    WallBanner(HDir, Color),
     Hay,
     Cauldron { water: u8 },
+    Bell(HDir, BellAttachment),
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
@@ -60,21 +64,11 @@ pub enum TreeSpecies {
     Jungle,
     Acacia,
     DarkOak,
+    Warped,
+    Crimson,
 }
 
 impl TreeSpecies {
-    pub fn from_str(name: &str) -> Option<TreeSpecies> {
-        match name {
-            "oak" => Some(Oak),
-            "spruce" => Some(Spruce),
-            "birch" => Some(Birch),
-            "jungle" => Some(Jungle),
-            "acacia" => Some(Acacia),
-            "dark_oak" => Some(DarkOak),
-            _ => None,
-        }
-    }
-
     pub fn to_str(self) -> &'static str {
         match self {
             Oak => "oak",
@@ -83,6 +77,8 @@ impl TreeSpecies {
             Jungle => "jungle",
             Acacia => "acacia",
             DarkOak => "dark_oak",
+            Warped => "warped",
+            Crimson => "crimson",
         }
     }
 }
@@ -269,6 +265,14 @@ impl Material {
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
+pub enum BellAttachment {
+    Floor,
+    Ceiling,
+    SingleWall,
+    DoubleWall,
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct Blockstate(
     pub Cow<'static, str>,
     pub Vec<(Cow<'static, str>, Cow<'static, str>)>,
@@ -292,6 +296,7 @@ impl Display for Blockstate {
 }
 
 impl Block {
+    // TODO: blockstates for fences need context... ugh
     pub fn blockstate(&self) -> Blockstate {
         impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
             fn from(name: Name) -> Self {
@@ -325,10 +330,21 @@ impl Block {
             Lava => "lava".into(),
             Log(species, log_type) => match log_type {
                 LogType::Normal(axis) => Blockstate(
-                    format!("{}_log", species).into(),
+                    match species {
+                        Warped | Crimson => format!("{}_stem", species),
+                        _ => format!("{}_log", species),
+                    }
+                    .into(),
                     vec![("axis".into(), axis.to_str().into())],
                 ),
-                LogType::FullBark => Blockstate(format!("{}_wood", species).into(), vec![]),
+                LogType::FullBark => Blockstate(
+                    match species {
+                        Warped | Crimson => format!("{}_hyphae", species),
+                        _ => format!("{}_wood", species),
+                    }
+                    .into(),
+                    vec![],
+                ),
             },
             Leaves(species) => Blockstate(
                 format!("{}_leaves", species).into(),
@@ -381,6 +397,9 @@ impl Block {
                 material => format!("{}_wall", material).into(),
             },
             Wool(color) => format!("{}_wool", color).into(),
+            Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
+            Terracotta(None) => "terracotta".into(),
+            SmoothQuartz => "smooth_quartz".into(),
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
             Glowstone => "glowstone".into(),
             GlassPane(color) => {
@@ -390,6 +409,10 @@ impl Block {
                     "glass_pane".into()
                 }
             }
+            WallBanner(facing, color) => Blockstate(
+                format!("{}_wall_banner", color).into(),
+                vec![("facing".into(), facing.to_str().into())],
+            ),
             Hay => "hay_block".into(),
             Slab(material, Flipped(flipped)) => Blockstate(
                 format!("{}_slab", material).into(),
@@ -421,6 +444,22 @@ impl Block {
                     },
                 )],
             ),
+            Bell(facing, attachment) => Blockstate(
+                "bell".into(),
+                vec![
+                    ("facing".into(), facing.to_str().into()),
+                    (
+                        "attachment".into(),
+                        match attachment {
+                            BellAttachment::Floor => "floor",
+                            BellAttachment::Ceiling => "ceiling",
+                            BellAttachment::DoubleWall => "double_wall",
+                            BellAttachment::SingleWall => "single_wall",
+                        }
+                        .into(),
+                    ),
+                ],
+            ),
             Repeater(dir, delay) => Blockstate(
                 "repeater".into(),
                 vec![
@@ -445,11 +484,18 @@ impl Block {
 
     pub fn tile_entity_nbt(&self, pos: Pos) -> Option<CompoundTag> {
         match self {
+            Bell(..) => {
+                let mut nbt = CompoundTag::new();
+                nbt.insert_str("id", "bell");
+                Some(nbt)
+            }
+            WallBanner(..) => {
+                let mut nbt = CompoundTag::new();
+                nbt.insert_str("id", "banner");
+                Some(nbt)
+            }
             CommandBlock(command) => {
                 let mut nbt = CompoundTag::new();
-                nbt.insert_i32("x", pos.0);
-                nbt.insert_i32("y", pos.1 as i32);
-                nbt.insert_i32("z", pos.2);
                 nbt.insert_str("id", "command_block");
                 nbt.insert_str("Command", &command);
                 nbt.insert_bool("TrackOutput", false);
@@ -457,6 +503,12 @@ impl Block {
             }
             _ => None,
         }
+        .map(|mut nbt| {
+            nbt.insert_i32("x", pos.0);
+            nbt.insert_i32("y", pos.1 as i32);
+            nbt.insert_i32("z", pos.2);
+            nbt
+        })
     }
 
     /// This is for loading of the structure block format and very much incomplete
@@ -493,6 +545,13 @@ impl Block {
                     "none" => LogType::FullBark,
                     unknown => panic!("Invalid log axis {}", unknown),
                 },
+            )
+        }
+
+        fn wall_banner(color: Color, props: &CompoundTag) -> Block {
+            WallBanner(
+                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                color,
             )
         }
 
@@ -540,6 +599,12 @@ impl Block {
                 "jungle_slab" => slab(Wood(Jungle), props),
                 "acacia_slab" => slab(Wood(Acacia), props),
                 "dark_oak_slab" => slab(Wood(DarkOak), props),
+                "cobblestone_slab" => slab(Cobble, props),
+                "mossy_cobblestone_slab" => slab(MossyCobble, props),
+                "stone_brick_slab" => slab(Stonebrick, props),
+                "mossy_stone_brick_slab" => slab(MossyStonebrick, props),
+                "blackstone_slab" => slab(Blackstone, props),
+                "polished_blackstone_slab" => slab(PolishedBlackstone, props),
                 "oak_stairs" => stair(Wood(Oak), props),
                 "spruce_stairs" => stair(Wood(Spruce), props),
                 "birch_stairs" => stair(Wood(Birch), props),
@@ -547,9 +612,41 @@ impl Block {
                 "acacia_stairs" => stair(Wood(Acacia), props),
                 "dark_oak_stairs" => stair(Wood(DarkOak), props),
                 "stone_brick_stairs" => stair(Stonebrick, props),
+                "blackstone_stairs" => stair(Blackstone, props),
+                "terracotta" => Terracotta(None),
+                "white_terracotta" => Terracotta(Some(White)),
+                "orange_terracotta" => Terracotta(Some(Orange)),
+                "magenta_terracotta" => Terracotta(Some(Magenta)),
+                "light_blue_terracotta" => Terracotta(Some(LightBlue)),
+                "yellow_terracotta" => Terracotta(Some(Yellow)),
+                "lime_terracotta" => Terracotta(Some(Lime)),
+                "pink_terracotta" => Terracotta(Some(Pink)),
+                "gray_terracotta" => Terracotta(Some(Gray)),
+                "light_gray_terracotta" => Terracotta(Some(LightGray)),
+                "cyan_terracotta" => Terracotta(Some(Cyan)),
+                "purple_terracotta" => Terracotta(Some(Purple)),
+                "blue_terracotta" => Terracotta(Some(Blue)),
+                "brown_terracotta" => Terracotta(Some(Brown)),
+                "green_terracotta" => Terracotta(Some(Green)),
+                "red_terracotta" => Terracotta(Some(Red)),
+                "black_terracotta" => Terracotta(Some(Black)),
                 "cauldron" => Cauldron {
                     water: props.get_str("level")?.parse().unwrap(),
                 },
+                "bell" => Bell(
+                    HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                    match props.get_str("attachment").unwrap() {
+                        "floor" => BellAttachment::Floor,
+                        "ceiling" => BellAttachment::Ceiling,
+                        "single_wall" => BellAttachment::SingleWall,
+                        _ => BellAttachment::DoubleWall,
+                    },
+                ),
+                "red_wall_banner" => wall_banner(Red, props),
+                "white_wall_banner" => wall_banner(Red, props),
+                "blue_wall_banner" => wall_banner(Red, props),
+                "green_wall_banner" => wall_banner(Red, props),
+                "yellow_wall_banner" => wall_banner(Red, props),
                 // This is quite hacky, maybe just use anyhow?
                 _ => Err(CompoundTagError::TagNotFound {
                     name: "this is an unknown block",
@@ -610,6 +707,7 @@ impl Block {
             Log(species, LogType::Normal(Axis::X)) => Log(*species, LogType::Normal(Axis::Z)),
             Log(species, LogType::Normal(Axis::Z)) => Log(*species, LogType::Normal(Axis::X)),
             Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
+            WallBanner(facing, color) => WallBanner(facing.rotated(turns), *color),
             Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
             _ => self.clone(),
         }

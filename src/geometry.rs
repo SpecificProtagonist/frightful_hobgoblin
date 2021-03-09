@@ -209,6 +209,13 @@ impl Rect {
             & (self.max.1 >= other.min.1)
     }
 
+    pub fn overlap(self, other: Rect) -> Rect {
+        Rect {
+            min: Column(self.min.0.max(other.min.0), self.min.1.max(other.min.1)),
+            max: Column(self.max.0.min(other.max.0), self.max.1.min(other.max.1)),
+        }
+    }
+
     pub fn grow(self, amount: i32) -> Self {
         self.shrink(-amount)
     }
@@ -218,11 +225,6 @@ impl Rect {
             min: self.min + Vec2(amount, amount),
             max: self.max - Vec2(amount, amount),
         }
-    }
-
-    pub fn iter(self) -> impl Iterator<Item = Column> {
-        (self.min.1..=self.max.1)
-            .flat_map(move |z| (self.min.0..=self.max.0).map(move |x| Column(x, z)))
     }
 
     pub fn border(self) -> impl Iterator<Item = Column> {
@@ -239,6 +241,42 @@ impl Rect {
                     .rev()
                     .map(move |z| Column(self.min.0, z)),
             )
+    }
+}
+
+pub struct RectIter {
+    area: Rect,
+    column: Column,
+}
+
+impl Iterator for RectIter {
+    type Item = Column;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.area.contains(self.column) {
+            let column = self.column;
+            self.column.0 += 1;
+            if self.column.0 > self.area.max.0 {
+                self.column.0 = self.area.min.0;
+                self.column.1 += 1;
+            }
+            Some(column)
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Rect {
+    type Item = Column;
+
+    type IntoIter = RectIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RectIter {
+            area: self,
+            column: self.min,
+        }
     }
 }
 

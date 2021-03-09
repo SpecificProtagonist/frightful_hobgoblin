@@ -3,8 +3,8 @@ use crate::*;
 const STUMP_HEIGHT_0_CHANCE: f32 = 0.3;
 const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
 
-pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
-    for column in area.iter() {
+pub fn ground(world: &mut impl WorldView, area: Rect) {
+    for column in area {
         let base_height = if let Some(water_height) = world.water_level(column) {
             water_height.into()
         } else {
@@ -22,11 +22,11 @@ pub fn remove_ground_foilage(world: &mut impl WorldView, area: Rect) {
     }
 }
 
-pub fn remove_trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
-    for column in area.iter() {
+pub fn trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
+    for column in area {
         let y = world.height(column) + 1;
         if let Block::Log(..) = world.get(column.at(y)) {
-            remove_tree(world, column.at(y), leave_stumps);
+            tree(world, column.at(y), leave_stumps);
         }
     }
 }
@@ -36,7 +36,7 @@ pub fn remove_trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) 
 /// Currently it just removes leaves which would decay without this tree.
 /// This function isn't very performant (e.g. >10k blocks checked for a dark oak),
 /// but luckily this will be called a few hundred times at most and this isn't Python
-pub fn remove_tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
+pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
     if let Log(species, ..) = *world.get(pos) {
         // Track area of stem for leaf removal
         let mut stem_area = Cuboid { min: pos, max: pos };

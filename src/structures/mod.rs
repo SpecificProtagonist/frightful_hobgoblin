@@ -3,9 +3,10 @@ use std::{collections::HashMap, fs::File, path::Path, sync::Mutex};
 use lazy_static::lazy_static;
 use nbt::{decode::read_gzip_compound_tag, CompoundTag, CompoundTagError, Tag};
 
-use crate::{Block, HDir, Pos, Vec3, WorldView};
+use crate::*;
 
 pub mod castle;
+pub mod dzong;
 
 #[derive(Clone)]
 pub struct TemplateMark(Vec3, Option<HDir>, Vec<String>);
@@ -134,6 +135,16 @@ impl Template {
         // TODO: better build order
         for (offset, block) in self.blocks.iter() {
             world.set(pos + offset.rotated(rotation), block.rotated(rotation));
+        }
+    }
+
+    pub fn build_clipped(&self, world: &mut impl WorldView, pos: Pos, facing: HDir, area: Rect) {
+        let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
+        for (offset, block) in self.blocks.iter() {
+            let pos = pos + offset.rotated(rotation);
+            if area.contains(Column(pos.0, pos.2)) {
+                world.set(pos, block.rotated(rotation));
+            }
         }
     }
 

@@ -11,10 +11,8 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
-    //let villagers = test_fortified_house_animated(&mut world);
-    test_fortified_house(&mut world);
+    dzong::test(&mut world);
 
-    //save_behavior(&mut world, &villagers).unwrap();
     world.save().unwrap();
 }
 
