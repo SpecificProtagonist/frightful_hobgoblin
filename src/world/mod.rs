@@ -3,6 +3,7 @@
 mod biome;
 mod block;
 mod entity;
+pub mod vanilla_village;
 
 use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
@@ -12,12 +13,18 @@ use anyhow::Result;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::{collections::HashMap, ops::Shr, path::PathBuf};
+use std::{
+    collections::HashMap,
+    ops::Shr,
+    path::{Path, PathBuf},
+    sync::Mutex,
+};
 
 use crate::geometry::*;
 pub use biome::*;
 pub use block::*;
 pub use entity::*;
+use vanilla_village::Village;
 
 // Ugh, can't impl Index and IndexMut because of orphan rules
 pub trait WorldView {
@@ -82,9 +89,11 @@ pub struct World {
     heightmap: Vec<u8>,
     watermap: Vec<Option<u8>>,
     pub entities: Vec<Entity>,
+    pub villages: Vec<Village>,
 }
 
 impl World {
+    // No nice error handling, but we don't really need that for just the three invocations
     pub fn new(path: &str, area: Rect) -> Self {
         let region_path = {
             let mut region_path = PathBuf::from(path);
@@ -100,26 +109,23 @@ impl World {
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
-        let mut world = Self {
-            path: PathBuf::from(path),
-            chunk_min,
-            chunk_max,
-            sections: vec![None; chunk_count * 16],
-            biome: vec![Biome::default(); chunk_count * 2 * 2],
-            heightmap: vec![0; chunk_count * 16 * 16],
-            watermap: vec![None; chunk_count * 16 * 16],
-            entities: Vec::new(),
-        };
+        let mut sections = vec![None; chunk_count * 16];
+        let mut biome = vec![Biome::default(); chunk_count * 2 * 2];
+        let mut heightmap = vec![0; chunk_count * 16 * 16];
+        let mut watermap = vec![None; chunk_count * 16 * 16];
+        let mut villages = Vec::new();
+
+        let villages_mutex = Mutex::new(&mut villages);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
-            .flat_map(|z| (chunk_min.1..=chunk_max.1).map(move |x| (x, z)))
+            .flat_map(|z| (chunk_min.0..=chunk_max.0).map(move |x| (x, z)))
             .collect_vec()
             .par_iter() //TMP no par
-            .zip(world.sections.par_chunks_exact_mut(16))
-            .zip(world.biome.par_chunks_exact_mut(2 * 2))
-            .zip(world.heightmap.par_chunks_exact_mut(16 * 16))
-            .zip(world.watermap.par_chunks_exact_mut(16 * 16))
+            .zip(sections.par_chunks_exact_mut(16))
+            .zip(biome.par_chunks_exact_mut(2 * 2))
+            .zip(heightmap.par_chunks_exact_mut(16 * 16))
+            .zip(watermap.par_chunks_exact_mut(16 * 16))
             .for_each(|((((index, sections), biome), heightmap), watermap)| {
                 load_chunk(
                     &chunk_provider,
@@ -128,11 +134,33 @@ impl World {
                     biome,
                     heightmap,
                     watermap,
+                    &villages_mutex,
                 )
                 .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1))
             });
 
-        world
+        // Check if there are some villages in the 1.12 format
+        if let Ok(mut village_dat) = std::fs::File::open(Path::new(path).join("data/Village.dat")) {
+            let nbt = nbt::decode::read_gzip_compound_tag(&mut village_dat).unwrap();
+            let nbt = nbt.get_compound_tag("data").unwrap();
+            for (_, nbt) in nbt.get_compound_tag("Features").unwrap().iter() {
+                if let nbt::Tag::Compound(nbt) = nbt {
+                    villages.push(Village::from_nbt(nbt));
+                }
+            }
+        }
+
+        Self {
+            path: PathBuf::from(path),
+            chunk_min,
+            chunk_max,
+            sections,
+            biome,
+            heightmap,
+            watermap,
+            villages,
+            entities: Vec::new(),
+        }
     }
 
     pub fn save(&self) -> Result<()> {
@@ -150,15 +178,22 @@ impl World {
             entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
         }
 
-        // Sadly saveing isn't thread safe
-        (self.chunk_min.1..=self.chunk_max.1)
-            .flat_map(|z| (self.chunk_min.1..=self.chunk_max.1).map(move |x| (x, z)))
+        // Saveing isn't thread safe
+        for ((index, sections), entities) in (self.chunk_min.1..=self.chunk_max.1)
+            .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
             .zip(self.sections.chunks_exact(16))
             .zip(entities_chunked)
-            .for_each(|((index, sections), entities)| {
+        {
+            // Don't save outermost chunks, since we don't modify them & leaving out the border simplifies things
+            if (index.0 > self.chunk_min.0)
+                & (index.0 < self.chunk_max.0)
+                & (index.1 > self.chunk_min.1)
+                & (index.1 < self.chunk_max.1)
+            {
                 save_chunk(&chunk_provider, index.into(), sections, &entities)
                     .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
-            });
+            }
+        }
 
         // Edit metadata
         let level_nbt_path =
@@ -313,6 +348,7 @@ fn load_chunk(
     biomes: &mut [Biome],
     heightmap: &mut [u8],
     watermap: &mut [Option<u8>],
+    villages: &Mutex<&mut Vec<Village>>,
 ) -> Result<()> {
     let nbt = chunk_provider
         .get_region(RegionPosition::from_chunk_position(
@@ -332,17 +368,27 @@ fn load_chunk(
         );
     }
 
-    let level_nbt = nbt.get_compound_tag("Level").unwrap();
+    let nbt = nbt.get_compound_tag("Level").unwrap();
 
-    let biome_ids = level_nbt.get_i32_vec("Biomes").unwrap();
+    let biome_ids = nbt.get_i32_vec("Biomes").unwrap();
     for i in 0..(2 * 2) {
         biomes[i] = Biome::from_bytes(biome_ids[i] as u8);
     }
 
+    if let Ok(structures) = nbt.get_compound_tag("Structures") {
+        let structures = structures.get_compound_tag("Starts").unwrap();
+        if let Ok(nbt) = structures.get_compound_tag("village") {
+            if nbt.get_str("id").unwrap() != "INVALID" {
+                villages.lock().unwrap().push(Village::from_nbt(&nbt));
+            }
+        }
+    }
+
     // TODO: store CarvingMasks::AIR, seems useful
     // Also, check out Heightmaps. Maybe we can reuse them or gleam additional information from them
+    // Wait, no: chunks converted from 1.12 probably don't have them
 
-    let sections_nbt = level_nbt.get_compound_tag_vec("Sections").unwrap();
+    let sections_nbt = nbt.get_compound_tag_vec("Sections").unwrap();
 
     for section_nbt in sections_nbt {
         let y_index = section_nbt.get_i8("Y").unwrap();
