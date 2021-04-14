@@ -22,7 +22,7 @@ pub fn ground(world: &mut impl WorldView, area: Rect) {
     }
 }
 
-pub fn trees(world: &mut impl WorldView, area: Rect, leave_stumps: bool) {
+pub fn trees(world: &mut impl WorldView, area: impl Iterator<Item = Column>, leave_stumps: bool) {
     for column in area {
         let y = world.height(column) + 1;
         if let Block::Log(..) = world.get(column.at(y)) {

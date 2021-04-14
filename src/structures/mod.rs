@@ -7,6 +7,7 @@ use crate::*;
 
 pub mod castle;
 pub mod dzong;
+pub mod farm;
 
 #[derive(Clone)]
 pub struct TemplateMark(Vec3, Option<HDir>, Vec<String>);

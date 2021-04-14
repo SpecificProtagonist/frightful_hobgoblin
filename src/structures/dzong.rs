@@ -36,7 +36,7 @@ fn build_test(
 ) -> BuildRecord {
     let mut world = BuildRecorder::new(world);
 
-    remove_foliage::trees(&mut world, area, false);
+    remove_foliage::trees(&mut world, area.into_iter(), false);
 
     let base_y = world.height(area.center());
     let roof_y = base_y + 12;

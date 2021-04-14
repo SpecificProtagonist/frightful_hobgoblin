@@ -11,7 +11,25 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
+    test_farms(&mut world);
+
     world.save().unwrap();
+}
+
+fn test_farms(world: &mut World) {
+    let area = world.area().shrink(20);
+    let mut fields = Vec::new();
+    for x in (area.min.0..area.max.0).step_by(20) {
+        for z in (area.min.1..area.max.1).step_by(20) {
+            if let Some(blueprint) = farm::Blueprint::new(world, Column(x, z)) {
+                fields.push(blueprint);
+            }
+        }
+    }
+    for field in &fields {
+        field.render(world);
+    }
+    farm::make_hedge_edge(world, &fields);
 }
 
 fn test_village(world: &mut World) {

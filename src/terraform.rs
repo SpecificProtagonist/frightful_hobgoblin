@@ -78,7 +78,7 @@ pub fn make_foundation_sloped(
 ) {
     // TODO: proper placement order
 
-    remove_foliage::trees(world, area, false);
+    remove_foliage::trees(world, area.into_iter(), false);
     for column in area {
         world.set(column.at(height), FullBlock(material));
     }

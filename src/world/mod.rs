@@ -9,7 +9,7 @@ use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
     provider::{FolderRegionProvider, RegionProvider},
 };
-use anyhow::Result;
+use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
@@ -110,7 +110,7 @@ impl World {
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
         let mut sections = vec![None; chunk_count * 16];
-        let mut biome = vec![Biome::default(); chunk_count * 2 * 2];
+        let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
         let mut heightmap = vec![0; chunk_count * 16 * 16];
         let mut watermap = vec![None; chunk_count * 16 * 16];
         let mut villages = Vec::new();
@@ -123,7 +123,7 @@ impl World {
             .collect_vec()
             .par_iter() //TMP no par
             .zip(sections.par_chunks_exact_mut(16))
-            .zip(biome.par_chunks_exact_mut(2 * 2))
+            .zip(biome.par_chunks_exact_mut(4 * 4))
             .zip(heightmap.par_chunks_exact_mut(16 * 16))
             .zip(watermap.par_chunks_exact_mut(16 * 16))
             .for_each(|((((index, sections), biome), heightmap), watermap)| {
@@ -312,7 +312,14 @@ impl WorldView for World {
     }
 
     fn biome(&self, column: Column) -> Biome {
-        self.biome[self.column_index(Column(column.0 / 4, column.1 / 4))]
+        if let Some(biome) = self.biome.get(
+            self.chunk_index(column.into()) * 4 * 4
+                + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
+        ) {
+            *biome
+        } else {
+            panic!("Tried to access biome at {:?}", column);
+        }
     }
 
     fn height(&self, column: Column) -> u8 {
@@ -358,7 +365,8 @@ fn load_chunk(
         .read_chunk(RegionChunkPosition::from_chunk_position(
             chunk_index.0,
             chunk_index.1,
-        ))?;
+        ))
+        .map_err(|_| anyhow!("Chunk read error"))?;
     let version = nbt.get_i32("DataVersion").unwrap();
     if (version > 2586) | (version < 2566) {
         // Todo: 1.13+ support (palette)
@@ -371,8 +379,8 @@ fn load_chunk(
     let nbt = nbt.get_compound_tag("Level").unwrap();
 
     let biome_ids = nbt.get_i32_vec("Biomes").unwrap();
-    for i in 0..(2 * 2) {
-        biomes[i] = Biome::from_bytes(biome_ids[i] as u8);
+    for i in 0..(4 * 4) {
+        biomes[i] = Biome::from_bytes(biome_ids[4 * 4 * 15 + i] as u8);
     }
 
     if let Ok(structures) = nbt.get_compound_tag("Structures") {
@@ -559,7 +567,8 @@ fn save_chunk(
                 });
                 nbt
             },
-        )?;
+        )
+        .map_err(|_| anyhow!("Chunk write error"))?;
     Ok(())
 }
 

@@ -121,6 +121,10 @@ impl Vec2 {
     pub fn counterclockwise(self) -> Vec2 {
         Vec2(-self.1, self.0)
     }
+
+    pub fn len(self) -> f32 {
+        ((self.0.pow(2) + self.1.pow(2)) as f32).powf(0.5)
+    }
 }
 
 impl Vec3 {

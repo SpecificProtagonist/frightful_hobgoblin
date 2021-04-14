@@ -11,8 +11,8 @@ debug = 0
 [dependencies]
 anyhow = "1"
 copy_dir = "0.1.2"
-anvil-region = "0.7"
-named-binary-tag = "0.5"
+anvil-region = "0.8"
+named-binary-tag = "0.6"
 num-traits = "0.2"
 num-derive = "0.2"
 rand = "0.7.3"
@@ -23,7 +23,3 @@ lazy_static = "1"
 hashlink = "0.6"
 image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
 hierarchical_pathfinding = "0.3.6"
-
-[patch.crates-io]
-anvil-region = {path = "../anvil-region"}
-named-binary-tag = {path = "../named-binary-tag"}
