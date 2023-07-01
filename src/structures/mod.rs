@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fs::File, path::Path, sync::Mutex};
+use std::{fs::File, path::Path, sync::Mutex};
 
 use lazy_static::lazy_static;
 use nbt::{decode::read_gzip_compound_tag, CompoundTag, CompoundTagError, Tag};

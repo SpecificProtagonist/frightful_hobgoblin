@@ -8,6 +8,10 @@ edition = "2018"
 opt-level = 1
 debug = 0
 
+# For profiling
+[profile.release]
+debug = true
+
 [dependencies]
 anyhow = "1"
 copy_dir = "0.1.2"
@@ -23,3 +27,4 @@ lazy_static = "1"
 hashlink = "0.6"
 image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
 hierarchical_pathfinding = "0.3.6"
+hashbrown = "0.14.0"

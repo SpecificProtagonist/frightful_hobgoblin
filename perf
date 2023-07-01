@@ -1,0 +1,8 @@
+Capture:
+perf stat -r 10 target/release/test
+
+Show in perf:
+perg report -F+srcline
+
+Show in flamegraph:
+perf script -F+srcline | inferno-collapse-perf | inferno-flamegraph > profile.svg

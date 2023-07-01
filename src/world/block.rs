@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    collections::HashMap,
     default::default,
     fmt::Display,
     mem::size_of,
@@ -10,8 +9,8 @@ use std::{
 };
 
 pub use self::GroundPlant::*;
-use crate::geometry::*;
-use nbt::{CompoundTag, CompoundTagError};
+use crate::{geometry::*, HashMap};
+use nbt::CompoundTag;
 use num_derive::FromPrimitive;
 
 pub use Block::*;
@@ -313,7 +312,7 @@ impl Display for Blockstate {
 }
 
 impl Block {
-    // TODO: blockstates for fences need context... ugh
+    // TODO: for fences & similar, emit block_ticks to make MC updateblockstates
     pub fn blockstate(&self, unknown: &UnknownBlocks) -> Blockstate {
         impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
             fn from(name: Name) -> Self {
@@ -564,12 +563,9 @@ impl Block {
             )
         }
 
-        fn known_block<'a>(
-            name: &str,
-            props: &'a CompoundTag,
-        ) -> Result<Block, CompoundTagError<'a>> {
+        fn known_block(name: &str, props: &CompoundTag) -> Option<Block> {
             // TODO: expand this
-            Ok(match name {
+            Some(match name {
                 "air" | "cave_air" => Air,
                 "stone" => FullBlock(Stone),
                 "granite" => FullBlock(Granite),
@@ -583,7 +579,7 @@ impl Block {
                 "grass_block" => Soil(Soil::Grass),
                 "sand" => Soil(Soil::Sand),
                 "dirt" if props.get_str("variant").is_err() => Soil(Soil::Dirt),
-                "dirt" if matches!(props.get_str("variant")?, "coarse_dirt") => {
+                "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => {
                     Soil(Soil::CoarseDirt)
                 }
                 "oak_log" => log(Oak, props),
@@ -640,7 +636,7 @@ impl Block {
                 "red_terracotta" => Terracotta(Some(Red)),
                 "black_terracotta" => Terracotta(Some(Black)),
                 "cauldron" => Cauldron {
-                    water: props.get_str("level")?.parse().unwrap(),
+                    water: props.get_str("level").unwrap().parse().unwrap(),
                 },
                 "bell" => Bell(
                     HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
@@ -657,13 +653,11 @@ impl Block {
                 "green_wall_banner" => wall_banner(Red, props),
                 "yellow_wall_banner" => wall_banner(Red, props),
                 // This is quite hacky, maybe just use anyhow?
-                _ => Err(CompoundTagError::TagNotFound {
-                    name: "this is an unknown block",
-                })?,
+                _ => return None,
             })
         }
 
-        if let Ok(known) = known_block(name, props) {
+        if let Some(known) = known_block(name, props) {
             return known;
         }
 

@@ -15,6 +15,7 @@ pub mod terraform;
 mod world;
 
 pub use geometry::*;
+pub use hashbrown::HashMap;
 pub use world::*;
 
 /// How far outside of the borders of the work area is loaded

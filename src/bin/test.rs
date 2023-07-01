@@ -11,8 +11,10 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
-    for y in 0..200 {
-        world[Pos(0, y, 0)] = Block::SmoothQuartz;
+    for x in -150..150 {
+        for z in -150..150 {
+            world[Pos(x, 100, z)] = Block::SmoothQuartz;
+        }
     }
 
     world.save().unwrap();

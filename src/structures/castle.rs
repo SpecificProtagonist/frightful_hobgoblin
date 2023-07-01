@@ -1,7 +1,5 @@
-use std::cmp::Ordering::*;
-use std::collections::HashMap;
-
 use crate::*;
+use std::cmp::Ordering::*;
 use structures::Template;
 use terraform::*;
 

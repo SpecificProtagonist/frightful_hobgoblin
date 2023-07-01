@@ -11,12 +11,11 @@ use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
 use std::{
-    collections::HashMap,
     ops::{Index, IndexMut, Shr},
     path::PathBuf,
 };
 
-use crate::geometry::*;
+use crate::{geometry::*, HashMap};
 pub use biome::*;
 pub use block::*;
 pub use entity::*;
@@ -35,6 +34,7 @@ pub struct World {
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     pub entities: Vec<Entity>,
+    dirty_chunks: Vec<bool>,
 }
 
 impl World {
@@ -89,6 +89,7 @@ impl World {
             heightmap,
             watermap,
             entities: Vec::new(),
+            dirty_chunks: vec![false; chunk_count],
         }
     }
 
@@ -107,14 +108,16 @@ impl World {
             entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
         }
 
-        // Saveing isn't thread safe
-        for ((index, sections), entities) in (self.chunk_min.1..=self.chunk_max.1)
+        // Saving isn't thread safe
+        for (((index, sections), entities), dirty) in (self.chunk_min.1..=self.chunk_max.1)
             .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
             .zip(self.sections.chunks_exact(24))
             .zip(entities_chunked)
+            .zip(&self.dirty_chunks)
         {
             // Don't save outermost chunks, since we don't modify them & leaving out the border simplifies things
-            if (index.0 > self.chunk_min.0)
+            if dirty
+                & (index.0 > self.chunk_min.0)
                 & (index.0 < self.chunk_max.0)
                 & (index.1 > self.chunk_min.1)
                 & (index.1 < self.chunk_max.1)
@@ -263,6 +266,8 @@ impl Index<Pos> for World {
 
 impl IndexMut<Pos> for World {
     fn index_mut(&mut self, pos: Pos) -> &mut Self::Output {
+        let chunk_index = self.chunk_index(pos.into());
+        self.dirty_chunks[chunk_index] = true;
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_default();
         &mut section.blocks[Self::block_in_section_index(pos)]
@@ -303,11 +308,6 @@ fn load_chunk(
     for section_nbt in sections_nbt {
         let y_index = section_nbt.get_i8("Y").unwrap();
 
-        // TODO: support full chunk height
-        if !(0..15).contains(&y_index) {
-            continue;
-        }
-
         // TODO: load biome
 
         let block_states = section_nbt.get_compound_tag("block_states").unwrap();
@@ -336,6 +336,7 @@ fn load_chunk(
     }
 
     // Build water- & heightmap
+    // There are build in heightmaps, but they don't ignore logs nor do they work on custom-made maps
     for x in 0..16 {
         for z in 0..16 {
             'column: for section_index in (-4..20).rev() {
@@ -425,7 +426,10 @@ fn save_chunk(
                             );
 
                             let bits_per_index = bits_per_index(palette.len());
-                            let mut blocks = vec![0];
+
+                            // Reserve minimum required
+                            let mut blocks = Vec::with_capacity(4096 / 64 * 4);
+                            blocks.push(0);
                             let mut current_long = 0;
                             let mut current_bit_shift = 0;
 

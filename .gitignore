@@ -3,3 +3,6 @@
 /.vscode
 
 /config_local*.rs
+
+perf.data*
+profile.svg
