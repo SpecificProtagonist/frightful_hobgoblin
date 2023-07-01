@@ -1,4 +1,7 @@
 #![feature(option_get_or_insert_default)]
+#![feature(local_key_cell_methods)]
+#![feature(default_free_fn)]
+#![feature(lazy_cell)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;

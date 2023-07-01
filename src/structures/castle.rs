@@ -18,7 +18,7 @@ pub struct Blueprint {
 }
 
 impl Blueprint {
-    pub fn build(&self, world: &mut impl WorldView) {
+    pub fn build(&self, world: &mut World) {
         make_foundation_straight(world, self.area, self.y, Cobble);
 
         let mut stories = Vec::new();
@@ -122,17 +122,17 @@ impl Blueprint {
     }
 }
 
-fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floor_y: i32) {
-    let floor_block = &Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
+fn build_floor(world: &mut World, layout: &HashMap<Column, Usage>, floor_y: i32) {
+    let floor_block = Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
     for (column, usage) in layout {
         if matches!(usage, Usage::FreeInterior) {
-            world.set(column.at(floor_y), floor_block);
+            world[column.at(floor_y)] = floor_block;
         }
     }
 }
 
 fn build_walls(
-    world: &mut impl WorldView,
+    world: &mut World,
     layout: &HashMap<Column, Usage>,
     base_y: i32,
     height: i32,
@@ -142,7 +142,7 @@ fn build_walls(
     for (column, usage) in layout {
         if matches!(usage, Usage::Wall | Usage::Window(..)) {
             for y in base_y..(base_y + height) {
-                world.set(column.at(y), FullBlock(Cobble));
+                world[column.at(y)] = FullBlock(Cobble);
             }
         }
     }
@@ -168,7 +168,7 @@ fn build_walls(
                 ))
             {
                 for y in base_y..(base_y + height) {
-                    world.set_override(column.at(y), FullBlock(Stonebrick));
+                    world[column.at(y)] = FullBlock(Stonebrick);
                     if (base_y + height - y) % 2 == 0 {
                         for column in &[
                             column + Vec2(-1, 0),
@@ -177,7 +177,7 @@ fn build_walls(
                             column + Vec2(0, 1),
                         ] {
                             if let Some(Usage::Wall) = layout.get(column) {
-                                world.set_override(column.at(y), FullBlock(Stonebrick));
+                                world[column.at(y)] = FullBlock(Stonebrick);
                             }
                         }
                     }
@@ -188,36 +188,30 @@ fn build_walls(
 }
 
 /// Assumes walls are already build
-fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, base_y: i32) {
+fn build_windows(world: &mut World, layout: &HashMap<Column, Usage>, base_y: i32) {
     for (column, usage) in layout {
         if let Usage::Window(facing) = usage {
-            world.set_override(
-                column.at(base_y + 1),
-                Stair(Material::Cobble, facing.rotated(2), Flipped(false)),
-            );
-            world.set(column.at(base_y + 2), GlassPane(Some(Color::Brown)));
-            world.set_override(
-                column.at(base_y + 3),
-                Stair(Material::Cobble, facing.rotated(2), Flipped(true)),
-            );
+            world[column.at(base_y + 1)] =
+                Stair(Material::Cobble, facing.rotated(2), Flipped(false));
+            world[column.at(base_y + 2)] = GlassPane(Some(Color::Brown));
+            world[column.at(base_y + 3)] =
+                Stair(Material::Cobble, facing.rotated(2), Flipped(true));
         }
     }
 }
 
-fn build_privy(world: &mut impl WorldView, base_pos: Pos, facing: HDir) {
+fn build_privy(world: &mut World, base_pos: Pos, facing: HDir) {
     Template::get("castle/privy").build(world, base_pos, facing);
 
     let drop_column = Column::from(base_pos) + Vec2::from(facing);
     let drop_column = drop_column
-        + if let FullBlock(Cobble) = world.get(drop_column.at(world.height(drop_column))) {
+        + if let FullBlock(Cobble) = world[drop_column.at(world.height(drop_column))] {
             Vec2::from(facing)
         } else {
             Vec2(0, 0)
         };
-    world.set(
-        drop_column.at(world.height(drop_column)),
-        Soil(Soil::SoulSand),
-    );
+    let drop = drop_column.at(world.height(drop_column));
+    world[drop] = Soil(Soil::SoulSand);
 }
 
 // TODO: don't build on existing villages!
@@ -266,7 +260,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
 
 // TODO: prefer expanding to border of steep terrain
 // TODO: limit max height difference
-fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Blueprint> {
+fn find_good_footprint_at(world: &World, pos: Column) -> Option<Blueprint> {
     const MIN_LENGTH: i32 = 5;
     const MAX_LENGTH: i32 = 14;
     const MAX_SECONDARY_LENGTH: i32 = 8;

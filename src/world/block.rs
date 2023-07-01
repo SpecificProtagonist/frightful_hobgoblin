@@ -1,4 +1,13 @@
-use std::{borrow::Cow, fmt::Display, str::FromStr, sync::Arc};
+use std::{
+    borrow::Cow,
+    cell::RefCell,
+    collections::HashMap,
+    default::default,
+    fmt::Display,
+    mem::size_of,
+    str::FromStr,
+    sync::{LazyLock, RwLock},
+};
 
 pub use self::GroundPlant::*;
 use crate::geometry::*;
@@ -10,8 +19,7 @@ pub use Color::*;
 pub use Material::*;
 pub use TreeSpecies::*;
 
-#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
+#[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Block {
     #[default]
     Air,
@@ -41,10 +49,21 @@ pub enum Block {
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
-    CommandBlock(Arc<String>),
-    // Maybe just Box::leak them → block becomes clone again
-    Other(Arc<Blockstate>),
+    Other(u16),
 }
+
+const _: () = assert!(size_of::<Block>() == 4);
+
+/// Used to deduplicate unknown blocks.
+/// Does not affect performance but greatly reduced memory usage
+/// (block only 4 bytes, fewer boxes → 1000×1000 fits into 1 gb ).
+#[derive(Default)]
+pub struct UnknownBlocks {
+    map: HashMap<Blockstate, u16>,
+    states: Vec<Blockstate>,
+}
+
+pub static UNKNOWN_BLOCKS: LazyLock<RwLock<UnknownBlocks>> = LazyLock::new(default);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
@@ -262,7 +281,7 @@ impl Material {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BellAttachment {
     Floor,
     Ceiling,
@@ -295,7 +314,7 @@ impl Display for Blockstate {
 
 impl Block {
     // TODO: blockstates for fences need context... ugh
-    pub fn blockstate(&self) -> Blockstate {
+    pub fn blockstate(&self, unknown: &UnknownBlocks) -> Blockstate {
         impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
             fn from(name: Name) -> Self {
                 Self(name.into(), vec![])
@@ -475,8 +494,7 @@ impl Block {
                 ],
             ),
             Barrier => "barrier".into(),
-            CommandBlock(_) => "command_block".into(),
-            Other(blockstate) => (**blockstate).clone(), // Unneccesary clone?
+            Other(index) => unknown.states[*index as usize].clone(), // Unneccesary clone?
         }
     }
 
@@ -490,13 +508,6 @@ impl Block {
             WallBanner(..) => {
                 let mut nbt = CompoundTag::new();
                 nbt.insert_str("id", "banner");
-                Some(nbt)
-            }
-            CommandBlock(command) => {
-                let mut nbt = CompoundTag::new();
-                nbt.insert_str("id", "command_block");
-                nbt.insert_str("Command", command);
-                nbt.insert_bool("TrackOutput", false);
                 Some(nbt)
             }
             _ => None,
@@ -652,32 +663,54 @@ impl Block {
             })
         }
 
-        known_block(name, props).unwrap_or_else(|_| {
-            Other(Arc::new(Blockstate(
-                name.to_owned().into(),
-                if let Ok(props) = nbt.get_compound_tag("Properties") {
-                    props
-                        .iter()
-                        .map(|(name, value)| {
-                            (
-                                name.clone().into(),
-                                if let nbt::Tag::String(value) = value {
-                                    value.clone().into()
-                                } else {
-                                    panic!("Non-string blockstate value")
-                                },
-                            )
-                        })
-                        .collect()
+        if let Ok(known) = known_block(name, props) {
+            return known;
+        }
+
+        let blockstate = Blockstate(
+            name.to_owned().into(),
+            if let Ok(props) = nbt.get_compound_tag("Properties") {
+                props
+                    .iter()
+                    .map(|(name, value)| {
+                        (
+                            name.clone().into(),
+                            if let nbt::Tag::String(value) = value {
+                                value.clone().into()
+                            } else {
+                                panic!("Non-string blockstate value")
+                            },
+                        )
+                    })
+                    .collect()
+            } else {
+                Vec::new()
+            },
+        );
+
+        thread_local! {
+            static THREAD_PALETTE: RefCell<HashMap<Blockstate, u16>> = default();
+        }
+
+        THREAD_PALETTE.with_borrow_mut(|thread_palette| {
+            Other(if let Some(&index) = thread_palette.get(&blockstate) {
+                index
+            } else {
+                let mut unknown_blocks = UNKNOWN_BLOCKS.write().unwrap();
+                if let Some(&index) = unknown_blocks.map.get(&blockstate) {
+                    index
                 } else {
-                    Vec::new()
-                },
-            )))
+                    let index = unknown_blocks.states.len() as u16;
+                    unknown_blocks.map.insert(blockstate.clone(), index);
+                    unknown_blocks.states.push(blockstate);
+                    index
+                }
+            })
         })
     }
 
-    pub fn to_nbt(&self) -> CompoundTag {
-        let blockstate = self.blockstate();
+    pub fn to_nbt(&self, unknown: &UnknownBlocks) -> CompoundTag {
+        let blockstate = self.blockstate(unknown);
         let mut nbt = CompoundTag::new();
         nbt.insert("Name", blockstate.0.into_owned());
         if !blockstate.1.is_empty() {
@@ -707,7 +740,25 @@ impl Block {
             Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
             WallBanner(facing, color) => WallBanner(facing.rotated(turns), *color),
             Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
-            _ => self.clone(),
+            _ => *self,
         }
+    }
+}
+
+impl std::ops::BitOr<Block> for Block {
+    type Output = Self;
+
+    fn bitor(self, rhs: Block) -> Self::Output {
+        if self.solid() {
+            self
+        } else {
+            rhs
+        }
+    }
+}
+
+impl std::ops::BitOrAssign for Block {
+    fn bitor_assign(&mut self, rhs: Self) {
+        *self = *self | rhs
     }
 }

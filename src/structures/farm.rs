@@ -17,7 +17,7 @@ pub struct Blueprint {
 }
 
 impl Blueprint {
-    pub fn new(world: &impl WorldView, start: Column) -> Option<Blueprint> {
+    pub fn new(world: &World, start: Column) -> Option<Blueprint> {
         // Spread from starting point, avoiding slopes
         // TODO: make more circular (and maybe a bit random), currently Manhatten on flat ground
         const START_STRENGTH: f32 = 20.0;
@@ -41,7 +41,7 @@ impl Blueprint {
 
                 if area.contains(&neighbor)
                     || !matches!(
-                        world.get(neighbor.at(world.height(neighbor))),
+                        world[neighbor.at(world.height(neighbor))],
                         Soil(Soil::Grass) | Soil(Soil::Dirt)
                     )
                 {
@@ -82,7 +82,7 @@ impl Blueprint {
         }
     }
 
-    pub fn render(&self, world: &mut impl WorldView) {
+    pub fn render(&self, world: &mut World) {
         // TODO: border, esp on downwards edge
         remove_foliage::trees(world, self.area.iter().cloned(), false);
 
@@ -100,13 +100,10 @@ impl Blueprint {
                 scarecrows.push(*column);
                 make_scarecrow(world, *column);
             } else {
-                world.set(column.at(y), Soil(Soil::Farmland));
-                world.set(column.at(y + 1), GroundPlant(Crop(Crop::Wheat)));
+                world[column.at(y)] = Soil(Soil::Farmland);
+                world[column.at(y + 1)] = GroundPlant(Crop(Crop::Wheat));
             }
         }
-
-        // TMP
-        world.set(self.start.at(world.height(self.start) + 1), Wool(Red));
     }
 }
 
@@ -118,10 +115,8 @@ pub fn make_hedge_edge(world: &mut World, fields: &[Blueprint]) {
                     continue 'outer;
                 }
             }
-            world.set(
-                column.at(world.height(*column) + 1),
-                Block::Leaves(TreeSpecies::DarkOak),
-            );
+            let pos = column.at(world.height(*column) + 1);
+            world[pos] = Block::Leaves(TreeSpecies::DarkOak);
         }
     }
 }
@@ -144,9 +139,9 @@ impl Ord for Considered {
     }
 }
 
-pub fn make_scarecrow(world: &mut impl WorldView, column: Column) {
+pub fn make_scarecrow(world: &mut World, column: Column) {
     let mut pos = column.at(world.height(column) + 1);
-    let fence_block = &Fence(Wood(world.biome(column).random_tree_species()));
+    let fence_block = Fence(Wood(world.biome(column).random_tree_species()));
     let direction = HDir::from_u8(thread_rng().gen_range(0, 4)).unwrap();
 
     let colors = &[
@@ -160,28 +155,28 @@ pub fn make_scarecrow(world: &mut impl WorldView, column: Column) {
         Color::Green,
     ];
 
-    let center_block = &if rand(0.5) {
+    let center_block = if rand(0.5) {
         Wool(colors[thread_rng().gen_range(0, colors.len())])
     } else {
         Hay
     };
 
-    world.set(pos, fence_block);
+    world[pos] = fence_block;
     pos += Vec3(0, 1, 0);
     if rand(0.34) {
         if rand(0.65) {
-            world.set(pos, fence_block);
+            world[pos] = fence_block;
         } else {
-            world.set(pos, center_block);
+            world[pos] = center_block;
         }
         pos += Vec3(0, 1, 0);
     }
-    world.set(pos, center_block);
-    world.set(pos + Vec2::from(direction).clockwise(), fence_block);
-    world.set(pos + Vec2::from(direction).counterclockwise(), fence_block);
+    world[pos] = center_block;
+    world[pos + Vec2::from(direction).clockwise()] = fence_block;
+    world[pos + Vec2::from(direction).counterclockwise()] = fence_block;
     pos += Vec3(0, 1, 0);
     // TODO: carve
-    world.set(pos, GroundPlant(GroundPlant::Pumpkin));
+    world[pos] = GroundPlant(GroundPlant::Pumpkin);
 }
 
 pub fn make_signpost() {}

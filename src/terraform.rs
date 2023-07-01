@@ -9,15 +9,10 @@ pub enum WallCrest {
     Wall,
 }
 
-pub fn make_retaining_wall(
-    world: &mut impl WorldView,
-    area: &Polygon,
-    height: i32,
-    crest: WallCrest,
-) {
+pub fn make_retaining_wall(world: &mut World, area: &Polygon, height: i32, crest: WallCrest) {
     let material = Cobble;
     // Placement order matters for replay -> build wall first
-    let crest = &match crest {
+    let crest = match crest {
         WallCrest::None => Air,
         WallCrest::Full => FullBlock(material),
         WallCrest::Fence => Block::Fence(Wood(world.biome(area.0[0]).default_tree_species())),
@@ -33,17 +28,17 @@ pub fn make_retaining_wall(
         }
 
         // Build wall
-        while matches!(world.get(column.at(y)), Soil(_)) {
+        while matches!(world[column.at(y)], Soil(_)) {
             y -= 1;
         }
         for y in y..=height {
-            world.set(column.at(y), FullBlock(material))
+            world[column.at(y)] = FullBlock(material)
         }
-        let above = world.get_mut(column.at(height + 1));
+        let above = &mut world[column.at(height + 1)];
         if matches!((crest, &above), (Air, GroundPlant(_))) {
             *above = Air
         } else {
-            *above = crest.clone()
+            *above = crest
         }
 
         *world.height_mut(column) = height;
@@ -53,34 +48,28 @@ pub fn make_retaining_wall(
     // TODO: bottom to top
     for column in area.iter() {
         if world.height(column) < height {
-            let soil = &Soil(get_filling_soil(world, column));
             for y in world.height(column)..=height {
-                world.set(column.at(y), soil)
+                world[column.at(y)] = Soil(get_filling_soil(world, column))
             }
             *world.height_mut(column) = height;
         }
     }
 }
 
-fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
-    if let Soil(soil) = *world.get(column.at(world.height(column))) {
+fn get_filling_soil(world: &World, column: Column) -> Soil {
+    if let Soil(soil) = world[column.at(world.height(column))] {
         soil
     } else {
         world.biome(column).default_topsoil()
     }
 }
 
-pub fn make_foundation_sloped(
-    world: &mut impl WorldView,
-    mut area: Rect,
-    height: i32,
-    material: Material,
-) {
+pub fn make_foundation_sloped(world: &mut World, mut area: Rect, height: i32, material: Material) {
     // TODO: proper placement order
 
     remove_foliage::trees(world, area.into_iter(), false);
     for column in area {
-        world.set(column.at(height), FullBlock(material));
+        world[column.at(height)] = FullBlock(material);
     }
 
     let mut y = height - 1;
@@ -91,19 +80,19 @@ pub fn make_foundation_sloped(
     while block_placed_this_layer {
         block_placed_this_layer = false;
         for column in area.shrink(1) {
-            world.set_if_not_solid(column.at(y), FullBlock(material));
+            world[column.at(y)] |= FullBlock(material);
         }
         for column in area.border() {
-            if !world.get(column.at(y)).solid() || side_exposted(world, column.at(y)) {
+            if !world[column.at(y)].solid() || side_exposted(world, column.at(y)) {
                 block_placed_this_layer = true;
-                world.set(column.at(y), FullBlock(material));
+                world[column.at(y)] = FullBlock(material);
             }
         }
         if outmost_is_wall {
             for column in area.grow(1).border() {
-                if !world.get(column.at(y)).solid() {
+                if !world[column.at(y)].solid() {
                     block_placed_this_layer = true;
-                    world.set(column.at(y), Fence(material));
+                    world[column.at(y)] = Fence(material);
                 }
             }
         }
@@ -120,22 +109,17 @@ pub fn make_foundation_sloped(
     }
 }
 
-pub fn make_foundation_straight(
-    world: &mut impl WorldView,
-    area: Rect,
-    height: i32,
-    material: Material,
-) {
+pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, material: Material) {
     for column in area {
-        world.set(column.at(height), FullBlock(material));
+        world[column.at(height)] = FullBlock(material);
         let mut y = height - 1;
         let ground_height = world.height(column);
         while (y > ground_height) | soil_exposted(world, column.at(y)) {
-            world.set(column.at(y), FullBlock(material));
+            world[column.at(y)] = FullBlock(material);
             y -= 1;
         }
         for y in (height + 1)..=ground_height {
-            world.set(column.at(y), Air);
+            world[column.at(y)] = Air;
         }
     }
 
@@ -169,7 +153,7 @@ pub fn make_foundation_straight(
     );
 
     fn make_support(
-        world: &mut impl WorldView,
+        world: &mut World,
         columns: impl Iterator<Item = Column>,
         y: i32,
         facing: HDir,
@@ -190,9 +174,9 @@ pub fn make_foundation_straight(
                 & !just_placed
                 & rand(support_chance)
             {
-                world.set(column.at(y), Stair(material, facing, Flipped(false)));
+                world[column.at(y)] = Stair(material, facing, Flipped(false));
                 for y in y - ground_distance..y {
-                    world.set(column.at(y), FullBlock(material));
+                    world[column.at(y)] = FullBlock(material);
                 }
                 true
             } else {
@@ -202,18 +186,18 @@ pub fn make_foundation_straight(
     }
 }
 
-pub fn soil_exposted(world: &impl WorldView, pos: Pos) -> bool {
-    matches!(world.get(pos), Soil(..)) & side_exposted(world, pos)
+pub fn soil_exposted(world: &World, pos: Pos) -> bool {
+    matches!(world[pos], Soil(..)) & side_exposted(world, pos)
 }
 
-pub fn side_exposted(world: &impl WorldView, pos: Pos) -> bool {
-    !(world.get(pos + Vec2(0, 1)).solid()
-        && world.get(pos + Vec2(0, -1)).solid()
-        && world.get(pos + Vec2(1, 0)).solid()
-        && world.get(pos + Vec2(-1, 0)).solid())
+pub fn side_exposted(world: &World, pos: Pos) -> bool {
+    !(world[pos + Vec2(0, 1)].solid()
+        && world[pos + Vec2(0, -1)].solid()
+        && world[pos + Vec2(1, 0)].solid()
+        && world[pos + Vec2(-1, 0)].solid())
 }
 
-pub fn average_height(world: &impl WorldView, area: impl Iterator<Item = Column>) -> u8 {
+pub fn average_height(world: &World, area: impl Iterator<Item = Column>) -> u8 {
     let mut sum = 0.0;
     let mut count = 0;
     for column in area {
@@ -223,7 +207,7 @@ pub fn average_height(world: &impl WorldView, area: impl Iterator<Item = Column>
     (sum / count as f32) as u8
 }
 
-pub fn slope(world: &impl WorldView, column: Column) -> Vec2 {
+pub fn slope(world: &World, column: Column) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
         for dz in -1..=1 {
@@ -240,7 +224,7 @@ pub fn slope(world: &impl WorldView, column: Column) -> Vec2 {
 
 /*
 /// Neighborborhood_size specifies a square. Results aren't fully acurate, but that's ok
-pub fn find_local_maxima(world: &impl WorldView, area: Rect, neighborhood_size: u8) -> Vec<Pos> {
+pub fn find_local_maxima(world: &World, area: Rect, neighborhood_size: u8) -> Vec<Pos> {
     // Divide area into cells
     let cell_size = neighborhood_size as i32 / 3;
     let cell_count = area.size() / cell_size;

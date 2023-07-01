@@ -3,7 +3,7 @@ use crate::*;
 const STUMP_HEIGHT_0_CHANCE: f32 = 0.3;
 const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
 
-pub fn ground(world: &mut impl WorldView, area: Rect) {
+pub fn ground(world: &mut World, area: Rect) {
     for column in area {
         let base_height = if let Some(water_height) = world.water_level(column) {
             water_height
@@ -11,7 +11,7 @@ pub fn ground(world: &mut impl WorldView, area: Rect) {
             world.height(column)
         };
         for y in base_height + 1..=base_height + 2 {
-            let block = world.get_mut(column.at(y));
+            let block = &mut world[column.at(y)];
             if matches!(block, GroundPlant(..)) {
                 *block = Block::Air
             }
@@ -19,10 +19,10 @@ pub fn ground(world: &mut impl WorldView, area: Rect) {
     }
 }
 
-pub fn trees(world: &mut impl WorldView, area: impl Iterator<Item = Column>, leave_stumps: bool) {
+pub fn trees(world: &mut World, area: impl Iterator<Item = Column>, leave_stumps: bool) {
     for column in area {
         let y = world.height(column) + 1;
-        if let Block::Log(..) = world.get(column.at(y)) {
+        if let Block::Log(..) = world[column.at(y)] {
             tree(world, column.at(y), leave_stumps);
         }
     }
@@ -33,8 +33,8 @@ pub fn trees(world: &mut impl WorldView, area: impl Iterator<Item = Column>, lea
 /// Currently it just removes leaves which would decay without this tree.
 /// This function isn't very performant (e.g. >10k blocks checked for a dark oak),
 /// but luckily this will be called a few hundred times at most and this isn't Python
-pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
-    if let Log(species, ..) = *world.get(pos) {
+pub fn tree(world: &mut World, pos: Pos, leave_stump: bool) {
+    if let Log(species, ..) = world[pos] {
         // Track area of stem for leaf removal
         let mut stem_area = Cuboid { min: pos, max: pos };
 
@@ -49,9 +49,9 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                 for x in -1..=1 {
                     for z in -1..=1 {
                         let pos = Pos(pos.0 + x, pos.1, pos.2 + z);
-                        if let Log(s, log_type) = *world.get(pos) {
+                        if let Log(s, log_type) = world[pos] {
                             if s == species {
-                                world.set(pos - Vec3(0, 1, 0), Log(species, log_type));
+                                world[pos - Vec3(0, 1, 0)] = Log(species, log_type);
                             }
                         }
                     }
@@ -65,19 +65,19 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                 pos
             };
 
-            world.set(pos, Block::Air);
+            world[pos] = Block::Air;
             for x in -1..=1 {
                 for z in -1..=1 {
-                    let block_below = world.get(Pos(pos.0 + x, pos.1 - 1, pos.2 + z)).clone();
-                    let block = world.get_mut(Pos(pos.0 + x, pos.1, pos.2 + z));
-                    if let Log(s, log_type) = block {
-                        if *s == species {
+                    let block_below = world[Pos(pos.0 + x, pos.1 - 1, pos.2 + z)];
+                    let block = &mut world[Pos(pos.0 + x, pos.1, pos.2 + z)];
+                    if let Log(s, log_type) = *block {
+                        if s == species {
                             // Check block below in case of diagonal branch close to the ground
                             // when leave_stumps and stump height is 1 (mostly happens with dark oak)
                             if matches!(block_below, Block::Log(..))
                                 & (rand::random::<f32>() < STUMP_HEIGHT_2_CHANCE)
                             {
-                                *block = Log(species, *log_type);
+                                *block = Log(species, log_type);
                             } else {
                                 *block = Air;
                             }
@@ -96,7 +96,7 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                     for y in (if leave_stump { -1 } else { 0 })..=1 {
                         for z in -1..=1 {
                             let pos = Pos(pos.0 + x, pos.1 + y, pos.2 + z);
-                            let block = world.get_mut(pos);
+                            let block = &mut world[pos];
                             if let Log(s, log_type) = block {
                                 if *s == species {
                                     *block = if pos.1 <= stump_height {
@@ -140,7 +140,7 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
             };
 
             for pos in check_area.iter() {
-                blocks.push((world.get(pos).clone(), decay_distance as u8));
+                blocks.push((world[pos], decay_distance as u8));
             }
 
             let inner_check_area = Cuboid {
@@ -179,7 +179,7 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
             for pos in removal_area.iter() {
                 if let (Leaves(s), distance) = blocks[index(pos)] {
                     if (s == species) & (distance == decay_distance as u8) {
-                        world.set(pos, Air);
+                        world[pos] = Air;
                         // Vines (jungle/swamp) helpfully remove themselves
                     }
                 }

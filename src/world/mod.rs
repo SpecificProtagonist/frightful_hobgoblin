@@ -10,61 +10,16 @@ use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::{collections::HashMap, ops::Shr, path::PathBuf};
+use std::{
+    collections::HashMap,
+    ops::{Index, IndexMut, Shr},
+    path::PathBuf,
+};
 
 use crate::geometry::*;
 pub use biome::*;
 pub use block::*;
 pub use entity::*;
-
-// Ugh, can't impl Index and IndexMut because of orphan rules
-pub trait WorldView {
-    fn get(&self, pos: Pos) -> &Block;
-    fn get_mut(&mut self, pos: Pos) -> &mut Block;
-    fn get_mut_no_update_order(&mut self, pos: Pos) -> &mut Block;
-
-    fn biome(&self, column: Column) -> Biome;
-
-    /// Height of the ground, ignores vegetation
-    fn height(&self, column: Column) -> i32;
-    fn height_mut(&mut self, column: Column) -> &mut i32;
-
-    fn water_level(&self, column: Column) -> Option<i32>;
-    fn water_level_mut(&mut self, column: Column) -> &mut Option<i32>;
-
-    fn area(&self) -> Rect;
-
-    /// Convenience method
-    fn set(&mut self, pos: Pos, block: impl BlockOrRef) {
-        *self.get_mut(pos) = block.get();
-    }
-    fn set_override(&mut self, pos: Pos, block: impl BlockOrRef) {
-        *self.get_mut_no_update_order(pos) = block.get();
-    }
-    /// Convenience method
-    fn set_if_not_solid(&mut self, pos: Pos, block: impl BlockOrRef) {
-        let block_ref = self.get_mut(pos);
-        if !block_ref.solid() {
-            *block_ref = block.get();
-        }
-    }
-}
-
-pub trait BlockOrRef {
-    fn get(self) -> Block;
-}
-
-impl BlockOrRef for Block {
-    fn get(self) -> Block {
-        self
-    }
-}
-
-impl BlockOrRef for &Block {
-    fn get(self) -> Block {
-        self.clone()
-    }
-}
 
 // Maybe have a subworld not split into chunks for efficiency?
 pub struct World {
@@ -263,28 +218,8 @@ impl World {
         }
         .shrink(crate::LOAD_MARGIN)
     }
-}
 
-impl WorldView for World {
-    fn get(&self, pos: Pos) -> &Block {
-        if let Some(section) = &self.sections[self.section_index(pos)] {
-            &section.blocks[Self::block_in_section_index(pos)]
-        } else {
-            &Block::Air
-        }
-    }
-
-    fn get_mut(&mut self, pos: Pos) -> &mut Block {
-        let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_default();
-        &mut section.blocks[Self::block_in_section_index(pos)]
-    }
-
-    fn get_mut_no_update_order(&mut self, pos: Pos) -> &mut Block {
-        self.get_mut(pos)
-    }
-
-    fn biome(&self, column: Column) -> Biome {
+    pub fn biome(&self, column: Column) -> Biome {
         if let Some(biome) = self.biome.get(
             self.chunk_index(column.into()) * 4 * 4
                 + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
@@ -295,29 +230,42 @@ impl WorldView for World {
         }
     }
 
-    fn height(&self, column: Column) -> i32 {
+    pub fn height(&self, column: Column) -> i32 {
         self.heightmap[self.column_index(column)]
     }
 
-    fn height_mut(&mut self, column: Column) -> &mut i32 {
+    pub fn height_mut(&mut self, column: Column) -> &mut i32 {
         let index = self.column_index(column);
         &mut self.heightmap[index]
     }
 
-    fn water_level(&self, column: Column) -> Option<i32> {
+    pub fn water_level(&self, column: Column) -> Option<i32> {
         self.watermap[self.column_index(column)]
     }
 
-    fn water_level_mut(&mut self, column: Column) -> &mut Option<i32> {
+    pub fn water_level_mut(&mut self, column: Column) -> &mut Option<i32> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
+}
 
-    fn area(&self) -> Rect {
-        Rect {
-            min: Column(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
-            max: Column(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
+impl Index<Pos> for World {
+    type Output = Block;
+
+    fn index(&self, pos: Pos) -> &Self::Output {
+        if let Some(section) = &self.sections[self.section_index(pos)] {
+            &section.blocks[Self::block_in_section_index(pos)]
+        } else {
+            &Block::Air
         }
+    }
+}
+
+impl IndexMut<Pos> for World {
+    fn index_mut(&mut self, pos: Pos) -> &mut Self::Output {
+        let index = self.section_index(pos);
+        let section = self.sections[index].get_or_insert_default();
+        &mut section.blocks[Self::block_in_section_index(pos)]
     }
 }
 
@@ -377,7 +325,7 @@ fn load_chunk(
         for i in 0..(16 * 16 * 16) {
             let packed = indices[current_long] as u64;
             let index = packed.shr(current_bit_shift) as usize % (1 << bits_per_index);
-            section.blocks[i] = palette[index].clone();
+            section.blocks[i] = palette[index];
 
             current_bit_shift += bits_per_index;
             if current_bit_shift > (64 - bits_per_index) {
@@ -459,6 +407,7 @@ fn save_chunk(
                             let mut block_states = CompoundTag::new();
                             // Build the palette first (for length)
                             // Minecraft seems to always have Air as id 0 even if there is none
+                            let unknown_blocks = UNKNOWN_BLOCKS.read().unwrap();
                             let mut palette = HashMap::new();
                             block_states.insert_compound_tag_vec(
                                 "palette",
@@ -467,8 +416,8 @@ fn save_chunk(
                                     .chain(section.blocks.iter())
                                     .flat_map(|block| {
                                         if !palette.contains_key(block) {
-                                            palette.insert(block.clone(), palette.len());
-                                            Some(block.to_nbt())
+                                            palette.insert(block, palette.len());
+                                            Some(block.to_nbt(&unknown_blocks))
                                         } else {
                                             None
                                         }

@@ -2,7 +2,7 @@ use crate::*;
 use structures::Template;
 use terraform::*;
 
-pub fn test(world: &mut impl WorldView) {
+pub fn test(world: &mut World) {
     build_test(
         world,
         Rect::new_centered(world.area().center(), Vec2(11, 19)),
@@ -25,7 +25,7 @@ pub fn test(world: &mut impl WorldView) {
     );
 }
 
-fn build_test(world: &mut impl WorldView, area: Rect, roof_layered: bool, roof_fancy_top: bool) {
+fn build_test(world: &mut World, area: Rect, roof_layered: bool, roof_fancy_top: bool) {
     remove_foliage::trees(world, area.into_iter(), false);
 
     let base_y = world.height(area.center());
@@ -35,14 +35,11 @@ fn build_test(world: &mut impl WorldView, area: Rect, roof_layered: bool, roof_f
 
     for y in base_y..roof_y {
         for col in area.border().chain(area.shrink(1).border()) {
-            world.set(
-                col.at(y),
-                if y < roof_y - 4 {
-                    SmoothQuartz
-                } else {
-                    Terracotta(Some(Red))
-                },
-            )
+            world[col.at(y)] = if y < roof_y - 4 {
+                SmoothQuartz
+            } else {
+                Terracotta(Some(Red))
+            }
         }
     }
 
@@ -51,7 +48,7 @@ fn build_test(world: &mut impl WorldView, area: Rect, roof_layered: bool, roof_f
     // dye_some_red_banners_orange(world);
 }
 
-// fn dye_some_red_banners_orange(world: &mut impl WorldView) {
+// fn dye_some_red_banners_orange(world: &mut World) {
 //     const ORANGE_BANNER_CHANCE: f32 = 0.22;
 //     let mut to_dye = Vec::new();
 //     for (pos, block) in world.iter() {
@@ -83,8 +80,8 @@ fn build_test(world: &mut impl WorldView, area: Rect, roof_layered: bool, roof_f
 //     }
 // }
 
-fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top: bool) {
-    fn roof_ring(world: &mut impl WorldView, y: i32, area: Rect, edge: bool, second_layer: bool) {
+fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
+    fn roof_ring(world: &mut World, y: i32, area: Rect, edge: bool, second_layer: bool) {
         let (start, check_end, corner, middle) = if edge {
             if second_layer {
                 (
@@ -136,8 +133,8 @@ fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top
             middle.build_clipped(world, column.at(y), HDir::XPos, clip_area_xneg);
             if edge & !second_layer {
                 for x in area.min.0 + 2..=area.max.0 - 2 {
-                    world.set(Pos(x, y, column.1 - 2), Log(Crimson, LogType::FullBark));
-                    world.set(Pos(x, y, column.1 + 2), Log(Crimson, LogType::FullBark));
+                    world[Pos(x, y, column.1 - 2)] = Log(Crimson, LogType::FullBark);
+                    world[Pos(x, y, column.1 + 2)] = Log(Crimson, LogType::FullBark);
                 }
             }
             column += Vec2(0, 4);
@@ -147,8 +144,8 @@ fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top
             middle.build_clipped(world, column.at(y), HDir::ZNeg, clip_area_zpos);
             if edge & !second_layer {
                 for z in area.min.1 + 2..=area.max.1 - 2 {
-                    world.set(Pos(column.0 - 2, y, z), Log(Crimson, LogType::FullBark));
-                    world.set(Pos(column.0 + 2, y, z), Log(Crimson, LogType::FullBark));
+                    world[Pos(column.0 - 2, y, z)] = Log(Crimson, LogType::FullBark);
+                    world[Pos(column.0 + 2, y, z)] = Log(Crimson, LogType::FullBark);
                 }
             }
             column += Vec2(4, 0);
@@ -191,7 +188,7 @@ fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top
         );
     }
 
-    fn roof_layer(world: &mut impl WorldView, y: i32, area: Rect, second_layer: bool) {
+    fn roof_layer(world: &mut World, y: i32, area: Rect, second_layer: bool) {
         roof_ring(world, y, area, true, second_layer);
         let mut y = if second_layer { y + 3 } else { y + 2 };
         let mut area = area.shrink(2);
@@ -202,7 +199,7 @@ fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top
         }
     }
 
-    fn roof_top(world: &mut impl WorldView, center: Pos, length: i32, dir: HDir) {
+    fn roof_top(world: &mut World, center: Pos, length: i32, dir: HDir) {
         let end = Template::get("dzong/roof_top_end");
         let middle = Template::get("dzong/roof_top_middle");
         let pillar = Template::get("dzong/roof_top_pillar");

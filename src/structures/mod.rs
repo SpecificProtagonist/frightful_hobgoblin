@@ -121,7 +121,7 @@ impl Template {
 
         for nbt in nbt.get_compound_tag_vec("blocks")? {
             let pos = read_pos(nbt.get("pos")?);
-            let block = (palette[nbt.get_i32("state")? as usize]).clone();
+            let block = palette[nbt.get_i32("state")? as usize];
             // TODO: nbt data
             blocks.insert(pos - origin, block);
         }
@@ -134,20 +134,20 @@ impl Template {
         })
     }
 
-    pub fn build(&self, world: &mut impl WorldView, pos: Pos, facing: HDir) {
+    pub fn build(&self, world: &mut World, pos: Pos, facing: HDir) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         // TODO: better build order
         for (offset, block) in self.blocks.iter() {
-            world.set(pos + offset.rotated(rotation), block.rotated(rotation));
+            world[pos + offset.rotated(rotation)] = block.rotated(rotation);
         }
     }
 
-    pub fn build_clipped(&self, world: &mut impl WorldView, pos: Pos, facing: HDir, area: Rect) {
+    pub fn build_clipped(&self, world: &mut World, pos: Pos, facing: HDir, area: Rect) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
             if area.contains(Column(pos.0, pos.2)) {
-                world.set(pos, block.rotated(rotation));
+                world[pos] = block.rotated(rotation);
             }
         }
     }
