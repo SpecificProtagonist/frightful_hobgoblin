@@ -15,8 +15,8 @@ pub struct TemplateMark(Vec3, Option<HDir>, Vec<String>);
 // Hand-build structure, stored via structure blocks
 #[derive(Clone)]
 pub struct Template {
-    name: String,
-    size: Vec3,
+    _name: String,
+    _size: Vec3,
     blocks: HashMap<Vec3, Block>,
     markers: HashMap<String, TemplateMark>,
 }
@@ -39,8 +39,10 @@ impl Template {
     fn load(name: &str) -> Self {
         let mut path = Path::new("templates").join(name);
         path.set_extension("nbt");
-        let mut file = File::open(&path).expect(&format!("Structure file {:?} not found", path));
-        let nbt = read_gzip_compound_tag(&mut file).expect(&format!("Invalid nbt: {:?}", path));
+        let mut file =
+            File::open(&path).unwrap_or_else(|_| panic!("Structure file {:?} not found", path));
+        let nbt =
+            read_gzip_compound_tag(&mut file).unwrap_or_else(|_| panic!("Invalid nbt: {:?}", path));
 
         Self::load_from_nbt(&nbt, name)
             .unwrap_or_else(|err| panic!("Invalid structure {:?}: {:?}", path, err))
@@ -53,6 +55,7 @@ impl Template {
         nbt: &'a CompoundTag,
         name: &'a str,
     ) -> Result<Template, CompoundTagError<'a>> {
+        #[allow(clippy::ptr_arg)]
         fn read_pos(nbt: &Vec<Tag>) -> Vec3 {
             match [&nbt[0], &nbt[1], &nbt[2]] {
                 [Tag::Int(x), Tag::Int(y), Tag::Int(z)] => Vec3(*x, *y, *z),
@@ -105,7 +108,7 @@ impl Template {
 
         let origin = markers
             .get("origin")
-            .expect(&format!("Failed to load template {}: No origin set", name))
+            .unwrap_or_else(|| panic!("Failed to load template {}: No origin set", name))
             .0;
 
         let palette: Vec<Block> = nbt
@@ -118,14 +121,14 @@ impl Template {
 
         for nbt in nbt.get_compound_tag_vec("blocks")? {
             let pos = read_pos(nbt.get("pos")?);
-            let block = (&palette[nbt.get_i32("state")? as usize]).clone();
+            let block = (palette[nbt.get_i32("state")? as usize]).clone();
             // TODO: nbt data
             blocks.insert(pos - origin, block);
         }
 
         Ok(Self {
-            name: name.to_owned(),
-            size,
+            _name: name.to_owned(),
+            _size: size,
             blocks,
             markers,
         })

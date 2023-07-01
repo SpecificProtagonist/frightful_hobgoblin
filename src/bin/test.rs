@@ -11,7 +11,9 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
-    // test_farms(&mut world);
+    for y in 0..200 {
+        world.set(Pos(0, y, 0), Block::SmoothQuartz);
+    }
 
     world.save().unwrap();
 }

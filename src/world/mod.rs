@@ -51,7 +51,7 @@ pub trait WorldView {
         *self.get_mut_no_update_order(pos) = block.get();
     }
     /// Convenience method
-    fn set_if_not_solid<'a, 's>(&'s mut self, pos: Pos, block: impl BlockOrRef) {
+    fn set_if_not_solid(&mut self, pos: Pos, block: impl BlockOrRef) {
         let block_ref = self.get_mut(pos);
         if !block_ref.solid() {
             *block_ref = block.get();
@@ -191,7 +191,7 @@ impl World {
                 & (index.1 < self.chunk_max.1)
             {
                 save_chunk(&chunk_provider, index.into(), sections, &entities)
-                    .expect(&format!("Failed to save chunk ({},{}): ", index.0, index.1))
+                    .unwrap_or_else(|_| panic!("Failed to save chunk ({},{}): ", index.0, index.1))
             }
         }
 
@@ -256,7 +256,7 @@ impl World {
     }
 
     fn section_index(&self, pos: Pos) -> usize {
-        self.chunk_index(pos.into()) * 24 + (pos.1 / 16) as usize
+        self.chunk_index(pos.into()) * 24 + (pos.1 / 16 + 4) as usize
     }
 
     fn column_index(&self, column: Column) -> usize {
@@ -265,8 +265,7 @@ impl World {
     }
 
     fn block_in_section_index(pos: Pos) -> usize {
-        (pos.0.rem_euclid(16) + pos.1.rem_euclid(16) as i32 * 16 * 16 + pos.2.rem_euclid(16) * 16)
-            as usize
+        (pos.0.rem_euclid(16) + pos.1.rem_euclid(16) * 16 * 16 + pos.2.rem_euclid(16) * 16) as usize
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -303,7 +302,7 @@ impl WorldView for World {
 
     fn get_mut(&mut self, pos: Pos) -> &mut Block {
         let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_with(|| Box::new(Section::default()));
+        let section = self.sections[index].get_or_insert_default();
         &mut section.blocks[Self::block_in_section_index(pos)]
     }
 

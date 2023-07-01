@@ -6,16 +6,13 @@ const STUMP_HEIGHT_2_CHANCE: f32 = 0.2;
 pub fn ground(world: &mut impl WorldView, area: Rect) {
     for column in area {
         let base_height = if let Some(water_height) = world.water_level(column) {
-            water_height.into()
+            water_height
         } else {
             world.height(column)
         };
         for y in base_height + 1..=base_height + 2 {
             let block = world.get_mut(column.at(y));
-            if match block {
-                GroundPlant(..) => true,
-                _ => false,
-            } {
+            if matches!(block, GroundPlant(..)) {
                 *block = Block::Air
             }
         }
@@ -77,10 +74,8 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                         if *s == species {
                             // Check block below in case of diagonal branch close to the ground
                             // when leave_stumps and stump height is 1 (mostly happens with dark oak)
-                            if (match block_below {
-                                Block::Log(..) => true,
-                                _ => false,
-                            }) & (rand::random::<f32>() < STUMP_HEIGHT_2_CHANCE)
+                            if matches!(block_below, Block::Log(..))
+                                & (rand::random::<f32>() < STUMP_HEIGHT_2_CHANCE)
                             {
                                 *block = Log(species, *log_type);
                             } else {

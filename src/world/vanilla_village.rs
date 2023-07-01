@@ -57,13 +57,13 @@ impl Village {
                 }
             } else {
                 // 1.12
-                if id.ends_with("H") | id.ends_with("S") | id.ends_with("T") {
+                if id.ends_with('H') | id.ends_with('S') | id.ends_with('T') {
                     buildings.push((area, VillageBuildingType::House));
-                } else if id.ends_with("F") {
+                } else if id.ends_with('F') {
                     buildings.push((area, VillageBuildingType::Farm));
                 } else if id.ends_with("Start") {
                     buildings.push((area, VillageBuildingType::Center));
-                } else if id.ends_with("R") {
+                } else if id.ends_with('R') {
                     buildings.push((area, VillageBuildingType::Street));
                 }
             }

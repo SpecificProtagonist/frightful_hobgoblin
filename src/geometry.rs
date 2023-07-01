@@ -1,5 +1,8 @@
 use itertools::Itertools;
-use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign};
+use std::{
+    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign},
+    str::FromStr,
+};
 //use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
 
@@ -82,22 +85,26 @@ impl HDir {
         }
     }
 
-    pub fn from_str(name: &str) -> Option<HDir> {
-        match name {
-            "north" => Some(HDir::ZNeg),
-            "east" => Some(HDir::XPos),
-            "south" => Some(HDir::ZPos),
-            "west" => Some(HDir::XNeg),
-            _ => None,
-        }
-    }
-
     pub fn to_str(self) -> &'static str {
         match self {
             HDir::ZNeg => "north",
             HDir::XPos => "east",
             HDir::ZPos => "south",
             HDir::XNeg => "west",
+        }
+    }
+}
+
+impl FromStr for HDir {
+    type Err = ();
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        match name {
+            "north" => Ok(HDir::ZNeg),
+            "east" => Ok(HDir::XPos),
+            "south" => Ok(HDir::ZPos),
+            "west" => Ok(HDir::XNeg),
+            _ => Err(()),
         }
     }
 }
@@ -338,10 +345,8 @@ impl Polygon {
                     if x >= column.0 as f32 {
                         inside = false;
                     }
-                } else {
-                    if x > column.0 as f32 + 0.5 {
-                        inside = true;
-                    }
+                } else if x > column.0 as f32 + 0.5 {
+                    inside = true;
                 }
             } else if (line_start.1 == column.1) & (line_end.1 == column.1) {
                 if (line_start.0 <= column.0) & (line_end.0 >= column.0)
@@ -566,7 +571,7 @@ impl Cuboid {
 impl Sub<Pos> for Pos {
     type Output = Vec3;
     fn sub(self, rhs: Pos) -> Self::Output {
-        Vec3(self.0 - rhs.0, self.1 as i32 - rhs.1 as i32, self.2 - rhs.2)
+        Vec3(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
     }
 }
 
@@ -684,7 +689,7 @@ impl MulAssign<f32> for Vec2 {
 impl Mul<i32> for Vec2 {
     type Output = Vec2;
     fn mul(self, rhs: i32) -> Self::Output {
-        Self((self.0 * rhs) as i32, (self.1 * rhs) as i32)
+        Self(self.0 * rhs, self.1 * rhs)
     }
 }
 
@@ -697,7 +702,7 @@ impl MulAssign<i32> for Vec2 {
 impl Div<i32> for Vec2 {
     type Output = Vec2;
     fn div(self, rhs: i32) -> Self::Output {
-        Self((self.0 / rhs) as i32, (self.1 / rhs) as i32)
+        Self(self.0 / rhs, self.1 / rhs)
     }
 }
 
@@ -710,7 +715,7 @@ impl DivAssign<i32> for Vec2 {
 impl Rem<i32> for Vec2 {
     type Output = Vec2;
     fn rem(self, rhs: i32) -> Self::Output {
-        Self((self.0 % rhs) as i32, (self.1 % rhs) as i32)
+        Self(self.0 % rhs, self.1 % rhs)
     }
 }
 
@@ -784,16 +789,14 @@ impl Iterator for ColumnLineIter {
                 } else {
                     Column(next.0, self.prev.1)
                 }
+            } else if self.prev.0 < next.0 {
+                Column(self.prev.0, next.1)
+            } else if self.prev.0 > next.0 {
+                Column(next.0, self.prev.1)
+            } else if self.prev.1 < next.1 {
+                Column(self.prev.0, next.1)
             } else {
-                if self.prev.0 < next.0 {
-                    Column(self.prev.0, next.1)
-                } else if self.prev.0 > next.0 {
-                    Column(next.0, self.prev.1)
-                } else if self.prev.1 < next.1 {
-                    Column(self.prev.0, next.1)
-                } else {
-                    Column(next.0, self.prev.1)
-                }
+                Column(next.0, self.prev.1)
             };
             self.enqueued = Some(next);
             self.prev = next;

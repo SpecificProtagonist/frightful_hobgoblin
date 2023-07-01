@@ -103,7 +103,7 @@ impl Entity {
                 biome,
                 profession,
             } => {
-                nbt.insert_str("CustomName", &name);
+                nbt.insert_str("CustomName", name);
                 nbt.insert_compound_tag("VillagerData", {
                     let mut data = CompoundTag::new();
                     data.insert_str(

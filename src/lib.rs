@@ -1,3 +1,5 @@
+#![feature(option_get_or_insert_default)]
+
 // Flat module hierarchy is ok for now
 mod behavior;
 mod build_recorder;

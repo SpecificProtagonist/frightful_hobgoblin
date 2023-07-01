@@ -227,7 +227,7 @@ pub fn slope(world: &impl WorldView, column: Column) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
         for dz in -1..=1 {
-            neighbors[(4 + dx + 3 * dz) as usize] = world.height(column + Vec2(dx, dz)) as i32;
+            neighbors[(4 + dx + 3 * dz) as usize] = world.height(column + Vec2(dx, dz));
         }
     }
     // Sobel kernel

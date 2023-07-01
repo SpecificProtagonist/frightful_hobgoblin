@@ -47,7 +47,7 @@ pub fn make_divider(
     };
     if let Some(mut segment) = segments.next() {
         make(segment, segment.0);
-        while let Some(next) = segments.next() {
+        for next in segments {
             make(next, segment.1);
             segment = next;
         }

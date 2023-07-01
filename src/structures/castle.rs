@@ -1,3 +1,4 @@
+use std::cmp::Ordering::*;
 use std::collections::HashMap;
 
 use crate::*;
@@ -278,10 +279,10 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
     loop {
         // Store how much the height-range would have to be extended
         let check_height_diff = |max_diff: &mut i32, y: i32| {
-            if min_y as i32 - y > max_diff.abs() {
-                *max_diff = y - min_y as i32;
-            } else if y - max_y as i32 > max_diff.abs() {
-                *max_diff = y - max_y as i32;
+            if min_y - y > max_diff.abs() {
+                *max_diff = y - min_y;
+            } else if y - max_y > max_diff.abs() {
+                *max_diff = y - max_y;
             }
         };
 
@@ -289,48 +290,46 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
         let mut height_diff_x_plus = 0;
         let slope_x_plus = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.height(Column(area.max.0, z)) as i32;
+                let height = world.height(Column(area.max.0, z));
                 check_height_diff(&mut height_diff_x_plus, height);
-                (height - world.height(Column(area.max.0 + 1, z)) as i32).abs()
+                (height - world.height(Column(area.max.0 + 1, z))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_x_neg = 0;
         let slope_x_neg = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.height(Column(area.min.0, z)) as i32;
+                let height = world.height(Column(area.min.0, z));
                 check_height_diff(&mut height_diff_x_neg, height);
-                (height - world.height(Column(area.min.0 - 1, z)) as i32).abs()
+                (height - world.height(Column(area.min.0 - 1, z))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_plus = 0;
         let slope_z_plus = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.height(Column(x, area.max.1)) as i32;
+                let height = world.height(Column(x, area.max.1));
                 check_height_diff(&mut height_diff_z_plus, height);
-                (height - world.height(Column(x, area.max.1 + 1)) as i32).abs()
+                (height - world.height(Column(x, area.max.1 + 1))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_neg = 0;
         let slope_z_neg = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.height(Column(x, area.min.1)) as i32;
+                let height = world.height(Column(x, area.min.1));
                 check_height_diff(&mut height_diff_z_neg, height);
-                (height - world.height(Column(x, area.min.1 - 1)) as i32).abs()
+                (height - world.height(Column(x, area.min.1 - 1))).abs()
             })
             .max()
             .unwrap();
 
         // Chose whether to prefer expansion into positive or negative direction, encode in sign
         let (slope_x, height_diff_x) = {
-            let positive = if slope_x_neg < slope_x_plus {
-                false
-            } else if slope_x_neg > slope_x_plus {
-                true
-            } else {
-                rand(1.5)
+            let positive = match slope_x_neg.cmp(&slope_x_plus) {
+                Less => false,
+                Greater => true,
+                Equal => rand(1.5),
             };
             if positive {
                 (slope_x_plus as f32 + 1.0, height_diff_x_plus)
@@ -339,12 +338,10 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
             }
         };
         let (slope_z, height_diff_z) = {
-            let positive = if slope_z_neg < slope_z_plus {
-                false
-            } else if slope_z_neg > slope_z_plus {
-                true
-            } else {
-                rand(1.5)
+            let positive = match slope_z_neg.cmp(&slope_z_plus) {
+                Less => false,
+                Greater => true,
+                Equal => rand(1.5),
             };
             if positive {
                 (slope_z_plus as f32 + 1.0, height_diff_z_plus)
@@ -355,7 +352,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
 
         let allowed = |slope: f32, y_diff: i32| {
             (slope.abs() <= MAX_SLOPE as f32)
-                & (y_diff.abs() + max_y.saturating_sub(min_y) + 1 <= MAX_HEIGHT_DIFF)
+                & (y_diff.abs() + max_y.saturating_sub(min_y) < MAX_HEIGHT_DIFF)
         };
 
         // If minimum size can't be reached, abort
@@ -376,14 +373,13 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
             Dir::X
         } else if area.size().1 < MIN_LENGTH {
             Dir::Z
-        } else
-        // Minimum size reached, just expand until maximum size or slope is met
-        // TODO: check if this introduces a bias for the x direction
-        if (slope_x.abs() <= slope_z.abs())
+        } else if (slope_x.abs() <= slope_z.abs())
             & allowed(slope_x, height_diff_x)
             & (area.size().0 < MAX_LENGTH)
             & ((area.size().0 < MAX_SECONDARY_LENGTH) | (area.size().1 < MAX_LENGTH))
         {
+            // Minimum size reached, just expand until maximum size or slope is met
+            // TODO: check if this introduces a bias for the x direction
             Dir::X
         } else if (area.size().1 < MAX_LENGTH)
             & allowed(slope_z, height_diff_z)
@@ -412,7 +408,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
         };
 
         if height_diff < 0 {
-            min_y = min_y as i32 + height_diff;
+            min_y += height_diff;
         } else {
             max_y += height_diff;
         }
@@ -420,7 +416,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
 
     let y = area
         .into_iter()
-        .map(|column| world.height(column) as i32)
+        .map(|column| world.height(column))
         .sum::<i32>()
         / (area.size().0 * area.size().1);
 
@@ -432,7 +428,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
             let mut sum = 0;
             for column in area.grow(3).border().chain(area.grow(6).border()) {
                 count += 1;
-                sum += y as i32 - world.height(column) as i32;
+                sum += y - world.height(column);
             }
             sum / count
         },

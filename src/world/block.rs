@@ -1,4 +1,4 @@
-use std::{borrow::Cow, fmt::Display, sync::Arc};
+use std::{borrow::Cow, fmt::Display, str::FromStr, sync::Arc};
 
 pub use self::GroundPlant::*;
 use crate::geometry::*;
@@ -10,9 +10,10 @@ pub use Color::*;
 pub use Material::*;
 pub use TreeSpecies::*;
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[derive(Debug, Default, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum Block {
+    #[default]
     Air,
     FullBlock(Material),
     Slab(Material, Flipped),
@@ -33,19 +34,16 @@ pub enum Block {
     GlassPane(Option<Color>),
     WallBanner(HDir, Color),
     Hay,
-    Cauldron { water: u8 },
+    Cauldron {
+        water: u8,
+    },
     Bell(HDir, BellAttachment),
     Repeater(HDir, u8),
     Barrier,
     Bedrock,
     CommandBlock(Arc<String>),
+    // Maybe just Box::leak them → block becomes clone again
     Other(Arc<Blockstate>),
-}
-
-impl Default for Block {
-    fn default() -> Self {
-        Air
-    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -281,7 +279,7 @@ pub struct Blockstate(
 impl Display for Blockstate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.0)?;
-        if self.1.len() > 0 {
+        if !self.1.is_empty() {
             write!(f, "[")?;
             for (i, (name, state)) in self.1.iter().enumerate() {
                 write!(f, "{}={}", name, state)?;
@@ -497,7 +495,7 @@ impl Block {
             CommandBlock(command) => {
                 let mut nbt = CompoundTag::new();
                 nbt.insert_str("id", "command_block");
-                nbt.insert_str("Command", &command);
+                nbt.insert_str("Command", command);
                 nbt.insert_bool("TrackOutput", false);
                 Some(nbt)
             }
@@ -505,7 +503,7 @@ impl Block {
         }
         .map(|mut nbt| {
             nbt.insert_i32("x", pos.0);
-            nbt.insert_i32("y", pos.1 as i32);
+            nbt.insert_i32("y", pos.1);
             nbt.insert_i32("z", pos.2);
             nbt
         })
@@ -573,7 +571,7 @@ impl Block {
                 "gravel" => Soil(Soil::Gravel),
                 "grass_block" => Soil(Soil::Grass),
                 "sand" => Soil(Soil::Sand),
-                "dirt" if matches!(props.get_str("variant"), Err(_)) => Soil(Soil::Dirt),
+                "dirt" if props.get_str("variant").is_err() => Soil(Soil::Dirt),
                 "dirt" if matches!(props.get_str("variant")?, "coarse_dirt") => {
                     Soil(Soil::CoarseDirt)
                 }
@@ -682,7 +680,7 @@ impl Block {
         let blockstate = self.blockstate();
         let mut nbt = CompoundTag::new();
         nbt.insert("Name", blockstate.0.into_owned());
-        if blockstate.1.len() > 0 {
+        if !blockstate.1.is_empty() {
             nbt.insert("Properties", {
                 let mut props = CompoundTag::new();
                 for (prop, value) in blockstate.1 {
