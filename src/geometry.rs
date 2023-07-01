@@ -4,7 +4,7 @@ use std::ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, S
 use num_derive::FromPrimitive;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Pos(pub i32, pub u8, pub i32);
+pub struct Pos(pub i32, pub i32, pub i32);
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Column(pub i32, pub i32);
@@ -464,7 +464,7 @@ impl Iterator for BorderIterator<'_> {
 }
 
 impl Column {
-    pub fn at(self, y: u8) -> Pos {
+    pub fn at(self, y: i32) -> Pos {
         Pos(self.0, y, self.1)
     }
 
@@ -573,11 +573,7 @@ impl Sub<Pos> for Pos {
 impl Add<Vec3> for Pos {
     type Output = Pos;
     fn add(self, rhs: Vec3) -> Self::Output {
-        Pos(
-            self.0 + rhs.0,
-            (self.1 as i32 + rhs.1) as u8,
-            self.2 + rhs.2,
-        )
+        Pos(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
     }
 }
 
@@ -590,11 +586,7 @@ impl AddAssign<Vec3> for Pos {
 impl Sub<Vec3> for Pos {
     type Output = Pos;
     fn sub(self, rhs: Vec3) -> Self::Output {
-        Pos(
-            self.0 - rhs.0,
-            (self.1 as i32 - rhs.1) as u8,
-            self.2 - rhs.2,
-        )
+        Pos(self.0 - rhs.0, rhs.1, self.2 - rhs.2)
     }
 }
 

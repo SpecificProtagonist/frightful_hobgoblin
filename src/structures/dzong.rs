@@ -95,8 +95,8 @@ fn dye_some_red_banners_orange(world: &mut BuildRecorder<impl WorldView>) {
     }
 }
 
-fn roof(world: &mut impl WorldView, y: u8, area: Rect, layered: bool, fancy_top: bool) {
-    fn roof_ring(world: &mut impl WorldView, y: u8, area: Rect, edge: bool, second_layer: bool) {
+fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top: bool) {
+    fn roof_ring(world: &mut impl WorldView, y: i32, area: Rect, edge: bool, second_layer: bool) {
         let (start, check_end, corner, middle) = if edge {
             if second_layer {
                 (
@@ -203,7 +203,7 @@ fn roof(world: &mut impl WorldView, y: u8, area: Rect, layered: bool, fancy_top:
         );
     }
 
-    fn roof_layer(world: &mut impl WorldView, y: u8, area: Rect, second_layer: bool) {
+    fn roof_layer(world: &mut impl WorldView, y: i32, area: Rect, second_layer: bool) {
         roof_ring(world, y, area, true, second_layer);
         let mut y = if second_layer { y + 3 } else { y + 2 };
         let mut area = area.shrink(2);
@@ -253,7 +253,7 @@ fn roof(world: &mut impl WorldView, y: u8, area: Rect, layered: bool, fancy_top:
 
     if fancy_top {
         let size_difference = area.size().0 - area.size().1;
-        let y = y + area.size().0.min(area.size().1) as u8 / 4 + if layered { 4 } else { 2 };
+        let y = y + area.size().0.min(area.size().1) / 4 + if layered { 4 } else { 2 };
 
         if size_difference > 4 {
             roof_top(

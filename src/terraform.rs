@@ -12,7 +12,7 @@ pub enum WallCrest {
 pub fn make_retaining_wall(
     world: &mut impl WorldView,
     area: &Polygon,
-    height: u8,
+    height: i32,
     crest: WallCrest,
 ) {
     let material = Cobble;
@@ -73,7 +73,7 @@ fn get_filling_soil(world: &impl WorldView, column: Column) -> Soil {
 pub fn make_foundation_sloped(
     world: &mut impl WorldView,
     mut area: Rect,
-    height: u8,
+    height: i32,
     material: Material,
 ) {
     // TODO: proper placement order
@@ -123,7 +123,7 @@ pub fn make_foundation_sloped(
 pub fn make_foundation_straight(
     world: &mut impl WorldView,
     area: Rect,
-    height: u8,
+    height: i32,
     material: Material,
 ) {
     for column in area {
@@ -171,7 +171,7 @@ pub fn make_foundation_straight(
     fn make_support(
         world: &mut impl WorldView,
         columns: impl Iterator<Item = Column>,
-        y: u8,
+        y: i32,
         facing: HDir,
         material: Material,
     ) {
@@ -191,7 +191,7 @@ pub fn make_foundation_straight(
                 & rand(support_chance)
             {
                 world.set(column.at(y), Stair(material, facing, Flipped(false)));
-                for y in (y - ground_distance as u8)..y {
+                for y in y - ground_distance..y {
                     world.set(column.at(y), FullBlock(material));
                 }
                 true
@@ -270,7 +270,7 @@ pub fn find_local_maxima(world: &impl WorldView, area: Rect, neighborhood_size: 
 
 // TODO: add average
 // TODO: move into World, cache
-pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, u8> {
+pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, i32> {
     world
         .chunks()
         .map(|chunk| {

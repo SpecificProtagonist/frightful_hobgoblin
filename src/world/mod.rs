@@ -35,11 +35,11 @@ pub trait WorldView {
     fn biome(&self, column: Column) -> Biome;
 
     /// Height of the ground, ignores vegetation
-    fn height(&self, column: Column) -> u8;
-    fn height_mut(&mut self, column: Column) -> &mut u8;
+    fn height(&self, column: Column) -> i32;
+    fn height_mut(&mut self, column: Column) -> &mut i32;
 
-    fn water_level(&self, column: Column) -> Option<u8>;
-    fn water_level_mut(&mut self, column: Column) -> &mut Option<u8>;
+    fn water_level(&self, column: Column) -> Option<i32>;
+    fn water_level_mut(&mut self, column: Column) -> &mut Option<i32>;
 
     fn area(&self) -> Rect;
 
@@ -86,8 +86,8 @@ pub struct World {
     sections: Vec<Option<Box<Section>>>,
     /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
     biome: Vec<Biome>,
-    heightmap: Vec<u8>,
-    watermap: Vec<Option<u8>>,
+    heightmap: Vec<i32>,
+    watermap: Vec<Option<i32>>,
     pub entities: Vec<Entity>,
     pub villages: Vec<Village>,
 }
@@ -109,7 +109,7 @@ impl World {
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
-        let mut sections = vec![None; chunk_count * 16];
+        let mut sections = vec![None; chunk_count * 24];
         let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
         let mut heightmap = vec![0; chunk_count * 16 * 16];
         let mut watermap = vec![None; chunk_count * 16 * 16];
@@ -122,7 +122,7 @@ impl World {
             .flat_map(|z| (chunk_min.0..=chunk_max.0).map(move |x| (x, z)))
             .collect_vec()
             .par_iter() //TMP no par
-            .zip(sections.par_chunks_exact_mut(16))
+            .zip(sections.par_chunks_exact_mut(24))
             .zip(biome.par_chunks_exact_mut(4 * 4))
             .zip(heightmap.par_chunks_exact_mut(16 * 16))
             .zip(watermap.par_chunks_exact_mut(16 * 16))
@@ -181,7 +181,7 @@ impl World {
         // Saveing isn't thread safe
         for ((index, sections), entities) in (self.chunk_min.1..=self.chunk_max.1)
             .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
-            .zip(self.sections.chunks_exact(16))
+            .zip(self.sections.chunks_exact(24))
             .zip(entities_chunked)
         {
             // Don't save outermost chunks, since we don't modify them & leaving out the border simplifies things
@@ -256,7 +256,7 @@ impl World {
     }
 
     fn section_index(&self, pos: Pos) -> usize {
-        self.chunk_index(pos.into()) * 16 + (pos.1 / 16) as usize
+        self.chunk_index(pos.into()) * 24 + (pos.1 / 16) as usize
     }
 
     fn column_index(&self, column: Column) -> usize {
@@ -322,20 +322,20 @@ impl WorldView for World {
         }
     }
 
-    fn height(&self, column: Column) -> u8 {
+    fn height(&self, column: Column) -> i32 {
         self.heightmap[self.column_index(column)]
     }
 
-    fn height_mut(&mut self, column: Column) -> &mut u8 {
+    fn height_mut(&mut self, column: Column) -> &mut i32 {
         let index = self.column_index(column);
         &mut self.heightmap[index]
     }
 
-    fn water_level(&self, column: Column) -> Option<u8> {
+    fn water_level(&self, column: Column) -> Option<i32> {
         self.watermap[self.column_index(column)]
     }
 
-    fn water_level_mut(&mut self, column: Column) -> &mut Option<u8> {
+    fn water_level_mut(&mut self, column: Column) -> &mut Option<i32> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
@@ -352,9 +352,9 @@ fn load_chunk(
     chunk_provider: &FolderRegionProvider,
     chunk_index: ChunkIndex,
     sections: &mut [Option<Box<Section>>],
-    biomes: &mut [Biome],
-    heightmap: &mut [u8],
-    watermap: &mut [Option<u8>],
+    _biomes: &mut [Biome],
+    heightmap: &mut [i32],
+    watermap: &mut [Option<i32>],
     villages: &Mutex<&mut Vec<Village>>,
 ) -> Result<()> {
     let nbt = chunk_provider
@@ -368,49 +368,45 @@ fn load_chunk(
         ))
         .map_err(|_| anyhow!("Chunk read error"))?;
     let version = nbt.get_i32("DataVersion").unwrap();
-    if (version > 2586) | (version < 2566) {
-        // Todo: 1.13+ support (palette)
+    if version != 3465 {
         println!(
-            "Unsupported version: {}. Only 1.16.* is currently supported.",
+            "Unsupported version: {}. Only 1.20.1 is currently tested.",
             version
         );
-    }
-
-    let nbt = nbt.get_compound_tag("Level").unwrap();
-
-    let biome_ids = nbt.get_i32_vec("Biomes").unwrap();
-    for i in 0..(4 * 4) {
-        biomes[i] = Biome::from_bytes(biome_ids[4 * 4 * 15 + i] as u8);
     }
 
     if let Ok(structures) = nbt.get_compound_tag("Structures") {
         let structures = structures.get_compound_tag("Starts").unwrap();
         if let Ok(nbt) = structures.get_compound_tag("village") {
             if nbt.get_str("id").unwrap() != "INVALID" {
-                villages.lock().unwrap().push(Village::from_nbt(&nbt));
+                villages.lock().unwrap().push(Village::from_nbt(nbt));
             }
         }
     }
 
     // TODO: store CarvingMasks::AIR, seems useful
     // Also, check out Heightmaps. Maybe we can reuse them or gleam additional information from them
-    // Wait, no: chunks converted from 1.12 probably don't have them
 
-    let sections_nbt = nbt.get_compound_tag_vec("Sections").unwrap();
+    let sections_nbt = nbt.get_compound_tag_vec("sections").unwrap();
 
     for section_nbt in sections_nbt {
         let y_index = section_nbt.get_i8("Y").unwrap();
 
-        // Build the palette. Yes, this doesn't deduplicate unrecognised blockstates between sections
-        let palette: Vec<Block> = if let Ok(palette) = section_nbt.get_compound_tag_vec("Palette") {
-            palette.iter().map(|nbt| Block::from_nbt(nbt)).collect()
-        } else {
+        // TODO: support full chunk height
+        if !(0..15).contains(&y_index) {
             continue;
-        };
+        }
 
-        sections[y_index as usize] = Some(Box::new(Default::default()));
-        let section = sections[y_index as usize].as_mut().unwrap();
-        let indices = section_nbt.get_i64_vec("BlockStates").unwrap();
+        // TODO: load biome
+
+        let block_states = section_nbt.get_compound_tag("block_states").unwrap();
+        let palette = block_states.get_compound_tag_vec("palette").unwrap();
+        // Build the palette. Yes, this doesn't deduplicate unrecognised blockstates between sections
+        let palette: Vec<Block> = palette.iter().map(|nbt| Block::from_nbt(nbt)).collect();
+
+        sections[(y_index + 4) as usize] = Some(Default::default());
+        let section = sections[(y_index + 4) as usize].as_mut().unwrap();
+        let Ok(indices) = block_states.get_i64_vec("data") else {continue};
         let bits_per_index = bits_per_index(palette.len());
 
         let mut current_long = 0;
@@ -431,11 +427,11 @@ fn load_chunk(
     // Build water- & heightmap
     for x in 0..16 {
         for z in 0..16 {
-            'column: for section_index in (0..16).rev() {
-                if let Some(section) = &sections[section_index] {
+            'column: for section_index in (-4..20).rev() {
+                if let Some(section) = &sections[(section_index + 4i32) as usize] {
                     for y in (0..16).rev() {
-                        let block = &section.blocks[x + z * 16 + y * 16 * 16];
-                        let height = (section_index * 16 + y) as u8;
+                        let block = &section.blocks[x + z * 16 + y as usize * 16 * 16];
+                        let height = (section_index - 4) * 16 + y;
                         if match block {
                             Block::Log(..) => false,
                             _ => block.solid(),
@@ -443,7 +439,7 @@ fn load_chunk(
                             heightmap[x + z * 16] = height;
                             break 'column;
                         } else if matches!(block, Block::Water /*TODO: | Block::Ice*/) {
-                            watermap[x + z * 16].get_or_insert((section_index * 16 + y) as u8);
+                            watermap[x + z * 16].get_or_insert(section_index * 16 + y);
                         }
                     }
                 }
@@ -475,96 +471,88 @@ fn save_chunk(
             RegionChunkPosition::from_chunk_position(index.0, index.1),
             {
                 let mut nbt = CompoundTag::new();
-                nbt.insert_i32("DataVersion", 2586);
-                nbt.insert_compound_tag("Level", {
-                    let mut nbt = CompoundTag::new();
-                    nbt.insert_i32("xPos", index.0);
-                    nbt.insert_i32("zPos", index.1);
+                nbt.insert_i32("DataVersion", 3465);
+                nbt.insert_i32("xPos", index.0);
+                nbt.insert_i32("zPos", index.1);
 
-                    nbt.insert_i64("LastUpdate", 0);
-                    nbt.insert_i8("TerrainPopulated", 1);
-                    nbt.insert_i64("InhabitetTime", 0);
-                    nbt.insert_str("Status", "full");
+                nbt.insert_i64("LastUpdate", 0);
+                nbt.insert_i8("TerrainPopulated", 1);
+                nbt.insert_i64("InhabitetTime", 0);
+                nbt.insert_str("Status", "full");
 
-                    nbt.insert_compound_tag_vec("Entities", Vec::new());
-                    nbt.insert_compound_tag_vec("TileEntities", Vec::new());
+                // Collect tile entities
+                let mut tile_entities = Vec::new();
 
-                    // Collect tile entities
-                    let mut tile_entities = Vec::new();
+                nbt.insert_compound_tag_vec("sections", {
+                    sections
+                        .iter()
+                        .enumerate()
+                        .filter_map(|(y_index, section)| {
+                            let y_index = y_index as i32 - 4;
+                            let Some(section) = section else {return None};
+                            let mut nbt = CompoundTag::new();
+                            nbt.insert_i8("Y", y_index as i8);
 
-                    nbt.insert_compound_tag_vec("Sections", {
-                        sections
-                            .iter()
-                            .enumerate()
-                            .filter_map(|(y_index, section)| {
-                                if let Some(section) = section {
-                                    let mut nbt = CompoundTag::new();
-                                    nbt.insert_i8("Y", y_index as i8);
-
-                                    // Build the palette first (for length)
-                                    // Minecraft seems to always have Air as id 0 even if there is none
-                                    let mut palette = HashMap::new();
-                                    nbt.insert_compound_tag_vec(
-                                        "Palette",
-                                        Some(Air).iter().chain(section.blocks.iter()).flat_map(
-                                            |block| {
-                                                if !palette.contains_key(block) {
-                                                    palette.insert(block.clone(), palette.len());
-                                                    Some(block.to_nbt())
-                                                } else {
-                                                    None
-                                                }
-                                            },
-                                        ),
-                                    );
-
-                                    let bits_per_index = bits_per_index(palette.len());
-                                    let mut blocks = vec![0];
-                                    let mut current_long = 0;
-                                    let mut current_bit_shift = 0;
-
-                                    for (i, block) in section.blocks.iter().enumerate() {
-                                        blocks[current_long] |=
-                                            (palette[block] << current_bit_shift) as i64;
-                                        current_bit_shift += bits_per_index;
-                                        if current_bit_shift > 64 - bits_per_index {
-                                            current_bit_shift = 0;
-                                            current_long += 1;
-                                            // If there's an unnecessary empty long at the end,
-                                            // the chunk can't be loaded
-                                            if (i < 4095) | (64 % bits_per_index != 0) {
-                                                blocks.push(0);
-                                            }
+                            let mut block_states = CompoundTag::new();
+                            // Build the palette first (for length)
+                            // Minecraft seems to always have Air as id 0 even if there is none
+                            let mut palette = HashMap::new();
+                            block_states.insert_compound_tag_vec(
+                                "palette",
+                                Some(Air)
+                                    .iter()
+                                    .chain(section.blocks.iter())
+                                    .flat_map(|block| {
+                                        if !palette.contains_key(block) {
+                                            palette.insert(block.clone(), palette.len());
+                                            Some(block.to_nbt())
+                                        } else {
+                                            None
                                         }
+                                    }),
+                            );
 
-                                        // Collect TileEntity data
-                                        {
-                                            let section_base =
-                                                Pos(index.0 * 16, y_index as u8 * 16, index.1 * 16);
-                                            let pos = section_base
-                                                + Vec3(
-                                                    i as i32 % 16,
-                                                    i as i32 / (16 * 16),
-                                                    i as i32 % (16 * 16) / 16,
-                                                );
-                                            tile_entities.extend(block.tile_entity_nbt(pos));
-                                        }
+                            let bits_per_index = bits_per_index(palette.len());
+                            let mut blocks = vec![0];
+                            let mut current_long = 0;
+                            let mut current_bit_shift = 0;
+
+                            for (i, block) in section.blocks.iter().enumerate() {
+                                blocks[current_long] |=
+                                    (palette[block] << current_bit_shift) as i64;
+                                current_bit_shift += bits_per_index;
+                                if current_bit_shift > 64 - bits_per_index {
+                                    current_bit_shift = 0;
+                                    current_long += 1;
+                                    // If there's an unnecessary empty long at the end,
+                                    // the chunk can't be loaded
+                                    if (i < 4095) | (64 % bits_per_index != 0) {
+                                        blocks.push(0);
                                     }
-                                    nbt.insert_i64_vec("BlockStates", blocks);
-
-                                    Some(nbt)
-                                } else {
-                                    None
                                 }
-                            })
-                    });
 
-                    nbt.insert_compound_tag_vec("Entities", entities.iter().map(|e| e.to_nbt()));
+                                // Collect TileEntity data
+                                {
+                                    let section_base =
+                                        Pos(index.0 * 16, y_index * 16, index.1 * 16);
+                                    let pos = section_base
+                                        + Vec3(
+                                            i as i32 % 16,
+                                            i as i32 / (16 * 16),
+                                            i as i32 % (16 * 16) / 16,
+                                        );
+                                    tile_entities.extend(block.tile_entity_nbt(pos));
+                                }
+                            }
+                            block_states.insert_i64_vec("data", blocks);
+                            nbt.insert("block_states", block_states);
 
-                    nbt.insert_compound_tag_vec("TileEntities", tile_entities);
-
-                    nbt
+                            Some(nbt)
+                        })
                 });
+
+                nbt.insert_compound_tag_vec("block_entities", tile_entities);
+
                 nbt
             },
         )

@@ -279,7 +279,7 @@ fn export_parallel_executions(
     for (fn_name, commands) in functions {
         let mut fun_path = fun_dir.to_owned();
         fun_path.push(format!("{}.mcfunction", fn_name));
-        create_dir_all(&fun_path.parent().unwrap())?;
+        create_dir_all(fun_path.parent().unwrap())?;
         let mut file = OpenOptions::new().write(true).create(true).open(fun_path)?;
         for command in commands {
             writeln!(file, "{}", command)?;

@@ -100,7 +100,7 @@ pub fn tree(world: &mut impl WorldView, pos: Pos, leave_stump: bool) {
                     // Check for neighbors in case of horizontal branches (large oaks)
                     for y in (if leave_stump { -1 } else { 0 })..=1 {
                         for z in -1..=1 {
-                            let pos = Pos(pos.0 + x, (pos.1 as i32 + y) as u8, pos.2 + z);
+                            let pos = Pos(pos.0 + x, pos.1 + y, pos.2 + z);
                             let block = world.get_mut(pos);
                             if let Log(s, log_type) = block {
                                 if *s == species {

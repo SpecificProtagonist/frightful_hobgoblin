@@ -11,7 +11,7 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
-    test_farms(&mut world);
+    // test_farms(&mut world);
 
     world.save().unwrap();
 }

@@ -47,7 +47,7 @@ pub fn heightmap(world: &World) -> MapImage {
     heightmap_with(world, 60, 120)
 }
 
-pub fn heightmap_with(world: &World, min: u8, max: u8) -> MapImage {
+pub fn heightmap_with(world: &World, min: i32, max: i32) -> MapImage {
     let mut image = MapImage::new(world.area());
     for column in world.area() {
         image.set(

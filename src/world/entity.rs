@@ -6,6 +6,9 @@ use nbt::{CompoundTag, Tag};
 pub use Chattel::*;
 use EntityType::*;
 
+// TODO:
+// At the moment entities aren't saved (separated entity files)
+
 /*
  * UUIDs
  * 0-0-0-{villager id}-0           Villager

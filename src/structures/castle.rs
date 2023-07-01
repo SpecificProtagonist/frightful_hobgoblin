@@ -12,7 +12,7 @@ pub enum Usage {
 }
 pub struct Blueprint {
     pub area: Rect,
-    pub y: u8,
+    pub y: i32,
     pub relative_height: i32,
 }
 
@@ -121,7 +121,7 @@ impl Blueprint {
     }
 }
 
-fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floor_y: u8) {
+fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floor_y: i32) {
     let floor_block = &Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
     for (column, usage) in layout {
         if matches!(usage, Usage::FreeInterior) {
@@ -133,8 +133,8 @@ fn build_floor(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, floo
 fn build_walls(
     world: &mut impl WorldView,
     layout: &HashMap<Column, Usage>,
-    base_y: u8,
-    height: u8,
+    base_y: i32,
+    height: i32,
     fancy_corners: bool,
 ) {
     // Basic walls
@@ -187,7 +187,7 @@ fn build_walls(
 }
 
 /// Assumes walls are already build
-fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, base_y: u8) {
+fn build_windows(world: &mut impl WorldView, layout: &HashMap<Column, Usage>, base_y: i32) {
     for (column, usage) in layout {
         if let Usage::Window(facing) = usage {
             world.set_override(
@@ -270,7 +270,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
     const MAX_LENGTH: i32 = 14;
     const MAX_SECONDARY_LENGTH: i32 = 8;
     const MAX_SLOPE: i32 = 3;
-    const MAX_HEIGHT_DIFF: u8 = 7;
+    const MAX_HEIGHT_DIFF: i32 = 7;
 
     let mut area = Rect { min: pos, max: pos };
     let mut min_y = world.height(pos);
@@ -355,7 +355,7 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
 
         let allowed = |slope: f32, y_diff: i32| {
             (slope.abs() <= MAX_SLOPE as f32)
-                & (y_diff.abs() as u8 + max_y.saturating_sub(min_y) + 1 <= MAX_HEIGHT_DIFF)
+                & (y_diff.abs() + max_y.saturating_sub(min_y) + 1 <= MAX_HEIGHT_DIFF)
         };
 
         // If minimum size can't be reached, abort
@@ -412,19 +412,17 @@ fn find_good_footprint_at(world: &impl WorldView, pos: Column) -> Option<Bluepri
         };
 
         if height_diff < 0 {
-            min_y = (min_y as i32 + height_diff) as u8;
+            min_y = min_y as i32 + height_diff;
         } else {
-            max_y += height_diff as u8;
+            max_y += height_diff;
         }
     }
 
-    let y = {
-        (area
-            .into_iter()
-            .map(|column| world.height(column) as i32)
-            .sum::<i32>()
-            / (area.size().0 * area.size().1)) as u8
-    };
+    let y = area
+        .into_iter()
+        .map(|column| world.height(column) as i32)
+        .sum::<i32>()
+        / (area.size().0 * area.size().1);
 
     Some(Blueprint {
         area,
