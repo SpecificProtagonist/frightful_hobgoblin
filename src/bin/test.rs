@@ -34,32 +34,6 @@ fn test_farms(world: &mut World) {
     farm::make_hedge_edge(world, &fields);
 }
 
-fn test_village(world: &mut World) {
-    let villages = world.villages.clone();
-    for village in villages {
-        for (area, kind) in village.buildings {
-            if world.area().contains(area.center()) {
-                for column in area.border() {
-                    use vanilla_village::VillageBuildingType::*;
-                    world.set(
-                        column.at(100),
-                        Wool(match &kind {
-                            House => Red,
-                            Center => Purple,
-                            Farm => Yellow,
-                            Street => White,
-                        }),
-                    );
-                }
-                world.set(
-                    area.center().at(101),
-                    CommandBlock(std::sync::Arc::new(format!("{:?}", kind))),
-                );
-            }
-        }
-    }
-}
-
 fn test_retaining_wall(world: &mut World) {
     let height = world.height(Column(0, 0));
     let corners = vec![

@@ -1,9 +1,6 @@
-// TODO: check if empty sections really are (and stay) None
-
 mod biome;
 mod block;
 mod entity;
-pub mod vanilla_village;
 
 use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
@@ -13,18 +10,12 @@ use anyhow::{anyhow, Result};
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
-use std::{
-    collections::HashMap,
-    ops::Shr,
-    path::{Path, PathBuf},
-    sync::Mutex,
-};
+use std::{collections::HashMap, ops::Shr, path::PathBuf};
 
 use crate::geometry::*;
 pub use biome::*;
 pub use block::*;
 pub use entity::*;
-use vanilla_village::Village;
 
 // Ugh, can't impl Index and IndexMut because of orphan rules
 pub trait WorldView {
@@ -89,7 +80,6 @@ pub struct World {
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     pub entities: Vec<Entity>,
-    pub villages: Vec<Village>,
 }
 
 impl World {
@@ -113,9 +103,6 @@ impl World {
         let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
         let mut heightmap = vec![0; chunk_count * 16 * 16];
         let mut watermap = vec![None; chunk_count * 16 * 16];
-        let mut villages = Vec::new();
-
-        let villages_mutex = Mutex::new(&mut villages);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
@@ -134,21 +121,9 @@ impl World {
                     biome,
                     heightmap,
                     watermap,
-                    &villages_mutex,
                 )
                 .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1))
             });
-
-        // Check if there are some villages in the 1.12 format
-        if let Ok(mut village_dat) = std::fs::File::open(Path::new(path).join("data/Village.dat")) {
-            let nbt = nbt::decode::read_gzip_compound_tag(&mut village_dat).unwrap();
-            let nbt = nbt.get_compound_tag("data").unwrap();
-            for (_, nbt) in nbt.get_compound_tag("Features").unwrap().iter() {
-                if let nbt::Tag::Compound(nbt) = nbt {
-                    villages.push(Village::from_nbt(nbt));
-                }
-            }
-        }
 
         Self {
             path: PathBuf::from(path),
@@ -158,7 +133,6 @@ impl World {
             biome,
             heightmap,
             watermap,
-            villages,
             entities: Vec::new(),
         }
     }
@@ -354,7 +328,6 @@ fn load_chunk(
     _biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
-    villages: &Mutex<&mut Vec<Village>>,
 ) -> Result<()> {
     let nbt = chunk_provider
         .get_region(RegionPosition::from_chunk_position(
@@ -372,15 +345,6 @@ fn load_chunk(
             "Unsupported version: {}. Only 1.20.1 is currently tested.",
             version
         );
-    }
-
-    if let Ok(structures) = nbt.get_compound_tag("Structures") {
-        let structures = structures.get_compound_tag("Starts").unwrap();
-        if let Ok(nbt) = structures.get_compound_tag("village") {
-            if nbt.get_str("id").unwrap() != "INVALID" {
-                villages.lock().unwrap().push(Village::from_nbt(nbt));
-            }
-        }
     }
 
     // TODO: store CarvingMasks::AIR, seems useful
