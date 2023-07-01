@@ -8,40 +8,30 @@ pub fn test(world: &mut impl WorldView) {
         Rect::new_centered(world.area().center(), Vec2(11, 19)),
         true,
         true,
-    )
-    .apply_to(world);
+    );
 
     build_test(
         world,
         Rect::new_centered(world.area().center() + Vec2(20, 14), Vec2(11, 7)),
         false,
         true,
-    )
-    .apply_to(world);
+    );
 
     build_test(
         world,
         Rect::new_centered(world.area().center() + Vec2(-10, -35), Vec2(27, 14)),
         true,
         true,
-    )
-    .apply_to(world);
+    );
 }
 
-fn build_test(
-    world: &impl WorldView,
-    area: Rect,
-    roof_layered: bool,
-    roof_fancy_top: bool,
-) -> BuildRecord {
-    let mut world = BuildRecorder::new(world);
-
-    remove_foliage::trees(&mut world, area.into_iter(), false);
+fn build_test(world: &mut impl WorldView, area: Rect, roof_layered: bool, roof_fancy_top: bool) {
+    remove_foliage::trees(world, area.into_iter(), false);
 
     let base_y = world.height(area.center());
     let roof_y = base_y + 12;
 
-    make_foundation_sloped(&mut world, area, base_y, Diorite);
+    make_foundation_sloped(world, area, base_y, Diorite);
 
     for y in base_y..roof_y {
         for col in area.border().chain(area.shrink(1).border()) {
@@ -56,44 +46,42 @@ fn build_test(
         }
     }
 
-    roof(&mut world, roof_y, area, roof_layered, roof_fancy_top);
+    roof(world, roof_y, area, roof_layered, roof_fancy_top);
 
-    dye_some_red_banners_orange(&mut world);
-
-    world.finish()
+    // dye_some_red_banners_orange(world);
 }
 
-fn dye_some_red_banners_orange(world: &mut BuildRecorder<impl WorldView>) {
-    const ORANGE_BANNER_CHANCE: f32 = 0.22;
-    let mut to_dye = Vec::new();
-    for (pos, block) in world.iter() {
-        if let WallBanner(facing, Red) = block {
-            // Make sure that banners in pairs stay the same color
-            if rand(ORANGE_BANNER_CHANCE)
-                && !((*facing == HDir::XNeg)
-                    & (matches!(world.get(*pos + Vec2(2, 0)), WallBanner(HDir::XPos, Red))))
-                && !((*facing == HDir::ZNeg)
-                    & (matches!(world.get(*pos + Vec2(0, 2)), WallBanner(HDir::ZPos, Red))))
-            {
-                to_dye.push((*pos, WallBanner(*facing, Orange)));
-                if (*facing == HDir::XPos)
-                    && matches!(world.get(*pos - Vec2(2, 0)), WallBanner(HDir::XNeg, Red))
-                {
-                    to_dye.push((*pos - Vec2(2, 0), WallBanner(HDir::XNeg, Orange)));
-                }
-                if (*facing == HDir::ZPos)
-                    && matches!(world.get(*pos - Vec2(0, 2)), WallBanner(HDir::ZNeg, Red))
-                {
-                    to_dye.push((*pos - Vec2(0, 2), WallBanner(HDir::ZNeg, Orange)));
-                }
-            }
-        }
-    }
+// fn dye_some_red_banners_orange(world: &mut impl WorldView) {
+//     const ORANGE_BANNER_CHANCE: f32 = 0.22;
+//     let mut to_dye = Vec::new();
+//     for (pos, block) in world.iter() {
+//         if let WallBanner(facing, Red) = block {
+//             // Make sure that banners in pairs stay the same color
+//             if rand(ORANGE_BANNER_CHANCE)
+//                 && !((*facing == HDir::XNeg)
+//                     & (matches!(world.get(*pos + Vec2(2, 0)), WallBanner(HDir::XPos, Red))))
+//                 && !((*facing == HDir::ZNeg)
+//                     & (matches!(world.get(*pos + Vec2(0, 2)), WallBanner(HDir::ZPos, Red))))
+//             {
+//                 to_dye.push((*pos, WallBanner(*facing, Orange)));
+//                 if (*facing == HDir::XPos)
+//                     && matches!(world.get(*pos - Vec2(2, 0)), WallBanner(HDir::XNeg, Red))
+//                 {
+//                     to_dye.push((*pos - Vec2(2, 0), WallBanner(HDir::XNeg, Orange)));
+//                 }
+//                 if (*facing == HDir::ZPos)
+//                     && matches!(world.get(*pos - Vec2(0, 2)), WallBanner(HDir::ZNeg, Red))
+//                 {
+//                     to_dye.push((*pos - Vec2(0, 2), WallBanner(HDir::ZNeg, Orange)));
+//                 }
+//             }
+//         }
+//     }
 
-    for (pos, block) in to_dye {
-        world.set(pos, block);
-    }
-}
+//     for (pos, block) in to_dye {
+//         world.set(pos, block);
+//     }
+// }
 
 fn roof(world: &mut impl WorldView, y: i32, area: Rect, layered: bool, fancy_top: bool) {
     fn roof_ring(world: &mut impl WorldView, y: i32, area: Rect, edge: bool, second_layer: bool) {

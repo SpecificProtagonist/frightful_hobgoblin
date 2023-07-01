@@ -1,8 +1,6 @@
 #![feature(option_get_or_insert_default)]
 
 // Flat module hierarchy is ok for now
-mod behavior;
-mod build_recorder;
 pub mod debug_image;
 mod geometry;
 pub mod make_divider;
@@ -13,8 +11,6 @@ pub mod structures;
 pub mod terraform;
 mod world;
 
-pub use behavior::*;
-pub use build_recorder::*;
 pub use geometry::*;
 pub use world::*;
 

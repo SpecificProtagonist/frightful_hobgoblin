@@ -61,20 +61,3 @@ fn test_fortified_house(world: &mut World) {
         }
     }
 }
-
-fn test_fortified_house_animated(world: &mut World) -> Vec<Villager> {
-    let mut villagers = vec![];
-    let blueprints = castle::generate_blueprints(world);
-    for blueprint in blueprints {
-        let mut view = BuildRecorder::new(world);
-        blueprint.build(&mut view);
-        villagers.push(Villager {
-            name: format!("Test {}", villagers.len()),
-            actions: vec![
-                Action::Walk(vec![Column(0, 0), Column(0, 0)]),
-                Action::Build(view.finish()),
-            ],
-        });
-    }
-    villagers
-}
