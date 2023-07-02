@@ -595,6 +595,7 @@ impl Block {
                 "acacie_leaves" => Leaves(Acacia),
                 "dark_oak_leaves" => Leaves(DarkOak),
                 "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
+                "snow" => SnowLayer, // Todo: store layer
                 "fence" => Fence(Wood(Oak)),
                 "cobblestone_wall" => Fence(MossyCobble),
                 "mossy_cobblestone_wall" => Fence(MossyCobble),

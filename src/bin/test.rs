@@ -11,11 +11,7 @@ fn main() {
 
     let mut world = World::new(SAVE_WRITE_PATH, area);
 
-    for x in -150..150 {
-        for z in -150..150 {
-            world[Pos(x, 100, z)] = Block::SmoothQuartz;
-        }
-    }
+    remove_foliage::trees(&mut world, area.shrink(20).into_iter(), false);
 
     world.save().unwrap();
 }

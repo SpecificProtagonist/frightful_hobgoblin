@@ -591,7 +591,7 @@ impl AddAssign<Vec3> for Pos {
 impl Sub<Vec3> for Pos {
     type Output = Pos;
     fn sub(self, rhs: Vec3) -> Self::Output {
-        Pos(self.0 - rhs.0, rhs.1, self.2 - rhs.2)
+        Pos(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
     }
 }
 

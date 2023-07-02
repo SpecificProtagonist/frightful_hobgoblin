@@ -294,8 +294,8 @@ fn load_chunk(
         .map_err(|_| anyhow!("Chunk read error"))?;
     let version = nbt.get_i32("DataVersion").unwrap();
     if version != 3465 {
-        println!(
-            "Unsupported version: {}. Only 1.20.1 is currently tested.",
+        eprintln!(
+            "Using version {}; only 1.20.1 is currently tested.",
             version
         );
     }
@@ -312,7 +312,6 @@ fn load_chunk(
 
         let block_states = section_nbt.get_compound_tag("block_states").unwrap();
         let palette = block_states.get_compound_tag_vec("palette").unwrap();
-        // Build the palette. Yes, this doesn't deduplicate unrecognised blockstates between sections
         let palette: Vec<Block> = palette.iter().map(|nbt| Block::from_nbt(nbt)).collect();
 
         sections[(y_index + 4) as usize] = Some(Default::default());
@@ -343,7 +342,7 @@ fn load_chunk(
                 if let Some(section) = &sections[(section_index + 4i32) as usize] {
                     for y in (0..16).rev() {
                         let block = &section.blocks[x + z * 16 + y as usize * 16 * 16];
-                        let height = (section_index - 4) * 16 + y;
+                        let height = section_index * 16 + y;
                         if match block {
                             Block::Log(..) => false,
                             _ => block.solid(),
