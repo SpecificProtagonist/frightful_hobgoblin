@@ -3,6 +3,7 @@ name = "mc-gen"
 version = "0.1.0"
 authors = ["Vincent Junge <jungevincent@gmail.com>"]
 edition = "2018"
+default-run = "test"
 
 [profile.dev]
 opt-level = 1

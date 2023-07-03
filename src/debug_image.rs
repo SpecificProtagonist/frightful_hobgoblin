@@ -44,7 +44,7 @@ impl MapImage {
 }
 
 pub fn heightmap(world: &World) -> MapImage {
-    heightmap_with(world, 60, 120)
+    heightmap_with(world, 60, 140)
 }
 
 pub fn heightmap_with(world: &World, min: i32, max: i32) -> MapImage {
@@ -56,7 +56,10 @@ pub fn heightmap_with(world: &World, min: i32, max: i32) -> MapImage {
                 Color::Water
             } else {
                 let height = world.height(column);
-                Color::Grey((height.saturating_sub(min) as u32 * 256 / (max - min) as u32) as u8)
+                Color::Grey(
+                    (((height as f32 - min as f32) / (max as f32 - min as f32)).clamp(0., 255.)
+                        * 255.) as u8,
+                )
             },
         )
     }

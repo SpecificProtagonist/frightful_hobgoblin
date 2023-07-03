@@ -64,6 +64,10 @@ pub struct UnknownBlocks {
 
 pub static UNKNOWN_BLOCKS: LazyLock<RwLock<UnknownBlocks>> = LazyLock::new(default);
 
+pub fn debug_read_unknown(index: u16) -> Blockstate {
+    UNKNOWN_BLOCKS.read().unwrap().states[index as usize].clone()
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum LogType {
@@ -341,7 +345,6 @@ impl Block {
                 Soil::SoulSand => "soul_sand".into(),
             },
             Bedrock => "bedrock".into(),
-            // TODO: water level
             Water => "water".into(),
             Lava => "lava".into(),
             Log(species, log_type) => match log_type {
@@ -567,6 +570,11 @@ impl Block {
             // TODO: expand this
             Some(match name {
                 "air" | "cave_air" => Air,
+                // Let's ignore flowing water for now, maybe revise later
+                "water" => match props.get_str("level") {
+                    Ok("0") => Water,
+                    _ => Air,
+                },
                 "stone" => FullBlock(Stone),
                 "granite" => FullBlock(Granite),
                 "diorite" => FullBlock(Diorite),
