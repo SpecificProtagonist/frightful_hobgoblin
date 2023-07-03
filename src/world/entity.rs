@@ -19,7 +19,7 @@ use EntityType::*;
 
 pub struct Entity {
     pub id: Option<EntityID>,
-    pub pos: Pos,
+    pub pos: Vec3,
     pub data: EntityType,
     pub tags: Vec<String>,
 }
@@ -84,7 +84,7 @@ impl Entity {
         }
 
         nbt.insert(
-            "Pos",
+            "Vec3",
             Tag::List(vec![
                 Tag::Double(self.pos.0 as f64 + 0.5),
                 Tag::Double(self.pos.1 as f64),

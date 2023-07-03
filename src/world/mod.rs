@@ -33,7 +33,6 @@ pub struct World {
     biome: Vec<Biome>,
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
-    pub entities: Vec<Entity>,
     dirty_chunks: Vec<bool>,
 }
 
@@ -88,7 +87,6 @@ impl World {
             biome,
             heightmap,
             watermap,
-            entities: Vec::new(),
             dirty_chunks: vec![false; chunk_count],
         }
     }
@@ -101,18 +99,10 @@ impl World {
         let region_path = region_path.into_os_string().into_string().unwrap();
         let chunk_provider = FolderRegionProvider::new(&region_path);
 
-        let chunk_count = ((self.chunk_max.0 - self.chunk_min.0 + 1)
-            * (self.chunk_max.1 - self.chunk_min.1 + 1)) as usize;
-        let mut entities_chunked = vec![vec![]; chunk_count];
-        for entity in &self.entities {
-            entities_chunked[self.chunk_index(entity.pos.into())].push(entity);
-        }
-
         // Saving isn't thread safe
-        for (((index, sections), entities), dirty) in (self.chunk_min.1..=self.chunk_max.1)
+        for ((index, sections), dirty) in (self.chunk_min.1..=self.chunk_max.1)
             .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
             .zip(self.sections.chunks_exact(24))
-            .zip(entities_chunked)
             .zip(&self.dirty_chunks)
         {
             // Don't save outermost chunks, since we don't modify them & leaving out the border simplifies things
@@ -122,7 +112,7 @@ impl World {
                 & (index.1 > self.chunk_min.1)
                 & (index.1 < self.chunk_max.1)
             {
-                save_chunk(&chunk_provider, index.into(), sections, &entities)
+                save_chunk(&chunk_provider, index.into(), sections)
                     .unwrap_or_else(|_| panic!("Failed to save chunk ({},{}): ", index.0, index.1))
             }
         }
@@ -168,8 +158,8 @@ impl World {
         let min = self.area().center() - Vec2(111, 111);
         let max = self.area().center() + Vec2(111, 111);
         Rect {
-            min: Column((min.0 / 16) * 16, (min.1 / 16) * 16),
-            max: Column((max.0 / 16) * 16 + 15, (max.1 / 16) * 16 + 15),
+            min: Vec2((min.0 / 16) * 16, (min.1 / 16) * 16),
+            max: Vec2((max.0 / 16) * 16 + 15, (max.1 / 16) * 16 + 15),
         }
     }
 
@@ -187,16 +177,16 @@ impl World {
         }
     }
 
-    fn section_index(&self, pos: Pos) -> usize {
+    fn section_index(&self, pos: Vec3) -> usize {
         self.chunk_index(pos.into()) * 24 + (pos.1 / 16 + 4) as usize
     }
 
-    fn column_index(&self, column: Column) -> usize {
+    fn column_index(&self, column: Vec2) -> usize {
         self.chunk_index(column.into()) * 16 * 16
             + (column.0.rem_euclid(16) + column.1.rem_euclid(16) * 16) as usize
     }
 
-    fn block_in_section_index(pos: Pos) -> usize {
+    fn block_in_section_index(pos: Vec3) -> usize {
         (pos.0.rem_euclid(16) + pos.1.rem_euclid(16) * 16 * 16 + pos.2.rem_euclid(16) * 16) as usize
     }
 
@@ -216,13 +206,13 @@ impl World {
 
     pub fn area(&self) -> Rect {
         Rect {
-            min: Column(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
-            max: Column(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
+            min: Vec2(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
+            max: Vec2(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
         }
         .shrink(crate::LOAD_MARGIN)
     }
 
-    pub fn biome(&self, column: Column) -> Biome {
+    pub fn biome(&self, column: Vec2) -> Biome {
         if let Some(biome) = self.biome.get(
             self.chunk_index(column.into()) * 4 * 4
                 + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
@@ -233,29 +223,29 @@ impl World {
         }
     }
 
-    pub fn height(&self, column: Column) -> i32 {
+    pub fn height(&self, column: Vec2) -> i32 {
         self.heightmap[self.column_index(column)]
     }
 
-    pub fn height_mut(&mut self, column: Column) -> &mut i32 {
+    pub fn height_mut(&mut self, column: Vec2) -> &mut i32 {
         let index = self.column_index(column);
         &mut self.heightmap[index]
     }
 
-    pub fn water_level(&self, column: Column) -> Option<i32> {
+    pub fn water_level(&self, column: Vec2) -> Option<i32> {
         self.watermap[self.column_index(column)]
     }
 
-    pub fn water_level_mut(&mut self, column: Column) -> &mut Option<i32> {
+    pub fn water_level_mut(&mut self, column: Vec2) -> &mut Option<i32> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
 }
 
-impl Index<Pos> for World {
+impl Index<Vec3> for World {
     type Output = Block;
 
-    fn index(&self, pos: Pos) -> &Self::Output {
+    fn index(&self, pos: Vec3) -> &Self::Output {
         if let Some(section) = &self.sections[self.section_index(pos)] {
             &section.blocks[Self::block_in_section_index(pos)]
         } else {
@@ -264,8 +254,8 @@ impl Index<Pos> for World {
     }
 }
 
-impl IndexMut<Pos> for World {
-    fn index_mut(&mut self, pos: Pos) -> &mut Self::Output {
+impl IndexMut<Vec3> for World {
+    fn index_mut(&mut self, pos: Vec3) -> &mut Self::Output {
         let chunk_index = self.chunk_index(pos.into());
         self.dirty_chunks[chunk_index] = true;
         let index = self.section_index(pos);
@@ -374,7 +364,6 @@ fn save_chunk(
     chunk_provider: &FolderRegionProvider,
     index: ChunkIndex,
     sections: &[Option<Box<Section>>],
-    entities: &[&Entity],
 ) -> Result<()> {
     chunk_provider
         .get_region(RegionPosition::from_chunk_position(index.0, index.1))?
@@ -383,8 +372,8 @@ fn save_chunk(
             {
                 let mut nbt = CompoundTag::new();
                 nbt.insert_i32("DataVersion", 3465);
-                nbt.insert_i32("xPos", index.0);
-                nbt.insert_i32("zPos", index.1);
+                nbt.insert_i32("xVec3", index.0);
+                nbt.insert_i32("zVec3", index.1);
 
                 nbt.insert_i64("LastUpdate", 0);
                 nbt.insert_i8("TerrainPopulated", 1);
@@ -449,7 +438,7 @@ fn save_chunk(
                                 // Collect TileEntity data
                                 {
                                     let section_base =
-                                        Pos(index.0 * 16, y_index * 16, index.1 * 16);
+                                        Vec3(index.0 * 16, y_index * 16, index.1 * 16);
                                     let pos = section_base
                                         + Vec3(
                                             i as i32 % 16,

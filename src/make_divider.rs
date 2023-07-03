@@ -7,7 +7,7 @@ pub enum DividerType {
     Wall(LineStyle),
 }
 
-pub fn make_divider_single(world: &mut World, start: Column, end: Column, kind: DividerType) {
+pub fn make_divider_single(world: &mut World, start: Vec2, end: Vec2, kind: DividerType) {
     match kind {
         DividerType::Hedge { small } => make_hedge(world, start, end, start, small),
         DividerType::Fence(style) => make_fence(
@@ -24,7 +24,7 @@ pub fn make_divider_single(world: &mut World, start: Column, end: Column, kind: 
 
 pub fn make_divider(
     world: &mut World,
-    mut segments: impl Iterator<Item = (Column, Column)>,
+    mut segments: impl Iterator<Item = (Vec2, Vec2)>,
     kind: DividerType,
 ) {
     let mut make = |(start, end), prev| match kind {
@@ -48,7 +48,7 @@ pub fn make_divider(
     }
 }
 
-fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small: bool) {
+fn make_hedge(world: &mut World, start: Vec2, end: Vec2, prev: Vec2, small: bool) {
     // Maybe have the tree species be a parameter instead for consistency at biome borders?
     let leaf_block = Block::Leaves(world.biome(start).default_tree_species());
     let mut prev = prev.at(0);
@@ -71,7 +71,7 @@ fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small
             if (prev.1 < pos.1) & rand(0.7) {
                 world[prev + Vec3(0, 2, 0)] |= leaf_block;
             }
-            let mut try_place = |col: Column| {
+            let mut try_place = |col: Vec2| {
                 let new_pos = col.at(world.height(col) + 1);
                 if (new_pos.1 == pos.1) | (new_pos.1 == pos.1 + 1) {
                     world[new_pos] |= leaf_block;
@@ -82,12 +82,12 @@ fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small
             };
             if (prev.0 != column.0) & (prev.2 != column.1) {
                 let placed = if rand(2.0 / 3.0) {
-                    try_place(Column(prev.0, column.1))
+                    try_place(Vec2(prev.0, column.1))
                 } else {
                     false
                 };
                 if !placed | rand(0.5) {
-                    try_place(Column(column.0, prev.2));
+                    try_place(Vec2(column.0, prev.2));
                 }
             } else if (column != start) & (column != end) {
                 try_place(
@@ -110,9 +110,9 @@ fn make_hedge(world: &mut World, start: Column, end: Column, prev: Column, small
 // TODO: random mossyness?
 fn make_fence(
     world: &mut World,
-    start: Column,
-    end: Column,
-    prev: Column,
+    start: Vec2,
+    end: Vec2,
+    prev: Vec2,
     material: Material,
     style: LineStyle,
 ) {

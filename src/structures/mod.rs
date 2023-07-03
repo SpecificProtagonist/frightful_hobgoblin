@@ -70,7 +70,7 @@ impl Template {
             .get_compound_tag_vec("entities")?
             .iter()
             .filter_map(|nbt| {
-                let pos = read_pos(nbt.get("blockPos").unwrap());
+                let pos = read_pos(nbt.get("blockVec3").unwrap());
                 let nbt = nbt.get_compound_tag("nbt").unwrap();
                 if let Ok("minecraft:armor_stand") = nbt.get_str("id") {
                     let tags: Vec<String> = nbt
@@ -89,11 +89,11 @@ impl Template {
                         .to_owned();
 
                     let dir = if tags.contains(&String::from("xpos")) {
-                        Some(HDir::XPos)
+                        Some(HDir::XVec3)
                     } else if tags.contains(&String::from("xneg")) {
                         Some(HDir::XNeg)
                     } else if tags.contains(&String::from("zpos")) {
-                        Some(HDir::ZPos)
+                        Some(HDir::ZVec3)
                     } else if tags.contains(&String::from("zneg")) {
                         Some(HDir::ZNeg)
                     } else {
@@ -134,7 +134,7 @@ impl Template {
         })
     }
 
-    pub fn build(&self, world: &mut World, pos: Pos, facing: HDir) {
+    pub fn build(&self, world: &mut World, pos: Vec3, facing: HDir) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         // TODO: better build order
         for (offset, block) in self.blocks.iter() {
@@ -142,11 +142,11 @@ impl Template {
         }
     }
 
-    pub fn build_clipped(&self, world: &mut World, pos: Pos, facing: HDir, area: Rect) {
+    pub fn build_clipped(&self, world: &mut World, pos: Vec3, facing: HDir, area: Rect) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
-            if area.contains(Column(pos.0, pos.2)) {
+            if area.contains(Vec2(pos.0, pos.2)) {
                 world[pos] = block.rotated(rotation);
             }
         }

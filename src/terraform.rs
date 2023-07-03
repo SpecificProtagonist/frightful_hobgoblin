@@ -56,7 +56,7 @@ pub fn make_retaining_wall(world: &mut World, area: &Polygon, height: i32, crest
     }
 }
 
-fn get_filling_soil(world: &World, column: Column) -> Soil {
+fn get_filling_soil(world: &World, column: Vec2) -> Soil {
     if let Soil(soil) = world[column.at(world.height(column))] {
         soil
     } else {
@@ -125,28 +125,28 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
 
     make_support(
         world,
-        ((area.min.0 + 1)..area.max.0).map(|x| Column(x, area.min.1)),
+        ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.min.1)),
         height,
-        HDir::ZPos,
+        HDir::ZVec3,
         material,
     );
     make_support(
         world,
-        ((area.min.0 + 1)..area.max.0).map(|x| Column(x, area.max.1)),
+        ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.max.1)),
         height,
         HDir::ZNeg,
         material,
     );
     make_support(
         world,
-        ((area.min.1 + 1)..area.max.1).map(|z| Column(area.min.0, z)),
+        ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.min.0, z)),
         height,
-        HDir::XPos,
+        HDir::XVec3,
         material,
     );
     make_support(
         world,
-        ((area.min.1 + 1)..area.max.1).map(|z| Column(area.max.0, z)),
+        ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.max.0, z)),
         height,
         HDir::XNeg,
         material,
@@ -154,7 +154,7 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
 
     fn make_support(
         world: &mut World,
-        columns: impl Iterator<Item = Column>,
+        columns: impl Iterator<Item = Vec2>,
         y: i32,
         facing: HDir,
         material: Material,
@@ -186,18 +186,18 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
     }
 }
 
-pub fn soil_exposted(world: &World, pos: Pos) -> bool {
+pub fn soil_exposted(world: &World, pos: Vec3) -> bool {
     matches!(world[pos], Soil(..)) & side_exposted(world, pos)
 }
 
-pub fn side_exposted(world: &World, pos: Pos) -> bool {
+pub fn side_exposted(world: &World, pos: Vec3) -> bool {
     !(world[pos + Vec2(0, 1)].solid()
         && world[pos + Vec2(0, -1)].solid()
         && world[pos + Vec2(1, 0)].solid()
         && world[pos + Vec2(-1, 0)].solid())
 }
 
-pub fn average_height(world: &World, area: impl Iterator<Item = Column>) -> u8 {
+pub fn average_height(world: &World, area: impl Iterator<Item = Vec2>) -> u8 {
     let mut sum = 0.0;
     let mut count = 0;
     for column in area {
@@ -207,7 +207,7 @@ pub fn average_height(world: &World, area: impl Iterator<Item = Column>) -> u8 {
     (sum / count as f32) as u8
 }
 
-pub fn slope(world: &World, column: Column) -> Vec2 {
+pub fn slope(world: &World, column: Vec2) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
         for dz in -1..=1 {
@@ -224,7 +224,7 @@ pub fn slope(world: &World, column: Column) -> Vec2 {
 
 /*
 /// Neighborborhood_size specifies a square. Results aren't fully acurate, but that's ok
-pub fn find_local_maxima(world: &World, area: Rect, neighborhood_size: u8) -> Vec<Pos> {
+pub fn find_local_maxima(world: &World, area: Rect, neighborhood_size: u8) -> Vec<Vec3> {
     // Divide area into cells
     let cell_size = neighborhood_size as i32 / 3;
     let cell_count = area.size() / cell_size;

@@ -56,17 +56,17 @@ fn build_test(world: &mut World, area: Rect, roof_layered: bool, roof_fancy_top:
 //             // Make sure that banners in pairs stay the same color
 //             if rand(ORANGE_BANNER_CHANCE)
 //                 && !((*facing == HDir::XNeg)
-//                     & (matches!(world.get(*pos + Vec2(2, 0)), WallBanner(HDir::XPos, Red))))
+//                     & (matches!(world.get(*pos + Vec2(2, 0)), WallBanner(HDir::XVec3, Red))))
 //                 && !((*facing == HDir::ZNeg)
-//                     & (matches!(world.get(*pos + Vec2(0, 2)), WallBanner(HDir::ZPos, Red))))
+//                     & (matches!(world.get(*pos + Vec2(0, 2)), WallBanner(HDir::ZVec3, Red))))
 //             {
 //                 to_dye.push((*pos, WallBanner(*facing, Orange)));
-//                 if (*facing == HDir::XPos)
+//                 if (*facing == HDir::XVec3)
 //                     && matches!(world.get(*pos - Vec2(2, 0)), WallBanner(HDir::XNeg, Red))
 //                 {
 //                     to_dye.push((*pos - Vec2(2, 0), WallBanner(HDir::XNeg, Orange)));
 //                 }
-//                 if (*facing == HDir::ZPos)
+//                 if (*facing == HDir::ZVec3)
 //                     && matches!(world.get(*pos - Vec2(0, 2)), WallBanner(HDir::ZNeg, Red))
 //                 {
 //                     to_dye.push((*pos - Vec2(0, 2), WallBanner(HDir::ZNeg, Orange)));
@@ -112,40 +112,40 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
         let full_area = area.grow(3);
         let clip_area_xneg = Rect {
             min: full_area.min,
-            max: Column(full_area.center().0, full_area.max.1),
+            max: Vec2(full_area.center().0, full_area.max.1),
         };
         let clip_area_zpos = Rect {
-            min: Column(full_area.min.0, full_area.center().1),
+            min: Vec2(full_area.min.0, full_area.center().1),
             max: full_area.max,
         };
         let clip_area_xpos = Rect {
-            min: Column(full_area.center().0, full_area.min.1),
+            min: Vec2(full_area.center().0, full_area.min.1),
             max: full_area.max,
         };
         let clip_area_zneg = Rect {
             min: full_area.min,
-            max: Column(full_area.max.0, full_area.center().1),
+            max: Vec2(full_area.max.0, full_area.center().1),
         };
 
         // Main sections
         let mut column = area.min + Vec2(0, start);
         while column.1 + check_end < area.max.1 {
-            middle.build_clipped(world, column.at(y), HDir::XPos, clip_area_xneg);
+            middle.build_clipped(world, column.at(y), HDir::XVec3, clip_area_xneg);
             if edge & !second_layer {
                 for x in area.min.0 + 2..=area.max.0 - 2 {
-                    world[Pos(x, y, column.1 - 2)] = Log(Crimson, LogType::FullBark);
-                    world[Pos(x, y, column.1 + 2)] = Log(Crimson, LogType::FullBark);
+                    world[Vec3(x, y, column.1 - 2)] = Log(Crimson, LogType::FullBark);
+                    world[Vec3(x, y, column.1 + 2)] = Log(Crimson, LogType::FullBark);
                 }
             }
             column += Vec2(0, 4);
         }
-        let mut column = Column(area.min.0, area.max.1) + Vec2(start, 0);
+        let mut column = Vec2(area.min.0, area.max.1) + Vec2(start, 0);
         while column.0 + check_end < area.max.0 {
             middle.build_clipped(world, column.at(y), HDir::ZNeg, clip_area_zpos);
             if edge & !second_layer {
                 for z in area.min.1 + 2..=area.max.1 - 2 {
-                    world[Pos(column.0 - 2, y, z)] = Log(Crimson, LogType::FullBark);
-                    world[Pos(column.0 + 2, y, z)] = Log(Crimson, LogType::FullBark);
+                    world[Vec3(column.0 - 2, y, z)] = Log(Crimson, LogType::FullBark);
+                    world[Vec3(column.0 + 2, y, z)] = Log(Crimson, LogType::FullBark);
                 }
             }
             column += Vec2(4, 0);
@@ -155,35 +155,35 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
             middle.build_clipped(world, column.at(y), HDir::XNeg, clip_area_xpos);
             column -= Vec2(0, 4);
         }
-        let mut column = Column(area.max.0, area.min.1) - Vec2(start, 0);
+        let mut column = Vec2(area.max.0, area.min.1) - Vec2(start, 0);
         while column.0 - check_end > area.min.0 {
-            middle.build_clipped(world, column.at(y), HDir::ZPos, clip_area_zneg);
+            middle.build_clipped(world, column.at(y), HDir::ZVec3, clip_area_zneg);
             column -= Vec2(4, 0);
         }
 
         // Corners
         corner.build_clipped(
             world,
-            Pos(area.min.0, y, area.min.1),
-            HDir::XPos,
+            Vec3(area.min.0, y, area.min.1),
+            HDir::XVec3,
             clip_area_xneg.overlap(clip_area_zneg),
         );
         corner.build_clipped(
             world,
-            Pos(area.min.0, y, area.max.1),
+            Vec3(area.min.0, y, area.max.1),
             HDir::ZNeg,
             clip_area_zpos.overlap(clip_area_xneg),
         );
         corner.build_clipped(
             world,
-            Pos(area.max.0, y, area.max.1),
+            Vec3(area.max.0, y, area.max.1),
             HDir::XNeg,
             clip_area_xpos.overlap(clip_area_zpos),
         );
         corner.build_clipped(
             world,
-            Pos(area.max.0, y, area.min.1),
-            HDir::ZPos,
+            Vec3(area.max.0, y, area.min.1),
+            HDir::ZVec3,
             clip_area_zneg.overlap(clip_area_xpos),
         );
     }
@@ -199,12 +199,12 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
         }
     }
 
-    fn roof_top(world: &mut World, center: Pos, length: i32, dir: HDir) {
+    fn roof_top(world: &mut World, center: Vec3, length: i32, dir: HDir) {
         let end = Template::get("dzong/roof_top_end");
         let middle = Template::get("dzong/roof_top_middle");
         let pillar = Template::get("dzong/roof_top_pillar");
-        if matches!(dir, HDir::XNeg | HDir::XPos) {
-            end.build(world, center + Vec2(length / 2, 0), HDir::XPos);
+        if matches!(dir, HDir::XNeg | HDir::XVec3) {
+            end.build(world, center + Vec2(length / 2, 0), HDir::XVec3);
             end.build(world, center - Vec2(length / 2, 0), HDir::XNeg);
             for x_off in 0..=(length / 2 - 3) {
                 let template = if (length / 2 - x_off) % 3 == 0 {
@@ -212,11 +212,11 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
                 } else {
                     middle
                 };
-                template.build(world, center + Vec2(x_off, 0), HDir::XPos);
-                template.build(world, center - Vec2(x_off, 0), HDir::XPos);
+                template.build(world, center + Vec2(x_off, 0), HDir::XVec3);
+                template.build(world, center - Vec2(x_off, 0), HDir::XVec3);
             }
         } else {
-            end.build(world, center + Vec2(0, length / 2), HDir::ZPos);
+            end.build(world, center + Vec2(0, length / 2), HDir::ZVec3);
             end.build(world, center - Vec2(0, length / 2), HDir::ZNeg);
             for z_off in 0..=(length / 2 - 3) {
                 let template = if (length / 2 - z_off) % 3 == 0 {
@@ -224,8 +224,8 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
                 } else {
                     middle
                 };
-                template.build(world, center + Vec2(0, z_off), HDir::ZPos);
-                template.build(world, center - Vec2(0, z_off), HDir::ZPos);
+                template.build(world, center + Vec2(0, z_off), HDir::ZVec3);
+                template.build(world, center - Vec2(0, z_off), HDir::ZVec3);
             }
         }
     }
@@ -246,13 +246,13 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
                 area.center().at(y),
                 size_difference.abs(),
                 if size_difference > 0 {
-                    HDir::XPos
+                    HDir::XVec3
                 } else {
-                    HDir::ZPos
+                    HDir::ZVec3
                 },
             );
         } else {
-            Template::get("dzong/roof_turret").build(world, area.center().at(y), HDir::XPos);
+            Template::get("dzong/roof_turret").build(world, area.center().at(y), HDir::XVec3);
         }
     }
 }

@@ -1,7 +1,7 @@
 use crate::geometry::*;
 use crate::world::*;
 
-pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
+pub fn make_tiny(world: &mut World, base_pos: Vec3, species: TreeSpecies) {
     let log_block = Log(species, LogType::FullBark);
     let leaf_block = Leaves(species);
 
@@ -13,7 +13,7 @@ pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
 
     pos.1 += 1;
     if rand(0.8) {
-        if Column::from(pos) == base_pos.into() {
+        if Vec2::from(pos) == base_pos.into() {
             pos += rand_2(0.3);
         }
         world[pos] = log_block;
@@ -41,7 +41,7 @@ pub fn make_tiny(world: &mut World, base_pos: Pos, species: TreeSpecies) {
     }
 }
 
-pub fn make_straight(world: &mut World, pos: Pos, species: TreeSpecies) {
+pub fn make_straight(world: &mut World, pos: Vec3, species: TreeSpecies) {
     let log_block = Log(species, LogType::FullBark);
     let leaf_block = Leaves(species);
 

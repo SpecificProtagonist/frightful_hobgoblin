@@ -111,7 +111,7 @@ impl Blueprint {
 
         // Privy
         possible_privy_locations.sort_unstable_by_key(|(pos, dir)| {
-            world.height(Column::from(*pos) - Vec2::from(*dir) * 2)
+            world.height(Vec2::from(*pos) - Vec2::from(*dir) * 2)
         });
 
         if let Some((pos, facing)) = possible_privy_locations.first() {
@@ -120,7 +120,7 @@ impl Blueprint {
     }
 }
 
-fn build_floor(world: &mut World, layout: &HashMap<Column, Usage>, floor_y: i32) {
+fn build_floor(world: &mut World, layout: &HashMap<Vec2, Usage>, floor_y: i32) {
     let floor_block = Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
     for (column, usage) in layout {
         if matches!(usage, Usage::FreeInterior) {
@@ -131,7 +131,7 @@ fn build_floor(world: &mut World, layout: &HashMap<Column, Usage>, floor_y: i32)
 
 fn build_walls(
     world: &mut World,
-    layout: &HashMap<Column, Usage>,
+    layout: &HashMap<Vec2, Usage>,
     base_y: i32,
     height: i32,
     fancy_corners: bool,
@@ -186,7 +186,7 @@ fn build_walls(
 }
 
 /// Assumes walls are already build
-fn build_windows(world: &mut World, layout: &HashMap<Column, Usage>, base_y: i32) {
+fn build_windows(world: &mut World, layout: &HashMap<Vec2, Usage>, base_y: i32) {
     for (column, usage) in layout {
         if let Usage::Window(facing) = usage {
             world[column.at(base_y + 1)] =
@@ -198,10 +198,10 @@ fn build_windows(world: &mut World, layout: &HashMap<Column, Usage>, base_y: i32
     }
 }
 
-fn build_privy(world: &mut World, base_pos: Pos, facing: HDir) {
+fn build_privy(world: &mut World, base_pos: Vec3, facing: HDir) {
     Template::get("castle/privy").build(world, base_pos, facing);
 
-    let drop_column = Column::from(base_pos) + Vec2::from(facing);
+    let drop_column = Vec2::from(base_pos) + Vec2::from(facing);
     let drop_column = drop_column
         + if let FullBlock(Cobble) = world[drop_column.at(world.height(drop_column))] {
             Vec2::from(facing)
@@ -226,7 +226,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
         for z in ((world.area().min.1 + probe_distance / 2)..world.area().max.1)
             .step_by(probe_distance as usize)
         {
-            fn ascend(world: &World, column: Column) -> Column {
+            fn ascend(world: &World, column: Vec2) -> Vec2 {
                 let max_dist = 8;
                 let slope = slope(world, column);
                 column
@@ -235,7 +235,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
                         slope.1.clamp(-max_dist, max_dist),
                     )
             }
-            let column = ascend(world, Column(x, z));
+            let column = ascend(world, Vec2(x, z));
             if world.area().contains(column) {
                 let column = ascend(world, column);
                 if world.area().contains(column) {
@@ -258,7 +258,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
 
 // TODO: prefer expanding to border of steep terrain
 // TODO: limit max height difference
-fn find_good_footprint_at(world: &World, pos: Column) -> Option<Blueprint> {
+fn find_good_footprint_at(world: &World, pos: Vec2) -> Option<Blueprint> {
     const MIN_LENGTH: i32 = 5;
     const MAX_LENGTH: i32 = 14;
     const MAX_SECONDARY_LENGTH: i32 = 8;
@@ -282,36 +282,36 @@ fn find_good_footprint_at(world: &World, pos: Column) -> Option<Blueprint> {
         let mut height_diff_x_plus = 0;
         let slope_x_plus = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.height(Column(area.max.0, z));
+                let height = world.height(Vec2(area.max.0, z));
                 check_height_diff(&mut height_diff_x_plus, height);
-                (height - world.height(Column(area.max.0 + 1, z))).abs()
+                (height - world.height(Vec2(area.max.0 + 1, z))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_x_neg = 0;
         let slope_x_neg = (area.min.1..=area.max.1)
             .map(|z| {
-                let height = world.height(Column(area.min.0, z));
+                let height = world.height(Vec2(area.min.0, z));
                 check_height_diff(&mut height_diff_x_neg, height);
-                (height - world.height(Column(area.min.0 - 1, z))).abs()
+                (height - world.height(Vec2(area.min.0 - 1, z))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_plus = 0;
         let slope_z_plus = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.height(Column(x, area.max.1));
+                let height = world.height(Vec2(x, area.max.1));
                 check_height_diff(&mut height_diff_z_plus, height);
-                (height - world.height(Column(x, area.max.1 + 1))).abs()
+                (height - world.height(Vec2(x, area.max.1 + 1))).abs()
             })
             .max()
             .unwrap();
         let mut height_diff_z_neg = 0;
         let slope_z_neg = (area.min.0..=area.max.0)
             .map(|x| {
-                let height = world.height(Column(x, area.min.1));
+                let height = world.height(Vec2(x, area.min.1));
                 check_height_diff(&mut height_diff_z_neg, height);
-                (height - world.height(Column(x, area.min.1 - 1))).abs()
+                (height - world.height(Vec2(x, area.min.1 - 1))).abs()
             })
             .max()
             .unwrap();

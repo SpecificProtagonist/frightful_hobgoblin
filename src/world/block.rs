@@ -497,7 +497,7 @@ impl Block {
         }
     }
 
-    pub fn tile_entity_nbt(&self, pos: Pos) -> Option<CompoundTag> {
+    pub fn tile_entity_nbt(&self, pos: Vec3) -> Option<CompoundTag> {
         match self {
             Bell(..) => {
                 let mut nbt = CompoundTag::new();

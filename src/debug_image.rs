@@ -23,7 +23,7 @@ impl MapImage {
         }
     }
 
-    pub fn set(&mut self, column: Column, color: Color) {
+    pub fn set(&mut self, column: Vec2, color: Color) {
         let pixel = column - self.area.min;
         self.buffer.put_pixel(
             pixel.0 as u32,

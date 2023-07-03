@@ -7,12 +7,6 @@ use std::{
 use num_derive::FromPrimitive;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Pos(pub i32, pub i32, pub i32);
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Column(pub i32, pub i32);
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ChunkIndex(pub i32, pub i32);
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
@@ -27,19 +21,19 @@ pub struct Vec2f(pub f32, pub f32);
 #[derive(Debug, Copy, Clone)]
 /// Both minimum and maximum are inclusive
 pub struct Rect {
-    pub min: Column,
-    pub max: Column,
+    pub min: Vec2,
+    pub max: Vec2,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Cuboid {
-    pub min: Pos,
-    pub max: Pos,
+    pub min: Vec3,
+    pub max: Vec3,
 }
 
-pub struct Polyline(pub Vec<Column>);
+pub struct Polyline(pub Vec<Vec2>);
 // Note: only valid with multiple points
-pub struct Polygon(pub Vec<Column>);
+pub struct Polygon(pub Vec<Vec2>);
 // Todo: areas with shared borders/corners
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
@@ -63,15 +57,15 @@ impl Axis {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum HDir {
-    ZPos,
+    ZVec3,
     XNeg,
     ZNeg,
-    XPos,
+    XVec3,
 }
 
 impl HDir {
     pub fn iter() -> impl Iterator<Item = HDir> {
-        [HDir::ZPos, HDir::XNeg, HDir::ZNeg, HDir::XPos]
+        [HDir::ZVec3, HDir::XNeg, HDir::ZNeg, HDir::XVec3]
             .iter()
             .cloned()
     }
@@ -80,16 +74,16 @@ impl HDir {
         match (self as u8 + turns) % 4 {
             1 => HDir::XNeg,
             2 => HDir::ZNeg,
-            3 => HDir::XPos,
-            _ => HDir::ZPos,
+            3 => HDir::XVec3,
+            _ => HDir::ZVec3,
         }
     }
 
     pub fn to_str(self) -> &'static str {
         match self {
             HDir::ZNeg => "north",
-            HDir::XPos => "east",
-            HDir::ZPos => "south",
+            HDir::XVec3 => "east",
+            HDir::ZVec3 => "south",
             HDir::XNeg => "west",
         }
     }
@@ -101,8 +95,8 @@ impl FromStr for HDir {
     fn from_str(name: &str) -> Result<Self, Self::Err> {
         match name {
             "north" => Ok(HDir::ZNeg),
-            "east" => Ok(HDir::XPos),
-            "south" => Ok(HDir::ZPos),
+            "east" => Ok(HDir::XVec3),
+            "south" => Ok(HDir::ZVec3),
             "west" => Ok(HDir::XNeg),
             _ => Err(()),
         }
@@ -112,11 +106,11 @@ impl FromStr for HDir {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum FullDir {
-    XPos,
+    XVec3,
     XNeg,
-    YPos,
+    YVec3,
     YNeg,
-    ZPos,
+    ZVec3,
     ZNeg,
 }
 
@@ -157,9 +151,9 @@ impl Vec3 {
 impl From<HDir> for Vec2 {
     fn from(dir: HDir) -> Self {
         match dir {
-            HDir::XPos => Vec2(1, 0),
+            HDir::XVec3 => Vec2(1, 0),
             HDir::XNeg => Vec2(-1, 0),
-            HDir::ZPos => Vec2(0, 1),
+            HDir::ZVec3 => Vec2(0, 1),
             HDir::ZNeg => Vec2(0, -1),
         }
     }
@@ -168,11 +162,11 @@ impl From<HDir> for Vec2 {
 impl From<FullDir> for Vec3 {
     fn from(dir: FullDir) -> Self {
         match dir {
-            FullDir::XPos => Vec3(1, 0, 0),
+            FullDir::XVec3 => Vec3(1, 0, 0),
             FullDir::XNeg => Vec3(-1, 0, 0),
-            FullDir::YPos => Vec3(0, 1, 0),
+            FullDir::YVec3 => Vec3(0, 1, 0),
             FullDir::YNeg => Vec3(0, -1, 0),
-            FullDir::ZPos => Vec3(0, 0, 1),
+            FullDir::ZVec3 => Vec3(0, 0, 1),
             FullDir::ZNeg => Vec3(0, 0, -1),
         }
     }
@@ -191,7 +185,7 @@ impl From<Vec2> for Vec3 {
 }
 
 impl Rect {
-    pub fn new_centered(center: Column, size: Vec2) -> Rect {
+    pub fn new_centered(center: Vec2, size: Vec2) -> Rect {
         Rect {
             min: center - size / 2,
             max: center + size / 2,
@@ -202,11 +196,11 @@ impl Rect {
         self.max + Vec2(1, 1) - self.min
     }
 
-    pub fn center(self) -> Column {
+    pub fn center(self) -> Vec2 {
         self.min + self.size() * 0.5
     }
 
-    pub fn contains(self, column: Column) -> bool {
+    pub fn contains(self, column: Vec2) -> bool {
         (self.min.0 <= column.0)
             & (self.min.1 <= column.1)
             & (self.max.0 >= column.0)
@@ -222,8 +216,8 @@ impl Rect {
 
     pub fn overlap(self, other: Rect) -> Rect {
         Rect {
-            min: Column(self.min.0.max(other.min.0), self.min.1.max(other.min.1)),
-            max: Column(self.max.0.min(other.max.0), self.max.1.min(other.max.1)),
+            min: Vec2(self.min.0.max(other.min.0), self.min.1.max(other.min.1)),
+            max: Vec2(self.max.0.min(other.max.0), self.max.1.min(other.max.1)),
         }
     }
 
@@ -238,30 +232,30 @@ impl Rect {
         }
     }
 
-    pub fn border(self) -> impl Iterator<Item = Column> {
+    pub fn border(self) -> impl Iterator<Item = Vec2> {
         (self.min.0..=self.max.0)
-            .map(move |x| Column(x, self.min.1))
-            .chain((self.min.1..=self.max.1).map(move |z| Column(self.max.0, z)))
+            .map(move |x| Vec2(x, self.min.1))
+            .chain((self.min.1..=self.max.1).map(move |z| Vec2(self.max.0, z)))
             .chain(
                 (self.min.0..=self.max.0)
                     .rev()
-                    .map(move |x| Column(x, self.max.1)),
+                    .map(move |x| Vec2(x, self.max.1)),
             )
             .chain(
                 (self.min.1..=self.max.1)
                     .rev()
-                    .map(move |z| Column(self.min.0, z)),
+                    .map(move |z| Vec2(self.min.0, z)),
             )
     }
 }
 
 pub struct RectIter {
     area: Rect,
-    column: Column,
+    column: Vec2,
 }
 
 impl Iterator for RectIter {
-    type Item = Column;
+    type Item = Vec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.area.contains(self.column) {
@@ -279,7 +273,7 @@ impl Iterator for RectIter {
 }
 
 impl IntoIterator for Rect {
-    type Item = Column;
+    type Item = Vec2;
 
     type IntoIter = RectIter;
 
@@ -301,7 +295,7 @@ impl Polyline {
         }
     }
 
-    pub fn segments(&self) -> impl Iterator<Item = (Column, Column)> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
         self.0.iter().cloned().tuple_windows()
     }
 }
@@ -310,11 +304,11 @@ impl Polygon {
     // Test code (not working):
     /*
     let test_polygon = Polygon(vec![
-        Column(-10, -10),
-        Column(0, 10),
-        Column(10, -10),
-        Column(2, -4),
-        Column(-3, 0),
+        Vec2(-10, -10),
+        Vec2(0, 10),
+        Vec2(10, -10),
+        Vec2(2, -4),
+        Vec2(-3, 0),
     ]);
 
     for column in test_polygon.border() {
@@ -326,7 +320,7 @@ impl Polygon {
     */
 
     // TODO important: Make sure this doesn't include borders! (also add version that does)
-    pub fn contains(&self, column: Column) -> bool {
+    pub fn contains(&self, column: Vec2) -> bool {
         let mut inside = false;
 
         // Cast ray in x+ direction
@@ -390,7 +384,7 @@ impl Polygon {
         }
     }
 
-    pub fn segments(&self) -> impl Iterator<Item = (Column, Column)> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
         self.0
             .iter()
             .cloned()
@@ -406,12 +400,12 @@ impl Polygon {
 pub struct PolygonIterator<'a> {
     polygon: &'a Polygon,
     bounds: Rect, // We can't use Rect::iter() here :(
-    current: Column,
+    current: Vec2,
 }
 
 // Todo: look for a more performant solution
 impl Iterator for PolygonIterator<'_> {
-    type Item = Column;
+    type Item = Vec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
@@ -433,14 +427,14 @@ impl Iterator for PolygonIterator<'_> {
 }
 
 pub struct BorderIterator<'a> {
-    points: &'a [Column],
+    points: &'a [Vec2],
     i: usize,
     current_iter: ColumnLineIter,
     closed: bool,
 }
 
 impl Iterator for BorderIterator<'_> {
-    type Item = Column;
+    type Item = Vec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.current_iter.next() {
@@ -468,9 +462,9 @@ impl Iterator for BorderIterator<'_> {
     }
 }
 
-impl Column {
-    pub fn at(self, y: i32) -> Pos {
-        Pos(self.0, y, self.1)
+impl Vec2 {
+    pub fn at(self, y: i32) -> Vec3 {
+        Vec3(self.0, y, self.1)
     }
 
     // Unrelated to std::cmp::min
@@ -483,27 +477,27 @@ impl Column {
     }
 }
 
-impl From<Pos> for Column {
-    fn from(pos: Pos) -> Self {
-        Column(pos.0, pos.2)
+impl From<Vec3> for Vec2 {
+    fn from(pos: Vec3) -> Self {
+        Vec2(pos.0, pos.2)
     }
 }
 
-impl From<(i32, i32)> for Column {
+impl From<(i32, i32)> for Vec2 {
     fn from((x, z): (i32, i32)) -> Self {
-        Column(x, z)
+        Vec2(x, z)
     }
 }
 
-impl From<Column> for ChunkIndex {
-    fn from(column: Column) -> Self {
+impl From<Vec2> for ChunkIndex {
+    fn from(column: Vec2) -> Self {
         ChunkIndex(column.0.div_euclid(16), column.1.div_euclid(16))
     }
 }
 
-impl From<Pos> for ChunkIndex {
-    fn from(pos: Pos) -> Self {
-        Column(pos.0, pos.2).into()
+impl From<Vec3> for ChunkIndex {
+    fn from(pos: Vec3) -> Self {
+        Vec2(pos.0, pos.2).into()
     }
 }
 
@@ -516,24 +510,24 @@ impl From<(i32, i32)> for ChunkIndex {
 impl ChunkIndex {
     pub fn area(self) -> Rect {
         Rect {
-            min: Column(self.0 * 16, self.1 * 16),
-            max: Column(self.0 * 16, self.1 * 16) + Vec2(15, 15),
+            min: Vec2(self.0 * 16, self.1 * 16),
+            max: Vec2(self.0 * 16, self.1 * 16) + Vec2(15, 15),
         }
     }
 }
 
-impl Pos {
+impl Vec3 {
     // Unrelated to std::cmp::min
-    pub fn min(self, other: Pos) -> Pos {
-        Pos(
+    pub fn min(self, other: Vec3) -> Vec3 {
+        Vec3(
             self.0.min(other.0),
             self.1.min(other.1),
             self.2.min(other.2),
         )
     }
 
-    pub fn max(self, other: Pos) -> Pos {
-        Pos(
+    pub fn max(self, other: Vec3) -> Vec3 {
+        Vec3(
             self.0.max(other.0),
             self.1.max(other.1),
             self.2.max(other.2),
@@ -542,7 +536,7 @@ impl Pos {
 }
 
 impl Cuboid {
-    pub fn new(corner_a: Pos, corner_b: Pos) -> Cuboid {
+    pub fn new(corner_a: Vec3, corner_b: Vec3) -> Cuboid {
         Cuboid {
             min: corner_a,
             max: corner_b,
@@ -550,7 +544,7 @@ impl Cuboid {
         .extend_to(corner_b)
     }
 
-    pub fn extend_to(self, pos: Pos) -> Self {
+    pub fn extend_to(self, pos: Vec3) -> Self {
         Cuboid {
             min: self.min.min(pos),
             max: self.max.max(pos),
@@ -561,115 +555,88 @@ impl Cuboid {
         self.max - self.min + Vec3(1, 1, 1)
     }
 
-    pub fn iter(self) -> impl Iterator<Item = Pos> {
+    pub fn iter(self) -> impl Iterator<Item = Vec3> {
         (self.min.1..=self.max.1)
             .flat_map(move |y| (self.min.2..=self.max.2).map(move |z| (y, z)))
-            .flat_map(move |(y, z)| (self.min.0..=self.max.0).map(move |x| Pos(x, y, z)))
+            .flat_map(move |(y, z)| (self.min.0..=self.max.0).map(move |x| Vec3(x, y, z)))
     }
 }
 
-impl Sub<Pos> for Pos {
+impl Sub<Vec3> for Vec3 {
     type Output = Vec3;
-    fn sub(self, rhs: Pos) -> Self::Output {
+    fn sub(self, rhs: Vec3) -> Self::Output {
         Vec3(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
     }
 }
 
-impl Add<Vec3> for Pos {
-    type Output = Pos;
+impl Add<Vec3> for Vec3 {
+    type Output = Vec3;
     fn add(self, rhs: Vec3) -> Self::Output {
-        Pos(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
+        Vec3(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
     }
 }
 
-impl AddAssign<Vec3> for Pos {
+impl AddAssign<Vec3> for Vec3 {
     fn add_assign(&mut self, rhs: Vec3) {
         *self = *self + rhs;
     }
 }
 
-impl Sub<Vec3> for Pos {
-    type Output = Pos;
-    fn sub(self, rhs: Vec3) -> Self::Output {
-        Pos(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
-    }
-}
-
-impl SubAssign<Vec3> for Pos {
+impl SubAssign<Vec3> for Vec3 {
     fn sub_assign(&mut self, rhs: Vec3) {
         *self = *self - rhs;
     }
 }
 
-impl Add<Vec2> for Pos {
-    type Output = Pos;
+impl Add<Vec2> for Vec3 {
+    type Output = Vec3;
     fn add(self, rhs: Vec2) -> Self::Output {
-        Pos(self.0 + rhs.0, self.1, self.2 + rhs.1)
+        Vec3(self.0 + rhs.0, self.1, self.2 + rhs.1)
     }
 }
 
-impl AddAssign<Vec2> for Pos {
+impl AddAssign<Vec2> for Vec3 {
     fn add_assign(&mut self, rhs: Vec2) {
         *self = *self + rhs;
     }
 }
 
-impl Sub<Vec2> for Pos {
-    type Output = Pos;
+impl Sub<Vec2> for Vec3 {
+    type Output = Vec3;
     fn sub(self, rhs: Vec2) -> Self::Output {
-        Pos(self.0 - rhs.0, self.1, self.2 - rhs.1)
+        Vec3(self.0 - rhs.0, self.1, self.2 - rhs.1)
     }
 }
 
-impl SubAssign<Vec2> for Pos {
+impl SubAssign<Vec2> for Vec3 {
     fn sub_assign(&mut self, rhs: Vec2) {
         *self = *self - rhs;
     }
 }
 
-impl Sub<Column> for Column {
+impl Sub<Vec2> for Vec2 {
     type Output = Vec2;
-    fn sub(self, rhs: Column) -> Self::Output {
-        Vec2(self.0 - rhs.0, self.1 - rhs.1)
-    }
-}
-
-impl Add<Vec2> for Column {
-    type Output = Column;
-    fn add(self, rhs: Vec2) -> Self::Output {
-        Column(self.0 + rhs.0, self.1 + rhs.1)
-    }
-}
-
-impl AddAssign<Vec2> for Column {
-    fn add_assign(&mut self, rhs: Vec2) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub<Vec2> for Column {
-    type Output = Column;
     fn sub(self, rhs: Vec2) -> Self::Output {
-        Column(self.0 - rhs.0, self.1 - rhs.1)
-    }
-}
-
-impl SubAssign<Vec2> for Column {
-    fn sub_assign(&mut self, rhs: Vec2) {
-        *self = *self - rhs;
+        Vec2(self.0 - rhs.0, self.1 - rhs.1)
     }
 }
 
 impl Add<Vec2> for Vec2 {
     type Output = Vec2;
     fn add(self, rhs: Vec2) -> Self::Output {
-        Self(self.0 + rhs.0, self.1 + rhs.1)
+        Vec2(self.0 + rhs.0, self.1 + rhs.1)
     }
 }
 
 impl AddAssign<Vec2> for Vec2 {
     fn add_assign(&mut self, rhs: Vec2) {
         *self = *self + rhs;
+    }
+}
+
+impl SubAssign<Vec2> for Vec2 {
+    fn sub_assign(&mut self, rhs: Vec2) {
+        *self = *self - rhs;
     }
 }
 
@@ -725,38 +692,12 @@ impl RemAssign<i32> for Vec2 {
     }
 }
 
-impl Add<Vec3> for Vec3 {
-    type Output = Vec3;
-    fn add(self, rhs: Vec3) -> Self::Output {
-        Vec3(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
-    }
-}
-
-impl AddAssign<Vec3> for Vec3 {
-    fn add_assign(&mut self, rhs: Vec3) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub<Vec3> for Vec3 {
-    type Output = Vec3;
-    fn sub(self, rhs: Vec3) -> Self::Output {
-        Vec3(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
-    }
-}
-
-impl SubAssign<Vec3> for Vec3 {
-    fn sub_assign(&mut self, rhs: Vec3) {
-        *self = *self - rhs;
-    }
-}
-
 // TODO important: bool/enum whether to column should neighbor directly or whether diagonally is enough
 pub struct ColumnLineIter {
     inner: bresenham::Bresenham,
     style: LineStyle,
-    prev: Column,
-    enqueued: Option<Column>,
+    prev: Vec2,
+    enqueued: Option<Vec2>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -770,13 +711,13 @@ pub enum LineStyle {
 }
 
 impl Iterator for ColumnLineIter {
-    type Item = Column;
+    type Item = Vec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(column) = self.enqueued.take() {
             return Some(column);
         }
-        let next = self.inner.next().map(|(x, z)| Column(x as i32, z as i32))?;
+        let next = self.inner.next().map(|(x, z)| Vec2(x as i32, z as i32))?;
 
         if self.style == LineStyle::Thin {
             return Some(next);
@@ -785,18 +726,18 @@ impl Iterator for ColumnLineIter {
         if (self.prev.0 != next.0) & (self.prev.1 != next.1) {
             let interpol = if self.style == LineStyle::ThickWobbly {
                 if rand(0.5) {
-                    Column(self.prev.0, next.1)
+                    Vec2(self.prev.0, next.1)
                 } else {
-                    Column(next.0, self.prev.1)
+                    Vec2(next.0, self.prev.1)
                 }
             } else if self.prev.0 < next.0 {
-                Column(self.prev.0, next.1)
+                Vec2(self.prev.0, next.1)
             } else if self.prev.0 > next.0 {
-                Column(next.0, self.prev.1)
+                Vec2(next.0, self.prev.1)
             } else if self.prev.1 < next.1 {
-                Column(self.prev.0, next.1)
+                Vec2(self.prev.0, next.1)
             } else {
-                Column(next.0, self.prev.1)
+                Vec2(next.0, self.prev.1)
             };
             self.enqueued = Some(next);
             self.prev = next;
@@ -809,7 +750,7 @@ impl Iterator for ColumnLineIter {
 }
 
 impl ColumnLineIter {
-    pub fn new(start: Column, end: Column, style: LineStyle) -> ColumnLineIter {
+    pub fn new(start: Vec2, end: Vec2, style: LineStyle) -> ColumnLineIter {
         ColumnLineIter {
             inner: bresenham::Bresenham::new(
                 (start.0 as isize, start.1 as isize),

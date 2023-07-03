@@ -11,13 +11,13 @@ use crate::{remove_foliage, terraform::*};
 // (with stumps) can be shown in preparation of future fields
 
 pub struct Blueprint {
-    start: Column, // only for debug purposes
-    area: HashSet<Column>,
-    border: HashSet<Column>,
+    start: Vec2, // only for debug purposes
+    area: HashSet<Vec2>,
+    border: HashSet<Vec2>,
 }
 
 impl Blueprint {
-    pub fn new(world: &World, start: Column) -> Option<Blueprint> {
+    pub fn new(world: &World, start: Vec2) -> Option<Blueprint> {
         // Spread from starting point, avoiding slopes
         // TODO: make more circular (and maybe a bit random), currently Manhatten on flat ground
         const START_STRENGTH: f32 = 20.0;
@@ -95,7 +95,7 @@ impl Blueprint {
             if rand(SCARECROW_CHANCE)
                 && scarecrows
                     .iter()
-                    .all(|existing: &Column| (*column - *existing).len() > MIN_SCARECROW_DISTANCE)
+                    .all(|existing: &Vec2| (*column - *existing).len() > MIN_SCARECROW_DISTANCE)
             {
                 scarecrows.push(*column);
                 make_scarecrow(world, *column);
@@ -123,7 +123,7 @@ pub fn make_hedge_edge(world: &mut World, fields: &[Blueprint]) {
 
 // NaN is why we can't have nice things
 #[derive(PartialEq)]
-struct Considered(Column, f32);
+struct Considered(Vec2, f32);
 
 impl Eq for Considered {}
 
@@ -139,7 +139,7 @@ impl Ord for Considered {
     }
 }
 
-pub fn make_scarecrow(world: &mut World, column: Column) {
+pub fn make_scarecrow(world: &mut World, column: Vec2) {
     let mut pos = column.at(world.height(column) + 1);
     let fence_block = Fence(Wood(world.biome(column).random_tree_species()));
     let direction = HDir::from_u8(thread_rng().gen_range(0, 4)).unwrap();
