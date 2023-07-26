@@ -43,19 +43,19 @@ impl MapImage {
     }
 }
 
-pub fn heightmap(world: &World) -> MapImage {
-    heightmap_with(world, 60, 140)
+pub fn heightmap(level: &Level) -> MapImage {
+    heightmap_with(level, 60, 140)
 }
 
-pub fn heightmap_with(world: &World, min: i32, max: i32) -> MapImage {
-    let mut image = MapImage::new(world.area());
-    for column in world.area() {
+pub fn heightmap_with(level: &Level, min: i32, max: i32) -> MapImage {
+    let mut image = MapImage::new(level.area());
+    for column in level.area() {
         image.set(
             column,
-            if world.water_level(column).is_some() {
+            if level.water_level(column).is_some() {
                 Color::Water
             } else {
-                let height = world.height(column);
+                let height = level.height(column);
                 Color::Grey(
                     (((height as f32 - min as f32) / (max as f32 - min as f32)).clamp(0., 255.)
                         * 255.) as u8,

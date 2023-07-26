@@ -2,7 +2,7 @@ use crate::*;
 use structures::Template;
 use terraform::*;
 
-pub fn test(world: &mut World) {
+pub fn test(world: &mut Level) {
     build_test(
         world,
         Rect::new_centered(world.area().center(), Vec2(11, 19)),
@@ -25,7 +25,7 @@ pub fn test(world: &mut World) {
     );
 }
 
-fn build_test(world: &mut World, area: Rect, roof_layered: bool, roof_fancy_top: bool) {
+fn build_test(world: &mut Level, area: Rect, roof_layered: bool, roof_fancy_top: bool) {
     remove_foliage::trees(world, area.into_iter(), false);
 
     let base_y = world.height(area.center());
@@ -80,8 +80,8 @@ fn build_test(world: &mut World, area: Rect, roof_layered: bool, roof_fancy_top:
 //     }
 // }
 
-fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
-    fn roof_ring(world: &mut World, y: i32, area: Rect, edge: bool, second_layer: bool) {
+fn roof(world: &mut Level, y: i32, area: Rect, layered: bool, fancy_top: bool) {
+    fn roof_ring(world: &mut Level, y: i32, area: Rect, edge: bool, second_layer: bool) {
         let (start, check_end, corner, middle) = if edge {
             if second_layer {
                 (
@@ -188,7 +188,7 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
         );
     }
 
-    fn roof_layer(world: &mut World, y: i32, area: Rect, second_layer: bool) {
+    fn roof_layer(world: &mut Level, y: i32, area: Rect, second_layer: bool) {
         roof_ring(world, y, area, true, second_layer);
         let mut y = if second_layer { y + 3 } else { y + 2 };
         let mut area = area.shrink(2);
@@ -199,7 +199,7 @@ fn roof(world: &mut World, y: i32, area: Rect, layered: bool, fancy_top: bool) {
         }
     }
 
-    fn roof_top(world: &mut World, center: Vec3, length: i32, dir: HDir) {
+    fn roof_top(world: &mut Level, center: Vec3, length: i32, dir: HDir) {
         let end = Template::get("dzong/roof_top_end");
         let middle = Template::get("dzong/roof_top_middle");
         let pillar = Template::get("dzong/roof_top_pillar");

@@ -1,7 +1,6 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    default::default,
     fmt::Display,
     mem::size_of,
     str::FromStr,
@@ -9,7 +8,7 @@ use std::{
 };
 
 pub use self::GroundPlant::*;
-use crate::{geometry::*, HashMap};
+use crate::{default, geometry::*, HashMap};
 use nbt::CompoundTag;
 use num_derive::FromPrimitive;
 
@@ -30,6 +29,7 @@ pub enum Block {
     Water,
     Lava,
     Soil(Soil),
+    // TODO: stripped logs
     Log(TreeSpecies, LogType),
     Leaves(TreeSpecies),
     GroundPlant(GroundPlant),
@@ -56,7 +56,7 @@ const _: () = assert!(size_of::<Block>() == 4);
 /// Used to deduplicate unknown blocks.
 /// Does not affect performance but greatly reduced memory usage
 /// (block only 4 bytes, fewer boxes → 1000×1000 fits into 1 gb ).
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct UnknownBlocks {
     map: HashMap<Blockstate, u16>,
     states: Vec<Blockstate>,
@@ -86,6 +86,8 @@ pub enum TreeSpecies {
     DarkOak,
     Warped,
     Crimson,
+    Mangrove,
+    Cherry,
 }
 
 impl TreeSpecies {
@@ -99,6 +101,8 @@ impl TreeSpecies {
             DarkOak => "dark_oak",
             Warped => "warped",
             Crimson => "crimson",
+            Mangrove => "mangrove",
+            Cherry => "cherry",
         }
     }
 }
@@ -596,6 +600,8 @@ impl Block {
                 "jungle_log" => log(Jungle, props),
                 "acacia_log" => log(Acacia, props),
                 "dark_oak_log" => log(DarkOak, props),
+                "mangrove_log" => log(Mangrove, props),
+                "cherry_log" => log(Cherry, props),
                 "oak_leaves" => Leaves(Oak),
                 "spruce_leaves" => Leaves(Spruce),
                 "birch_leaves" => Leaves(Birch),

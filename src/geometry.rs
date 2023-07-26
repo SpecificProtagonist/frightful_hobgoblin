@@ -1,5 +1,7 @@
+use bevy_ecs::prelude::Component;
 use itertools::Itertools;
 use std::{
+    fmt::Display,
     ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign},
     str::FromStr,
 };
@@ -12,10 +14,16 @@ pub struct ChunkIndex(pub i32, pub i32);
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Vec3(pub i32, pub i32, pub i32);
 
+impl Display for Vec3 {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.0, self.1, self.2)
+    }
+}
+
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct Vec2(pub i32, pub i32);
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Copy, Clone, PartialEq, Component)]
 pub struct Vec2f(pub f32, pub f32);
 
 #[derive(Debug, Copy, Clone)]

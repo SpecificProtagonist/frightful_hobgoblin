@@ -28,3 +28,4 @@ hashlink = "0.6"
 image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
 hierarchical_pathfinding = "0.3.6"
 hashbrown = "0.14.0"
+bevy_ecs = "0.11"

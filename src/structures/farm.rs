@@ -4,7 +4,7 @@ use num_traits::FromPrimitive;
 use rand::prelude::*;
 
 use crate::geometry::*;
-use crate::world::*;
+use crate::level::*;
 use crate::{remove_foliage, terraform::*};
 
 // Future note: If there are trees in the way, return two stages, so choped woods
@@ -17,7 +17,7 @@ pub struct Blueprint {
 }
 
 impl Blueprint {
-    pub fn new(world: &World, start: Vec2) -> Option<Blueprint> {
+    pub fn new(world: &Level, start: Vec2) -> Option<Blueprint> {
         // Spread from starting point, avoiding slopes
         // TODO: make more circular (and maybe a bit random), currently Manhatten on flat ground
         const START_STRENGTH: f32 = 20.0;
@@ -82,7 +82,7 @@ impl Blueprint {
         }
     }
 
-    pub fn render(&self, world: &mut World) {
+    pub fn render(&self, world: &mut Level) {
         // TODO: border, esp on downwards edge
         remove_foliage::trees(world, self.area.iter().cloned(), false);
 
@@ -107,7 +107,7 @@ impl Blueprint {
     }
 }
 
-pub fn make_hedge_edge(world: &mut World, fields: &[Blueprint]) {
+pub fn make_hedge_edge(world: &mut Level, fields: &[Blueprint]) {
     for i in 0..fields.len() {
         'outer: for column in &fields[i].border {
             for other_field in &fields[i + 1..] {
@@ -139,7 +139,7 @@ impl Ord for Considered {
     }
 }
 
-pub fn make_scarecrow(world: &mut World, column: Vec2) {
+pub fn make_scarecrow(world: &mut Level, column: Vec2) {
     let mut pos = column.at(world.height(column) + 1);
     let fence_block = Fence(Wood(world.biome(column).random_tree_species()));
     let direction = HDir::from_u8(thread_rng().gen_range(0, 4)).unwrap();

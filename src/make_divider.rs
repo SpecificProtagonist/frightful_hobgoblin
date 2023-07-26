@@ -7,37 +7,37 @@ pub enum DividerType {
     Wall(LineStyle),
 }
 
-pub fn make_divider_single(world: &mut World, start: Vec2, end: Vec2, kind: DividerType) {
+pub fn make_divider_single(level: &mut Level, start: Vec2, end: Vec2, kind: DividerType) {
     match kind {
-        DividerType::Hedge { small } => make_hedge(world, start, end, start, small),
+        DividerType::Hedge { small } => make_hedge(level, start, end, start, small),
         DividerType::Fence(style) => make_fence(
-            world,
+            level,
             start,
             end,
             start,
-            Wood(world.biome(start).default_tree_species()),
+            Wood(level.biome(start).default_tree_species()),
             style,
         ),
-        DividerType::Wall(style) => make_fence(world, start, end, start, Cobble, style),
+        DividerType::Wall(style) => make_fence(level, start, end, start, Cobble, style),
     }
 }
 
 pub fn make_divider(
-    world: &mut World,
+    level: &mut Level,
     mut segments: impl Iterator<Item = (Vec2, Vec2)>,
     kind: DividerType,
 ) {
     let mut make = |(start, end), prev| match kind {
-        DividerType::Hedge { small } => make_hedge(world, start, end, prev, small),
+        DividerType::Hedge { small } => make_hedge(level, start, end, prev, small),
         DividerType::Fence(style) => make_fence(
-            world,
+            level,
             start,
             end,
             prev,
-            Wood(world.biome(start).default_tree_species()),
+            Wood(level.biome(start).default_tree_species()),
             style,
         ),
-        DividerType::Wall(style) => make_fence(world, start, end, prev, Cobble, style),
+        DividerType::Wall(style) => make_fence(level, start, end, prev, Cobble, style),
     };
     if let Some(mut segment) = segments.next() {
         make(segment, segment.0);
@@ -48,33 +48,33 @@ pub fn make_divider(
     }
 }
 
-fn make_hedge(world: &mut World, start: Vec2, end: Vec2, prev: Vec2, small: bool) {
+fn make_hedge(level: &mut Level, start: Vec2, end: Vec2, prev: Vec2, small: bool) {
     // Maybe have the tree species be a parameter instead for consistency at biome borders?
-    let leaf_block = Block::Leaves(world.biome(start).default_tree_species());
+    let leaf_block = Block::Leaves(level.biome(start).default_tree_species());
     let mut prev = prev.at(0);
     for column in ColumnLineIter::new(start, end, LineStyle::ThickWobbly) {
-        let pos = column.at(world.height(column) + 1);
-        world[pos] |= leaf_block;
+        let pos = column.at(level.height(column) + 1);
+        level[pos] |= leaf_block;
         if prev.1 > pos.1 {
-            world[pos + Vec3(0, 1, 0)] |= leaf_block;
+            level[pos + Vec3(0, 1, 0)] |= leaf_block;
         }
         if prev.1 < pos.1 {
-            world[prev + Vec3(0, 1, 0)] |= leaf_block;
+            level[prev + Vec3(0, 1, 0)] |= leaf_block;
         }
         if !small {
             if rand(0.8) {
-                world[pos + Vec3(0, 1, 0)] |= leaf_block;
+                level[pos + Vec3(0, 1, 0)] |= leaf_block;
             }
             if (prev.1 > pos.1) & rand(0.7) {
-                world[pos + Vec3(0, 2, 0)] |= leaf_block;
+                level[pos + Vec3(0, 2, 0)] |= leaf_block;
             }
             if (prev.1 < pos.1) & rand(0.7) {
-                world[prev + Vec3(0, 2, 0)] |= leaf_block;
+                level[prev + Vec3(0, 2, 0)] |= leaf_block;
             }
             let mut try_place = |col: Vec2| {
-                let new_pos = col.at(world.height(col) + 1);
+                let new_pos = col.at(level.height(col) + 1);
                 if (new_pos.1 == pos.1) | (new_pos.1 == pos.1 + 1) {
-                    world[new_pos] |= leaf_block;
+                    level[new_pos] |= leaf_block;
                     true
                 } else {
                     false
@@ -109,23 +109,23 @@ fn make_hedge(world: &mut World, start: Vec2, end: Vec2, prev: Vec2, small: bool
 // (best fix: raise ground in that case, but only in that case. If that's too hard, maybe just set chattep movement rate to 0)
 // TODO: random mossyness?
 fn make_fence(
-    world: &mut World,
+    level: &mut Level,
     start: Vec2,
     end: Vec2,
     prev: Vec2,
     material: Material,
     style: LineStyle,
 ) {
-    let mut prev = prev.at(world.height(prev) + 1);
+    let mut prev = prev.at(level.height(prev) + 1);
     for column in ColumnLineIter::new(start, end, style) {
-        let pos = column.at(world.height(column) + 1);
-        world[pos] |= Fence(material);
+        let pos = column.at(level.height(column) + 1);
+        level[pos] |= Fence(material);
         // Bride height variation (don't bother if too steep)
         if prev.1 == pos.1 + 1 {
-            world[pos + Vec3(0, 1, 0)] |= Fence(material);
+            level[pos + Vec3(0, 1, 0)] |= Fence(material);
         }
         if prev.1 + 1 == pos.1 {
-            world[prev + Vec3(0, 1, 0)] |= Fence(material);
+            level[prev + Vec3(0, 1, 0)] |= Fence(material);
         }
         prev = pos;
     }

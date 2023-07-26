@@ -1,22 +1,27 @@
 #![feature(option_get_or_insert_default)]
 #![feature(local_key_cell_methods)]
-#![feature(default_free_fn)]
 #![feature(lazy_cell)]
+#![allow(dead_code)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;
 mod geometry;
-pub mod make_divider;
+mod level;
+// pub mod make_divider;
 pub mod make_name;
 pub mod make_trees;
 pub mod remove_foliage;
+pub mod sim;
 pub mod structures;
-pub mod terraform;
-mod world;
+// pub mod terraform;
 
 pub use geometry::*;
 pub use hashbrown::HashMap;
-pub use world::*;
+pub use level::*;
+
+pub fn default<T: Default>() -> T {
+    Default::default()
+}
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;

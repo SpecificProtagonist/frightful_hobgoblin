@@ -9,67 +9,67 @@ pub enum WallCrest {
     Wall,
 }
 
-pub fn make_retaining_wall(world: &mut World, area: &Polygon, height: i32, crest: WallCrest) {
+pub fn make_retaining_wall(level: &mut Level, area: &Polygon, height: i32, crest: WallCrest) {
     let material = Cobble;
     // Placement order matters for replay -> build wall first
     let crest = match crest {
         WallCrest::None => Air,
         WallCrest::Full => FullBlock(material),
-        WallCrest::Fence => Block::Fence(Wood(world.biome(area.0[0]).default_tree_species())),
+        WallCrest::Fence => Block::Fence(Wood(level.biome(area.0[0]).default_tree_species())),
         WallCrest::Wall => Fence(material),
     };
 
     for column in area.border(LineStyle::ThickWobbly) {
-        let mut y = world.height(column);
+        let mut y = level.height(column);
         // Check if wall is neccessary
-        if y > height || (y == height && !side_exposted(world, column.at(y))) {
+        if y > height || (y == height && !side_exposted(level, column.at(y))) {
             // Todo: also skip this column if the only exposed side is within the polygon
             continue;
         }
 
         // Build wall
-        while matches!(world[column.at(y)], Soil(_)) {
+        while matches!(level[column.at(y)], Soil(_)) {
             y -= 1;
         }
         for y in y..=height {
-            world[column.at(y)] = FullBlock(material)
+            level[column.at(y)] = FullBlock(material)
         }
-        let above = &mut world[column.at(height + 1)];
+        let above = &mut level[column.at(height + 1)];
         if matches!((crest, &above), (Air, GroundPlant(_))) {
             *above = Air
         } else {
             *above = crest
         }
 
-        *world.height_mut(column) = height;
+        *level.height_mut(column) = height;
     }
 
     // Then fill
     // TODO: bottom to top
     for column in area.iter() {
-        if world.height(column) < height {
-            for y in world.height(column)..=height {
-                world[column.at(y)] = Soil(get_filling_soil(world, column))
+        if level.height(column) < height {
+            for y in level.height(column)..=height {
+                level[column.at(y)] = Soil(get_filling_soil(level, column))
             }
-            *world.height_mut(column) = height;
+            *level.height_mut(column) = height;
         }
     }
 }
 
-fn get_filling_soil(world: &World, column: Vec2) -> Soil {
-    if let Soil(soil) = world[column.at(world.height(column))] {
+fn get_filling_soil(level: &Level, column: Vec2) -> Soil {
+    if let Soil(soil) = level[column.at(level.height(column))] {
         soil
     } else {
-        world.biome(column).default_topsoil()
+        level.biome(column).default_topsoil()
     }
 }
 
-pub fn make_foundation_sloped(world: &mut World, mut area: Rect, height: i32, material: Material) {
+pub fn make_foundation_sloped(level: &mut Level, mut area: Rect, height: i32, material: Material) {
     // TODO: proper placement order
 
-    remove_foliage::trees(world, area.into_iter(), false);
+    remove_foliage::trees(level, area.into_iter(), false);
     for column in area {
-        world[column.at(height)] = FullBlock(material);
+        level[column.at(height)] = FullBlock(material);
     }
 
     let mut y = height - 1;
@@ -80,19 +80,19 @@ pub fn make_foundation_sloped(world: &mut World, mut area: Rect, height: i32, ma
     while block_placed_this_layer {
         block_placed_this_layer = false;
         for column in area.shrink(1) {
-            world[column.at(y)] |= FullBlock(material);
+            level[column.at(y)] |= FullBlock(material);
         }
         for column in area.border() {
-            if !world[column.at(y)].solid() || side_exposted(world, column.at(y)) {
+            if !level[column.at(y)].solid() || side_exposted(level, column.at(y)) {
                 block_placed_this_layer = true;
-                world[column.at(y)] = FullBlock(material);
+                level[column.at(y)] = FullBlock(material);
             }
         }
         if outmost_is_wall {
             for column in area.grow(1).border() {
-                if !world[column.at(y)].solid() {
+                if !level[column.at(y)].solid() {
                     block_placed_this_layer = true;
-                    world[column.at(y)] = Fence(material);
+                    level[column.at(y)] = Fence(material);
                 }
             }
         }
@@ -109,43 +109,43 @@ pub fn make_foundation_sloped(world: &mut World, mut area: Rect, height: i32, ma
     }
 }
 
-pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, material: Material) {
+pub fn make_foundation_straight(level: &mut Level, area: Rect, height: i32, material: Material) {
     for column in area {
-        world[column.at(height)] = FullBlock(material);
+        level[column.at(height)] = FullBlock(material);
         let mut y = height - 1;
-        let ground_height = world.height(column);
-        while (y > ground_height) | soil_exposted(world, column.at(y)) {
-            world[column.at(y)] = FullBlock(material);
+        let ground_height = level.height(column);
+        while (y > ground_height) | soil_exposted(level, column.at(y)) {
+            level[column.at(y)] = FullBlock(material);
             y -= 1;
         }
         for y in (height + 1)..=ground_height {
-            world[column.at(y)] = Air;
+            level[column.at(y)] = Air;
         }
     }
 
     make_support(
-        world,
+        level,
         ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.min.1)),
         height,
         HDir::ZVec3,
         material,
     );
     make_support(
-        world,
+        level,
         ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.max.1)),
         height,
         HDir::ZNeg,
         material,
     );
     make_support(
-        world,
+        level,
         ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.min.0, z)),
         height,
         HDir::XVec3,
         material,
     );
     make_support(
-        world,
+        level,
         ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.max.0, z)),
         height,
         HDir::XNeg,
@@ -153,7 +153,7 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
     );
 
     fn make_support(
-        world: &mut World,
+        level: &mut Level,
         columns: impl Iterator<Item = Vec2>,
         y: i32,
         facing: HDir,
@@ -165,8 +165,8 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
         let mut just_placed = false;
         for column in columns {
             let column = column - Vec2::from(facing);
-            let mut ground_distance = y.saturating_sub(world.height(column));
-            while soil_exposted(world, column.at(y - ground_distance - 1)) {
+            let mut ground_distance = y.saturating_sub(level.height(column));
+            while soil_exposted(level, column.at(y - ground_distance - 1)) {
                 ground_distance += 1;
             }
             just_placed = if (ground_distance >= min_height)
@@ -174,9 +174,9 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
                 & !just_placed
                 & rand(support_chance)
             {
-                world[column.at(y)] = Stair(material, facing, Flipped(false));
+                level[column.at(y)] = Stair(material, facing, Flipped(false));
                 for y in y - ground_distance..y {
-                    world[column.at(y)] = FullBlock(material);
+                    level[column.at(y)] = FullBlock(material);
                 }
                 true
             } else {
@@ -186,32 +186,32 @@ pub fn make_foundation_straight(world: &mut World, area: Rect, height: i32, mate
     }
 }
 
-pub fn soil_exposted(world: &World, pos: Vec3) -> bool {
-    matches!(world[pos], Soil(..)) & side_exposted(world, pos)
+pub fn soil_exposted(level: &Level, pos: Vec3) -> bool {
+    matches!(level[pos], Soil(..)) & side_exposted(level, pos)
 }
 
-pub fn side_exposted(world: &World, pos: Vec3) -> bool {
-    !(world[pos + Vec2(0, 1)].solid()
-        && world[pos + Vec2(0, -1)].solid()
-        && world[pos + Vec2(1, 0)].solid()
-        && world[pos + Vec2(-1, 0)].solid())
+pub fn side_exposted(level: &Level, pos: Vec3) -> bool {
+    !(level[pos + Vec2(0, 1)].solid()
+        && level[pos + Vec2(0, -1)].solid()
+        && level[pos + Vec2(1, 0)].solid()
+        && level[pos + Vec2(-1, 0)].solid())
 }
 
-pub fn average_height(world: &World, area: impl Iterator<Item = Vec2>) -> u8 {
+pub fn average_height(level: &Level, area: impl Iterator<Item = Vec2>) -> u8 {
     let mut sum = 0.0;
     let mut count = 0;
     for column in area {
-        sum += world.height(column) as f32;
+        sum += level.height(column) as f32;
         count += 1;
     }
     (sum / count as f32) as u8
 }
 
-pub fn slope(world: &World, column: Vec2) -> Vec2 {
+pub fn slope(level: &Level, column: Vec2) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
         for dz in -1..=1 {
-            neighbors[(4 + dx + 3 * dz) as usize] = world.height(column + Vec2(dx, dz));
+            neighbors[(4 + dx + 3 * dz) as usize] = level.height(column + Vec2(dx, dz));
         }
     }
     // Sobel kernel
@@ -224,7 +224,7 @@ pub fn slope(world: &World, column: Vec2) -> Vec2 {
 
 /*
 /// Neighborborhood_size specifies a square. Results aren't fully acurate, but that's ok
-pub fn find_local_maxima(world: &World, area: Rect, neighborhood_size: u8) -> Vec<Vec3> {
+pub fn find_local_maxima(level: &Level, area: Rect, neighborhood_size: u8) -> Vec<Vec3> {
     // Divide area into cells
     let cell_size = neighborhood_size as i32 / 3;
     let cell_count = area.size() / cell_size;
@@ -254,8 +254,8 @@ pub fn find_local_maxima(world: &World, area: Rect, neighborhood_size: u8) -> Ve
 
 // TODO: add average
 // TODO: move into World, cache
-pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, i32> {
-    world
+pub fn max_chunk_heights(level: &Level) -> HashMap<ChunkIndex, i32> {
+    level
         .chunks()
         .map(|chunk| {
             (
@@ -263,7 +263,7 @@ pub fn max_chunk_heights(world: &World) -> HashMap<ChunkIndex, i32> {
                 chunk
                     .area()
                     .into_iter()
-                    .map(|column| world.height(column))
+                    .map(|column| level.height(column))
                     .max()
                     .unwrap(),
             )

@@ -5,9 +5,9 @@ use nbt::{decode::read_gzip_compound_tag, CompoundTag, CompoundTagError, Tag};
 
 use crate::*;
 
-pub mod castle;
-pub mod dzong;
-pub mod farm;
+// pub mod castle;
+// pub mod dzong;
+// pub mod farm;
 
 #[derive(Clone)]
 pub struct TemplateMark(Vec3, Option<HDir>, Vec<String>);
@@ -134,15 +134,15 @@ impl Template {
         })
     }
 
-    pub fn build(&self, world: &mut World, pos: Vec3, facing: HDir) {
+    pub fn build(&self, level: &mut Level, pos: Vec3, facing: HDir) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         // TODO: better build order
         for (offset, block) in self.blocks.iter() {
-            world[pos + offset.rotated(rotation)] = block.rotated(rotation);
+            level[pos + offset.rotated(rotation)] = block.rotated(rotation);
         }
     }
 
-    pub fn build_clipped(&self, world: &mut World, pos: Vec3, facing: HDir, area: Rect) {
+    pub fn build_clipped(&self, world: &mut Level, pos: Vec3, facing: HDir, area: Rect) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);

@@ -1,6 +1,6 @@
 use crate::{
     geometry::rand,
-    world::block::{Soil, TreeSpecies},
+    level::block::{Soil, TreeSpecies},
 };
 pub use BiomeType::*;
 pub use Temperature::*;

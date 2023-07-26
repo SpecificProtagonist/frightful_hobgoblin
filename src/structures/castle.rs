@@ -16,7 +16,7 @@ pub struct Blueprint {
 }
 
 impl Blueprint {
-    pub fn build(&self, world: &mut World) {
+    pub fn build(&self, world: &mut Level) {
         make_foundation_straight(world, self.area, self.y, Cobble);
 
         let mut stories = Vec::new();
@@ -120,7 +120,7 @@ impl Blueprint {
     }
 }
 
-fn build_floor(world: &mut World, layout: &HashMap<Vec2, Usage>, floor_y: i32) {
+fn build_floor(world: &mut Level, layout: &HashMap<Vec2, Usage>, floor_y: i32) {
     let floor_block = Log(TreeSpecies::Spruce, LogType::Normal(Axis::X));
     for (column, usage) in layout {
         if matches!(usage, Usage::FreeInterior) {
@@ -130,7 +130,7 @@ fn build_floor(world: &mut World, layout: &HashMap<Vec2, Usage>, floor_y: i32) {
 }
 
 fn build_walls(
-    world: &mut World,
+    world: &mut Level,
     layout: &HashMap<Vec2, Usage>,
     base_y: i32,
     height: i32,
@@ -186,7 +186,7 @@ fn build_walls(
 }
 
 /// Assumes walls are already build
-fn build_windows(world: &mut World, layout: &HashMap<Vec2, Usage>, base_y: i32) {
+fn build_windows(world: &mut Level, layout: &HashMap<Vec2, Usage>, base_y: i32) {
     for (column, usage) in layout {
         if let Usage::Window(facing) = usage {
             world[column.at(base_y + 1)] =
@@ -198,7 +198,7 @@ fn build_windows(world: &mut World, layout: &HashMap<Vec2, Usage>, base_y: i32) 
     }
 }
 
-fn build_privy(world: &mut World, base_pos: Vec3, facing: HDir) {
+fn build_privy(world: &mut Level, base_pos: Vec3, facing: HDir) {
     Template::get("castle/privy").build(world, base_pos, facing);
 
     let drop_column = Vec2::from(base_pos) + Vec2::from(facing);
@@ -215,7 +215,7 @@ fn build_privy(world: &mut World, base_pos: Vec3, facing: HDir) {
 // TODO: don't build on existing villages!
 // TODO: Don't build in water!
 // TODO: don't build on overhangs if the overhand it very thin/unsupported
-pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
+pub fn generate_blueprints(world: &Level) -> Vec<Blueprint> {
     let mut choices = Vec::new();
 
     // This doesn't really work that well, use a different algorithm
@@ -226,7 +226,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
         for z in ((world.area().min.1 + probe_distance / 2)..world.area().max.1)
             .step_by(probe_distance as usize)
         {
-            fn ascend(world: &World, column: Vec2) -> Vec2 {
+            fn ascend(world: &Level, column: Vec2) -> Vec2 {
                 let max_dist = 8;
                 let slope = slope(world, column);
                 column
@@ -258,7 +258,7 @@ pub fn generate_blueprints(world: &World) -> Vec<Blueprint> {
 
 // TODO: prefer expanding to border of steep terrain
 // TODO: limit max height difference
-fn find_good_footprint_at(world: &World, pos: Vec2) -> Option<Blueprint> {
+fn find_good_footprint_at(world: &Level, pos: Vec2) -> Option<Blueprint> {
     const MIN_LENGTH: i32 = 5;
     const MAX_LENGTH: i32 = 14;
     const MAX_SECONDARY_LENGTH: i32 = 8;

@@ -1,12 +1,13 @@
-mod biome;
+// mod biome;
 mod block;
-mod entity;
+// mod entity;
 
 use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
     provider::{FolderRegionProvider, RegionProvider},
 };
 use anyhow::{anyhow, Result};
+use bevy_ecs::system::Resource;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
@@ -15,13 +16,13 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{geometry::*, HashMap};
-pub use biome::*;
+use crate::{default, geometry::*, HashMap};
+// pub use biome::*;
 pub use block::*;
-pub use entity::*;
+// pub use entity::*;
 
-// Maybe have a subworld not split into chunks for efficiency?
-pub struct World {
+#[derive(Resource)]
+pub struct Level {
     pub path: PathBuf,
     /// Loaded area; aligned with chunk borders (-> usually larger than area specified in new())
     /// Both minimum and maximum inclusive
@@ -30,13 +31,14 @@ pub struct World {
     /// Sections in Z->X->Y order
     sections: Vec<Option<Box<Section>>>,
     /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
-    biome: Vec<Biome>,
+    // biome: Vec<Biome>,
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     dirty_chunks: Vec<bool>,
+    setblock_recording: Vec<SetBlock>,
 }
 
-impl World {
+impl Level {
     // No nice error handling, but we don't really need that for just the three invocations
     pub fn new(path: &str, area: Rect) -> Self {
         let region_path = {
@@ -54,7 +56,7 @@ impl World {
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
         let mut sections = vec![None; chunk_count * 24];
-        let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
+        // let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
         let mut heightmap = vec![0; chunk_count * 16 * 16];
         let mut watermap = vec![None; chunk_count * 16 * 16];
 
@@ -64,15 +66,15 @@ impl World {
             .collect_vec()
             .par_iter() //TMP no par
             .zip(sections.par_chunks_exact_mut(24))
-            .zip(biome.par_chunks_exact_mut(4 * 4))
+            // .zip(biome.par_chunks_exact_mut(4 * 4))
             .zip(heightmap.par_chunks_exact_mut(16 * 16))
             .zip(watermap.par_chunks_exact_mut(16 * 16))
-            .for_each(|((((index, sections), biome), heightmap), watermap)| {
+            .for_each(|(((index, sections), heightmap), watermap)| {
                 load_chunk(
                     &chunk_provider,
                     (*index).into(),
                     sections,
-                    biome,
+                    // biome,
                     heightmap,
                     watermap,
                 )
@@ -84,14 +86,15 @@ impl World {
             chunk_min,
             chunk_max,
             sections,
-            biome,
+            // biome,
             heightmap,
             watermap,
             dirty_chunks: vec![false; chunk_count],
+            setblock_recording: default(),
         }
     }
 
-    pub fn save(&self) -> Result<()> {
+    pub fn save(&self) {
         // Write chunks
         let mut region_path = self.path.clone();
         region_path.push("region");
@@ -117,6 +120,10 @@ impl World {
             }
         }
 
+        self.save_metadata().unwrap();
+    }
+
+    pub fn save_metadata(&self) -> Result<()> {
         // Edit metadata
         let level_nbt_path =
             self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
@@ -212,16 +219,16 @@ impl World {
         .shrink(crate::LOAD_MARGIN)
     }
 
-    pub fn biome(&self, column: Vec2) -> Biome {
-        if let Some(biome) = self.biome.get(
-            self.chunk_index(column.into()) * 4 * 4
-                + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
-        ) {
-            *biome
-        } else {
-            panic!("Tried to access biome at {:?}", column);
-        }
-    }
+    // pub fn biome(&self, column: Vec2) -> Biome {
+    //     if let Some(biome) = self.biome.get(
+    //         self.chunk_index(column.into()) * 4 * 4
+    //             + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
+    //     ) {
+    //         *biome
+    //     } else {
+    //         panic!("Tried to access biome at {:?}", column);
+    //     }
+    // }
 
     pub fn height(&self, column: Vec2) -> i32 {
         self.heightmap[self.column_index(column)]
@@ -240,9 +247,30 @@ impl World {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
+
+    pub fn recording_cursor(&self) -> RecordingCursor {
+        RecordingCursor(self.setblock_recording.len())
+    }
+
+    pub fn take_recording(
+        &mut self,
+        cursor: RecordingCursor,
+    ) -> impl Iterator<Item = (Vec3, Block)> + '_ {
+        // Intermediate storage because of borrow conflict
+        let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
+        rec.into_iter()
+            .filter_map(move |SetBlock { pos, previous }| {
+                let current = self[pos];
+                if current != previous {
+                    Some((pos, current))
+                } else {
+                    None
+                }
+            })
+    }
 }
 
-impl Index<Vec3> for World {
+impl Index<Vec3> for Level {
     type Output = Block;
 
     fn index(&self, pos: Vec3) -> &Self::Output {
@@ -254,13 +282,18 @@ impl Index<Vec3> for World {
     }
 }
 
-impl IndexMut<Vec3> for World {
+impl IndexMut<Vec3> for Level {
     fn index_mut(&mut self, pos: Vec3) -> &mut Self::Output {
         let chunk_index = self.chunk_index(pos.into());
         self.dirty_chunks[chunk_index] = true;
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_default();
-        &mut section.blocks[Self::block_in_section_index(pos)]
+        let block = &mut section.blocks[Self::block_in_section_index(pos)];
+        self.setblock_recording.push(SetBlock {
+            pos,
+            previous: *block,
+        });
+        block
     }
 }
 
@@ -268,7 +301,7 @@ fn load_chunk(
     chunk_provider: &FolderRegionProvider,
     chunk_index: ChunkIndex,
     sections: &mut [Option<Box<Section>>],
-    _biomes: &mut [Biome],
+    // biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
 ) -> Result<()> {
@@ -306,7 +339,9 @@ fn load_chunk(
 
         sections[(y_index + 4) as usize] = Some(Default::default());
         let section = sections[(y_index + 4) as usize].as_mut().unwrap();
-        let Ok(indices) = block_states.get_i64_vec("data") else {continue};
+        let Ok(indices) = block_states.get_i64_vec("data") else {
+            continue;
+        };
         let bits_per_index = bits_per_index(palette.len());
 
         let mut current_long = 0;
@@ -389,7 +424,7 @@ fn save_chunk(
                         .enumerate()
                         .filter_map(|(y_index, section)| {
                             let y_index = y_index as i32 - 4;
-                            let Some(section) = section else {return None};
+                            let Some(section) = section else { return None };
                             let mut nbt = CompoundTag::new();
                             nbt.insert_i8("Y", y_index as i8);
 
@@ -477,3 +512,11 @@ impl Default for Section {
         }
     }
 }
+
+struct SetBlock {
+    pos: Vec3,
+    previous: Block,
+}
+
+#[derive(Default)]
+pub struct RecordingCursor(usize);
