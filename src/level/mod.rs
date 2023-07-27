@@ -252,7 +252,7 @@ impl Level {
         RecordingCursor(self.setblock_recording.len())
     }
 
-    pub fn take_recording(
+    pub fn pop_recording(
         &mut self,
         cursor: RecordingCursor,
     ) -> impl Iterator<Item = (Vec3, Block)> + '_ {
