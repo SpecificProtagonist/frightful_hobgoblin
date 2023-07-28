@@ -10,8 +10,8 @@ pub fn ground(level: &mut Level, area: Rect) {
         } else {
             level.height(column)
         };
-        for y in base_height + 1..=base_height + 2 {
-            let block = &mut level[column.at(y)];
+        for z in base_height + 1..=base_height + 2 {
+            let block = &mut level[column.extend(z)];
             if matches!(block, GroundPlant(..)) {
                 *block = Block::Air
             }
@@ -19,11 +19,11 @@ pub fn ground(level: &mut Level, area: Rect) {
     }
 }
 
-pub fn trees(level: &mut Level, area: impl Iterator<Item = IVec2>, leave_stumps: bool) {
+pub fn trees(level: &mut Level, area: impl IntoIterator<Item = IVec2>, leave_stumps: bool) {
     for column in area {
-        let y = level.height(column) + 1;
-        if let Block::Log(..) = level[column.at(y)] {
-            tree(level, column.at(y), leave_stumps);
+        let z = level.height(column) + 1;
+        if let Block::Log(..) = level[column.extend(z)] {
+            tree(level, column.extend(z), leave_stumps);
         }
     }
 }
@@ -34,6 +34,8 @@ pub fn trees(level: &mut Level, area: impl Iterator<Item = IVec2>, leave_stumps:
 /// This function isn't very performant (e.g. >10k blocks checked for a dark oak),
 /// but luckily this will be called a few hundred times at most and this isn't Python
 pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
+    todo!("Fix this");
+
     if let Log(species, ..) = level[pos] {
         // Track area of stem for leaf removal
         let mut stem_area = Cuboid { min: pos, max: pos };
@@ -47,11 +49,11 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
                 // Create visible roots
                 // also think of 2x2 trees
                 for x in -1..=1 {
-                    for z in -1..=1 {
-                        let pos = ivec3(pos.x + x, pos.y, pos.z + z);
+                    for y in -1..=1 {
+                        let pos = ivec3(pos.x + x, pos.y + y, pos.z);
                         if let Log(s, log_type) = level[pos] {
                             if s == species {
-                                level[pos - ivec3(0, 1, 0)] = Log(species, log_type);
+                                level[pos - ivec3(0, 0, 1)] = Log(species, log_type);
                             }
                         }
                     }
@@ -59,7 +61,7 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
                 if rand::random::<f32>() < STUMP_HEIGHT_0_CHANCE {
                     pos
                 } else {
-                    ivec3(pos.x, pos.y + 1, pos.z)
+                    ivec3(pos.x, pos.z, pos.y + 1)
                 }
             } else {
                 pos
@@ -67,9 +69,9 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
 
             level[pos] = Block::Air;
             for x in -1..=1 {
-                for z in -1..=1 {
-                    let block_below = level[ivec3(pos.x + x, pos.y - 1, pos.z + z)];
-                    let block = &mut level[ivec3(pos.x + x, pos.y, pos.z + z)];
+                for y in -1..=1 {
+                    let block_below = level[ivec3(pos.x + x, pos.y + y, pos.z - 1)];
+                    let block = &mut level[ivec3(pos.x + x, pos.y + y, pos.z)];
                     if let Log(s, log_type) = *block {
                         if s == species {
                             // Check block below in case of diagonal branch close to the ground
@@ -88,18 +90,18 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
 
             // Finally we can actually remove the log
             let mut log_removed = vec![pos];
-            let stump_height = pos.y - 1; // Useful for dark oak roots
+            let stump_height = pos.z - 1; // Useful for dark oak roots
             while let Some(pos) = log_removed.pop() {
                 stem_area = stem_area.extend_to(pos);
                 for x in -1..=1 {
-                    // Check for neighbors in case of horizontal branches (large oaks)
-                    for y in (if leave_stump { -1 } else { 0 })..=1 {
-                        for z in -1..=1 {
-                            let pos = ivec3(pos.x + x, pos.y + y, pos.z + z);
+                    for y in -1..=1 {
+                        // Check for neighbors in case of horizontal branches (large oaks)
+                        for z in (if leave_stump { -1 } else { 0 })..=1 {
+                            let pos = pos + ivec3(x, y, z);
                             let block = &mut level[pos];
                             if let Log(s, log_type) = block {
                                 if *s == species {
-                                    *block = if pos.y <= stump_height {
+                                    *block = if pos.z <= stump_height {
                                         Log(species, *log_type)
                                     } else {
                                         Air
@@ -119,14 +121,14 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
 
             // Area containing all leaves of the tree
             let removal_area = Cuboid {
-                min: stem_area.min - ivec3(decay_distance, 1, decay_distance),
-                max: stem_area.max + ivec3(decay_distance, 4, decay_distance),
+                min: stem_area.min - ivec3(decay_distance, decay_distance, 1),
+                max: stem_area.max + ivec3(decay_distance, decay_distance, 4),
             };
 
             // Area in which to check for leaf-log distance (leaves may be shared with another tree)
             let check_area = Cuboid {
-                min: removal_area.min - ivec3(decay_distance, decay_distance, decay_distance),
-                max: removal_area.max + ivec3(decay_distance, decay_distance, decay_distance),
+                min: removal_area.min - IVec3::splat(decay_distance),
+                max: removal_area.max + IVec3::splat(decay_distance),
             };
 
             let mut blocks = Vec::with_capacity(
@@ -135,7 +137,7 @@ pub fn tree(level: &mut Level, pos: IVec3, leave_stump: bool) {
 
             let index = |pos: IVec3| {
                 let offset = pos - check_area.min;
-                (offset.x + check_area.size().y * (offset.z + check_area.size().z * offset.y))
+                (offset.x + check_area.size().z * (offset.y + check_area.size().y * offset.z))
                     as usize
             };
 

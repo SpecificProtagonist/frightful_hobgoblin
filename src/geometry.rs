@@ -33,8 +33,8 @@ pub struct Polygon(pub Vec<IVec2>);
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum Axis {
-    Y,
     X,
+    Y,
     Z,
 }
 
@@ -42,8 +42,8 @@ impl Axis {
     pub fn to_str(self) -> &'static str {
         match self {
             Axis::X => "x",
-            Axis::Y => "y",
-            Axis::Z => "z",
+            Axis::Y => "z",
+            Axis::Z => "y",
         }
     }
 }
@@ -51,15 +51,15 @@ impl Axis {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum HDir {
-    ZVec3,
+    YPos,
     XNeg,
-    ZNeg,
-    XVec3,
+    YNeg,
+    XPos,
 }
 
 impl HDir {
     pub fn iter() -> impl Iterator<Item = HDir> {
-        [HDir::ZVec3, HDir::XNeg, HDir::ZNeg, HDir::XVec3]
+        [HDir::YPos, HDir::XNeg, HDir::YNeg, HDir::XPos]
             .iter()
             .cloned()
     }
@@ -67,17 +67,17 @@ impl HDir {
     pub fn rotated(self, turns: u8) -> Self {
         match (self as u8 + turns) % 4 {
             1 => HDir::XNeg,
-            2 => HDir::ZNeg,
-            3 => HDir::XVec3,
-            _ => HDir::ZVec3,
+            2 => HDir::YNeg,
+            3 => HDir::XPos,
+            _ => HDir::YPos,
         }
     }
 
     pub fn to_str(self) -> &'static str {
         match self {
-            HDir::ZNeg => "north",
-            HDir::XVec3 => "east",
-            HDir::ZVec3 => "south",
+            HDir::YNeg => "north",
+            HDir::XPos => "east",
+            HDir::YPos => "south",
             HDir::XNeg => "west",
         }
     }
@@ -88,9 +88,9 @@ impl FromStr for HDir {
 
     fn from_str(name: &str) -> Result<Self, Self::Err> {
         match name {
-            "north" => Ok(HDir::ZNeg),
-            "east" => Ok(HDir::XVec3),
-            "south" => Ok(HDir::ZVec3),
+            "north" => Ok(HDir::YNeg),
+            "east" => Ok(HDir::XPos),
+            "south" => Ok(HDir::YPos),
             "west" => Ok(HDir::XNeg),
             _ => Err(()),
         }
@@ -100,11 +100,11 @@ impl FromStr for HDir {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum FullDir {
-    XVec3,
+    XPos,
     XNeg,
-    YVec3,
+    YPos,
     YNeg,
-    ZVec3,
+    ZPos,
     ZNeg,
 }
 
@@ -112,8 +112,6 @@ pub trait IVec2Ext {
     fn clockwise(self) -> Self;
     fn counterclockwise(self) -> Self;
     fn length(self) -> f32;
-    fn d3(self) -> IVec3;
-    fn at(self, y: i32) -> IVec3;
 }
 
 impl IVec2Ext for IVec2 {
@@ -128,29 +126,20 @@ impl IVec2Ext for IVec2 {
     fn length(self) -> f32 {
         ((self.x.pow(2) + self.y.pow(2)) as f32).powf(0.5)
     }
-
-    fn d3(self) -> IVec3 {
-        ivec3(self.x, 0, self.y)
-    }
-
-    fn at(self, y: i32) -> IVec3 {
-        ivec3(self.x, y, self.y)
-    }
 }
 
 pub trait IVec3Ext {
     fn rotated(self, turns: u8) -> Self;
     fn mirrord(self, axis: Axis) -> Self;
-    fn d2(self) -> IVec2;
 }
 
 impl IVec3Ext for IVec3 {
     /// Turns around the y axis
     fn rotated(self, turns: u8) -> Self {
         match turns % 4 {
-            1 => ivec3(-self.z, self.y, self.x),
-            2 => ivec3(-self.x, self.y, -self.z),
-            3 => ivec3(self.z, self.y, -self.x),
+            1 => ivec3(-self.y, self.x, self.z),
+            2 => ivec3(-self.x, -self.y, self.z),
+            3 => ivec3(self.y, -self.x, self.z),
             _ => self,
         }
     }
@@ -162,19 +151,15 @@ impl IVec3Ext for IVec3 {
             Axis::Z => ivec3(self.x, self.y, -self.z),
         }
     }
-
-    fn d2(self) -> IVec2 {
-        ivec2(self.x, self.z)
-    }
 }
 
 impl From<HDir> for IVec2 {
     fn from(dir: HDir) -> Self {
         match dir {
-            HDir::XVec3 => ivec2(1, 0),
+            HDir::XPos => ivec2(1, 0),
             HDir::XNeg => ivec2(-1, 0),
-            HDir::ZVec3 => ivec2(0, 1),
-            HDir::ZNeg => ivec2(0, -1),
+            HDir::YPos => ivec2(0, 1),
+            HDir::YNeg => ivec2(0, -1),
         }
     }
 }
@@ -182,11 +167,11 @@ impl From<HDir> for IVec2 {
 impl From<FullDir> for IVec3 {
     fn from(dir: FullDir) -> Self {
         match dir {
-            FullDir::XVec3 => ivec3(1, 0, 0),
+            FullDir::XPos => ivec3(1, 0, 0),
             FullDir::XNeg => ivec3(-1, 0, 0),
-            FullDir::YVec3 => ivec3(0, 1, 0),
+            FullDir::YPos => ivec3(0, 1, 0),
             FullDir::YNeg => ivec3(0, -1, 0),
-            FullDir::ZVec3 => ivec3(0, 0, 1),
+            FullDir::ZPos => ivec3(0, 0, 1),
             FullDir::ZNeg => ivec3(0, 0, -1),
         }
     }
@@ -194,7 +179,7 @@ impl From<FullDir> for IVec3 {
 
 impl From<HDir> for IVec3 {
     fn from(dir: HDir) -> Self {
-        IVec2::from(dir).d3()
+        IVec2::from(dir).extend(0)
     }
 }
 
@@ -484,13 +469,13 @@ impl From<IVec2> for ChunkIndex {
 
 impl From<IVec3> for ChunkIndex {
     fn from(pos: IVec3) -> Self {
-        ivec2(pos.x, pos.z).into()
+        ivec2(pos.x, pos.y).into()
     }
 }
 
 impl From<(i32, i32)> for ChunkIndex {
-    fn from((x, z): (i32, i32)) -> Self {
-        ChunkIndex(x, z)
+    fn from((x, y): (i32, i32)) -> Self {
+        ChunkIndex(x, y)
     }
 }
 
@@ -524,8 +509,8 @@ impl Cuboid {
     }
 
     pub fn iter(self) -> impl Iterator<Item = IVec3> {
-        (self.min.y..=self.max.y)
-            .flat_map(move |y| (self.min.z..=self.max.z).map(move |z| (y, z)))
+        (self.min.z..=self.max.z)
+            .flat_map(move |y| (self.min.y..=self.max.y).map(move |z| (y, z)))
             .flat_map(move |(y, z)| (self.min.x..=self.max.x).map(move |x| ivec3(x, y, z)))
     }
 }

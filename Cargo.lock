@@ -103,6 +103,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d468802bab17cbc0cc575e9b053f41e72aa36bfa6b7f55e3529ffa43161b97fa"
 
 [[package]]
+name = "bevy_derive"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1477347b17df781756ba0dfd677e2975e57e930752cd3cd42e6cdd8fdaa3223"
+dependencies = [
+ "bevy_macro_utils",
+ "quote 1.0.29",
+ "syn 2.0.23",
+]
+
+[[package]]
 name = "bevy_ecs"
 version = "0.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -677,6 +688,7 @@ version = "0.1.0"
 dependencies = [
  "anvil-region",
  "anyhow",
+ "bevy_derive",
  "bevy_ecs",
  "bevy_math",
  "bresenham",

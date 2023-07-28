@@ -11,5 +11,7 @@ fn main() {
 
     let level = Level::new(SAVE_WRITE_PATH, area);
 
+    // remove_foliage::trees(&mut level, area, true);
+
     sim(level, true);
 }

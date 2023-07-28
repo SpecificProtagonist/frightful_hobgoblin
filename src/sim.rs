@@ -4,30 +4,41 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::{fmt::Write, fs::create_dir_all, path::Path};
 
 use crate::*;
+use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
-use bevy_math::{ivec3, prelude::*};
-
-struct Tree;
 
 pub fn sim(level: Level, save_sim: bool) {
-    Uuid::load(&level.path);
+    Id::load(&level.path);
     let mut world = World::new();
     world.init_resource::<Replay>();
     world.insert_resource(level);
+
+    let pos = vec3(0., 0., 200.);
+    world.spawn((
+        Id::default(),
+        Villager {
+            carry: None,
+            carry_id: default(),
+        },
+        Pos(pos),
+        PrevPos(pos),
+    ));
+
     let mut sched = Schedule::new();
+    sched.add_systems(test_walk);
 
-    sched.add_systems(tick_replay);
+    let mut last = Schedule::new();
+    last.add_systems(apply_deferred);
+    last.add_systems(tick_replay);
 
-    for t in 0..100 {
-        // Test
-        world.resource_mut::<Level>()[ivec3(0, 100 + t, 0)] = Block::Glowstone;
-
+    for _ in 0..1000 {
         sched.run(&mut world);
+        last.run(&mut world);
     }
 
     let level = world.remove_resource::<Level>().unwrap();
 
-    Uuid::save(&level.path);
+    Id::save(&level.path);
     if save_sim {
         world
             .remove_resource::<Replay>()
@@ -39,28 +50,98 @@ pub fn sim(level: Level, save_sim: bool) {
     }
 }
 
-fn tick_replay(mut level: ResMut<Level>, mut replay: ResMut<Replay>) {
+fn test_walk(level: Res<Level>, mut query: Query<&mut Pos, With<Villager>>) {
+    for mut pos in &mut query {
+        pos.0 += vec3(0.05, 0.1, 0.0);
+        set_walk_height(&level, &mut pos);
+    }
+}
+
+fn tick_replay(
+    mut level: ResMut<Level>,
+    mut replay: ResMut<Replay>,
+    new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
+    _changed_vills: Query<(&Id, &Villager), Changed<Villager>>,
+    mut moved: Query<(&Id, &Pos, &mut PrevPos), Changed<Pos>>,
+) {
     for (pos, block) in level.pop_recording(default()) {
         replay.block(pos, block);
+    }
+    for (id, pos, _vill) in &new_vills {
+        replay.start_command();
+        writeln!(
+            replay.commands,
+            "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1}}",
+            pos.x,
+            pos.z,
+            pos.y,
+            id.snbt()
+        )
+        .unwrap();
+        // TODO: carrying
+    }
+    for (id, pos, mut prev) in &mut moved {
+        let facing = pos.0 * 2.0 - prev.0;
+        replay.start_command();
+        writeln!(
+            replay.commands,
+            "tp {} {} {} {} facing {} {} {}",
+            id, pos.x, pos.z, pos.y, facing.x, facing.z, facing.y
+        )
+        .unwrap();
+        // TODO: carrying
+        prev.0 = pos.0;
     }
     replay.tick += 1;
 }
 
-struct Uuid(u32);
+fn set_walk_height(level: &Level, pos: &mut Vec3) {
+    let size = 0.35;
+    let mut height = 0f32;
+    for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
+        let mut block_pos = (*pos + off.extend(0.) * size).floor().as_ivec3();
+        while !level[block_pos].solid() {
+            block_pos.z -= 1
+        }
+        while level[block_pos].solid() {
+            block_pos.z += 1
+        }
+        height = height.max(
+            block_pos.z as f32
+                - match level[block_pos - ivec3(0, 0, 1)] {
+                    Slab(_, Flipped(false)) => 0.5,
+                    // In theory also do stairs here
+                    _ => 0.,
+                },
+        );
+    }
+    pos.z = height;
+}
 
-impl Display for Uuid {
+#[derive(Component, Deref, DerefMut)]
+struct Pos(Vec3);
+
+#[derive(Component, Deref, DerefMut)]
+struct PrevPos(Vec3);
+
+#[derive(Component)]
+struct Villager {
+    carry: Option<Block>,
+    carry_id: Id,
+}
+
+#[derive(Component)]
+struct Id(u32);
+
+impl Display for Id {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "0-0-0-0-{:x}", self.0)
     }
 }
 
-impl Uuid {
+impl Id {
     fn snbt(&self) -> String {
         format!("UUID:[I;0,0,0,{}]", self.0)
-    }
-
-    fn new() -> Self {
-        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
     }
 
     // Make sure things work if run multiple times on the same world
@@ -82,13 +163,19 @@ impl Uuid {
     }
 }
 
+impl Default for Id {
+    fn default() -> Self {
+        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+}
+
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
 // In the future, this could have playback speed / reverse playback, controlled via a book
 #[derive(Resource)]
 struct Replay {
     tick: i32,
-    marker: Uuid,
+    marker: Id,
     // TODO: split into two levels if this gets too big
     commands: String,
     block_cache: HashMap<Block, String>,
@@ -99,7 +186,7 @@ impl Default for Replay {
     fn default() -> Self {
         Self {
             tick: 0,
-            marker: Uuid::new(),
+            marker: default(),
             commands: default(),
             block_cache: default(),
             unknown_blocks: UNKNOWN_BLOCKS.read().unwrap().clone(),
@@ -108,7 +195,7 @@ impl Default for Replay {
 }
 
 impl Replay {
-    fn start_commend(&mut self) {
+    fn start_command(&mut self) {
         write!(
             self.commands,
             "execute if score {} sim_tick matches {} run ",
@@ -118,7 +205,7 @@ impl Replay {
     }
 
     pub fn block(&mut self, pos: IVec3, block: Block) {
-        self.start_commend();
+        self.start_command();
         let cache = &mut self.block_cache;
         let unknown = &self.unknown_blocks;
         let block_string = cache
@@ -127,7 +214,7 @@ impl Replay {
         writeln!(
             self.commands,
             "setblock {} {} {} {block_string}",
-            pos.x, pos.y, pos.z
+            pos.x, pos.z, pos.y
         )
         .unwrap();
     }

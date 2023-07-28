@@ -172,7 +172,7 @@ impl Level {
     }
 
     fn section_index(&self, pos: IVec3) -> usize {
-        self.chunk_index(pos.into()) * 24 + (pos.y / 16 + 4) as usize
+        self.chunk_index(pos.into()) * 24 + (pos.z / 16 + 4) as usize
     }
 
     fn column_index(&self, column: IVec2) -> usize {
@@ -181,7 +181,7 @@ impl Level {
     }
 
     fn block_in_section_index(pos: IVec3) -> usize {
-        (pos.x.rem_euclid(16) + pos.y.rem_euclid(16) * 16 * 16 + pos.z.rem_euclid(16) * 16) as usize
+        (pos.x.rem_euclid(16) + pos.z.rem_euclid(16) * 16 * 16 + pos.y.rem_euclid(16) * 16) as usize
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -460,12 +460,12 @@ fn save_chunk(
                                 // Collect TileEntity data
                                 {
                                     let section_base =
-                                        ivec3(index.0 * 16, y_index * 16, index.1 * 16);
+                                        ivec3(index.0 * 16, index.1 * 16, y_index * 16);
                                     let pos = section_base
                                         + ivec3(
                                             i as i32 % 16,
-                                            i as i32 / (16 * 16),
                                             i as i32 % (16 * 16) / 16,
+                                            i as i32 / (16 * 16),
                                         );
                                     tile_entities.extend(block.tile_entity_nbt(pos));
                                 }

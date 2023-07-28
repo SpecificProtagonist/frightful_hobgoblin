@@ -89,13 +89,13 @@ impl Template {
                         .to_owned();
 
                     let dir = if tags.contains(&String::from("xpos")) {
-                        Some(HDir::XVec3)
+                        Some(HDir::XPos)
                     } else if tags.contains(&String::from("xneg")) {
                         Some(HDir::XNeg)
                     } else if tags.contains(&String::from("zpos")) {
-                        Some(HDir::ZVec3)
+                        Some(HDir::YPos)
                     } else if tags.contains(&String::from("zneg")) {
-                        Some(HDir::ZNeg)
+                        Some(HDir::YNeg)
                     } else {
                         None
                     };
@@ -146,7 +146,7 @@ impl Template {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
-            if area.contains(pos.d2()) {
+            if area.contains(pos.truncate()) {
                 world[pos] = block.rotated(rotation);
             }
         }

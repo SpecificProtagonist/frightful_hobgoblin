@@ -21,7 +21,7 @@ pub use TreeSpecies::*;
 pub enum Block {
     #[default]
     Air,
-    FullBlock(Material),
+    Full(Material),
     Slab(Material, Flipped),
     Stair(Material, HDir, Flipped),
     Planks(TreeSpecies),
@@ -243,7 +243,7 @@ pub enum Material {
     Wood(TreeSpecies),
     Cobble,
     MossyCobble,
-    Stonebrick,
+    StoneBrick,
     MossyStonebrick,
     Brick,
     Sandstone,
@@ -253,6 +253,8 @@ pub enum Material {
     Blackstone,
     PolishedBlackstone,
     PolishedBlackstoneBrick,
+    PackedMud,
+    MudBrick,
 }
 
 impl Display for Material {
@@ -275,7 +277,7 @@ impl Material {
             Cobble => "cobblestone",
             MossyCobble => "mossy_cobblestone",
             Brick => "brick",
-            Stonebrick => "stone_brick",
+            StoneBrick => "stone_brick",
             MossyStonebrick => "mossy_stone_brick",
             Sandstone => "sandstone",
             SmoothSandstone => "smooth_sandstone",
@@ -284,6 +286,8 @@ impl Material {
             Blackstone => "blackstone",
             PolishedBlackstone => "polished_blackstone",
             PolishedBlackstoneBrick => "polished_blackstone_brick",
+            PackedMud => "packed_mud",
+            MudBrick => "mud_bricks",
         }
     }
 }
@@ -330,9 +334,10 @@ impl Block {
 
         match self {
             Air => "air".into(),
-            FullBlock(material) => match material {
+            Full(material) => match material {
                 Brick => "bricks".into(),
-                Stonebrick => "stone_bricks".into(),
+                StoneBrick => "stone_bricks".into(),
+                MudBrick => "mud_bricks".into(),
                 PolishedBlackstoneBrick => "polished_blackstone_bricks".into(),
                 material => material.to_str().into(),
             },
@@ -520,8 +525,8 @@ impl Block {
         }
         .map(|mut nbt| {
             nbt.insert_i32("x", pos.x);
-            nbt.insert_i32("y", pos.y);
-            nbt.insert_i32("z", pos.z);
+            nbt.insert_i32("y", pos.z);
+            nbt.insert_i32("z", pos.y);
             nbt
         })
     }
@@ -537,7 +542,7 @@ impl Block {
         fn slab(material: Material, props: &CompoundTag) -> Block {
             match props.get_str("type").unwrap() {
                 "top" => Slab(material, Flipped(true)),
-                "double" => FullBlock(material),
+                "double" => Full(material),
                 _ => Slab(material, Flipped(false)),
             }
         }
@@ -555,8 +560,8 @@ impl Block {
                 species,
                 match props.get_str("axis").unwrap() {
                     "x" => LogType::Normal(Axis::X),
-                    "y" => LogType::Normal(Axis::Y),
-                    "z" => LogType::Normal(Axis::Z),
+                    "y" => LogType::Normal(Axis::Z),
+                    "z" => LogType::Normal(Axis::Y),
                     "none" => LogType::FullBark,
                     unknown => panic!("Invalid log axis {}", unknown),
                 },
@@ -579,13 +584,15 @@ impl Block {
                     Ok("0") => Water,
                     _ => Air,
                 },
-                "stone" => FullBlock(Stone),
-                "granite" => FullBlock(Granite),
-                "diorite" => FullBlock(Diorite),
-                "andesite" => FullBlock(Andesite),
-                "cobblestone" => FullBlock(Cobble),
-                "bricks" => FullBlock(Brick),
-                "stone_bricks" => FullBlock(Stonebrick),
+                "stone" => Full(Stone),
+                "granite" => Full(Granite),
+                "diorite" => Full(Diorite),
+                "andesite" => Full(Andesite),
+                "cobblestone" => Full(Cobble),
+                "bricks" => Full(Brick),
+                "stone_bricks" => Full(StoneBrick),
+                "mud_bricks" => Full(MudBrick),
+                "packed_pud" => Full(PackedMud),
                 "bedrock" => Bedrock,
                 "gravel" => Soil(Soil::Gravel),
                 "grass_block" => Soil(Soil::Grass),
@@ -621,18 +628,20 @@ impl Block {
                 "dark_oak_slab" => slab(Wood(DarkOak), props),
                 "cobblestone_slab" => slab(Cobble, props),
                 "mossy_cobblestone_slab" => slab(MossyCobble, props),
-                "stone_brick_slab" => slab(Stonebrick, props),
+                "stone_brick_slab" => slab(StoneBrick, props),
                 "mossy_stone_brick_slab" => slab(MossyStonebrick, props),
                 "blackstone_slab" => slab(Blackstone, props),
                 "polished_blackstone_slab" => slab(PolishedBlackstone, props),
+                "mud_brick_slab" => slab(MudBrick, props),
                 "oak_stairs" => stair(Wood(Oak), props),
                 "spruce_stairs" => stair(Wood(Spruce), props),
                 "birch_stairs" => stair(Wood(Birch), props),
                 "jungle_stairs" => stair(Wood(Jungle), props),
                 "acacia_stairs" => stair(Wood(Acacia), props),
                 "dark_oak_stairs" => stair(Wood(DarkOak), props),
-                "stone_brick_stairs" => stair(Stonebrick, props),
+                "stone_brick_stairs" => stair(StoneBrick, props),
                 "blackstone_stairs" => stair(Blackstone, props),
+                "mud_brick_stairs" => stair(MudBrick, props),
                 "terracotta" => Terracotta(None),
                 "white_terracotta" => Terracotta(Some(White)),
                 "orange_terracotta" => Terracotta(Some(Orange)),
@@ -667,7 +676,6 @@ impl Block {
                 "blue_wall_banner" => wall_banner(Red, props),
                 "green_wall_banner" => wall_banner(Red, props),
                 "yellow_wall_banner" => wall_banner(Red, props),
-                // This is quite hacky, maybe just use anyhow?
                 _ => return None,
             })
         }
@@ -744,8 +752,8 @@ impl Block {
 
     pub fn rotated(&self, turns: u8) -> Self {
         match self {
-            Log(species, LogType::Normal(Axis::X)) => Log(*species, LogType::Normal(Axis::Z)),
-            Log(species, LogType::Normal(Axis::Z)) => Log(*species, LogType::Normal(Axis::X)),
+            Log(species, LogType::Normal(Axis::X)) => Log(*species, LogType::Normal(Axis::Y)),
+            Log(species, LogType::Normal(Axis::Y)) => Log(*species, LogType::Normal(Axis::X)),
             Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
             WallBanner(facing, color) => WallBanner(facing.rotated(turns), *color),
             Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
