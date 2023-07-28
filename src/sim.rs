@@ -5,6 +5,7 @@ use std::{fmt::Write, fs::create_dir_all, path::Path};
 
 use crate::*;
 use bevy_ecs::prelude::*;
+use bevy_math::{ivec3, prelude::*};
 
 struct Tree;
 
@@ -19,7 +20,7 @@ pub fn sim(level: Level, save_sim: bool) {
 
     for t in 0..100 {
         // Test
-        world.resource_mut::<Level>()[Vec3(0, 100 + t, 0)] = Block::Glowstone;
+        world.resource_mut::<Level>()[ivec3(0, 100 + t, 0)] = Block::Glowstone;
 
         sched.run(&mut world);
     }
@@ -116,14 +117,19 @@ impl Replay {
         .unwrap();
     }
 
-    pub fn block(&mut self, pos: Vec3, block: Block) {
+    pub fn block(&mut self, pos: IVec3, block: Block) {
         self.start_commend();
         let cache = &mut self.block_cache;
         let unknown = &self.unknown_blocks;
         let block_string = cache
             .entry(block)
             .or_insert_with(|| block.blockstate(unknown).to_string());
-        writeln!(self.commands, "setblock {pos} {block_string}").unwrap();
+        writeln!(
+            self.commands,
+            "setblock {} {} {} {block_string}",
+            pos.x, pos.y, pos.z
+        )
+        .unwrap();
     }
 
     pub fn write(mut self, level: &Path) {

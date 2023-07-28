@@ -19,15 +19,15 @@ impl MapImage {
     pub fn new(area: Rect) -> Self {
         Self {
             area,
-            buffer: RgbImage::new(area.size().0 as u32 + 1, area.size().1 as u32 + 1),
+            buffer: RgbImage::new(area.size().x as u32 + 1, area.size().y as u32 + 1),
         }
     }
 
-    pub fn set(&mut self, column: Vec2, color: Color) {
+    pub fn set(&mut self, column: IVec2, color: Color) {
         let pixel = column - self.area.min;
         self.buffer.put_pixel(
-            pixel.0 as u32,
-            pixel.1 as u32,
+            pixel.x as u32,
+            pixel.y as u32,
             match color {
                 Color::Ground => Rgb([255, 255, 255]),
                 Color::Water => Rgb([0, 0, 200]),

@@ -504,7 +504,7 @@ impl Block {
         }
     }
 
-    pub fn tile_entity_nbt(&self, pos: Vec3) -> Option<CompoundTag> {
+    pub fn tile_entity_nbt(&self, pos: IVec3) -> Option<CompoundTag> {
         match self {
             Bell(..) => {
                 let mut nbt = CompoundTag::new();
@@ -519,9 +519,9 @@ impl Block {
             _ => None,
         }
         .map(|mut nbt| {
-            nbt.insert_i32("x", pos.0);
-            nbt.insert_i32("y", pos.1);
-            nbt.insert_i32("z", pos.2);
+            nbt.insert_i32("x", pos.x);
+            nbt.insert_i32("y", pos.y);
+            nbt.insert_i32("z", pos.z);
             nbt
         })
     }

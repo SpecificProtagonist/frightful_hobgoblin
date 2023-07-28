@@ -1,47 +1,33 @@
-use bevy_ecs::prelude::Component;
 use itertools::Itertools;
-use std::{
-    fmt::Display,
-    ops::{Add, AddAssign, Div, DivAssign, Mul, MulAssign, Rem, RemAssign, Sub, SubAssign},
-    str::FromStr,
-};
-//use num_traits::FromPrimitive;
 use num_derive::FromPrimitive;
+use std::str::FromStr;
+
+pub use bevy_math::{ivec2, ivec3, vec2, vec3, IVec2, IVec3, Vec2, Vec3};
+
+//
+// TODO: Swap Y and Z??
+// Makes things simpler in some cases, adds confusion in others
+//
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ChunkIndex(pub i32, pub i32);
 
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Vec3(pub i32, pub i32, pub i32);
-
-impl Display for Vec3 {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.0, self.1, self.2)
-    }
-}
-
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
-pub struct Vec2(pub i32, pub i32);
-
-#[derive(Debug, Copy, Clone, PartialEq, Component)]
-pub struct Vec2f(pub f32, pub f32);
-
 #[derive(Debug, Copy, Clone)]
 /// Both minimum and maximum are inclusive
 pub struct Rect {
-    pub min: Vec2,
-    pub max: Vec2,
+    pub min: IVec2,
+    pub max: IVec2,
 }
 
 #[derive(Debug, Copy, Clone)]
 pub struct Cuboid {
-    pub min: Vec3,
-    pub max: Vec3,
+    pub min: IVec3,
+    pub max: IVec3,
 }
 
-pub struct Polyline(pub Vec<Vec2>);
+pub struct Polyline(pub Vec<IVec2>);
 // Note: only valid with multiple points
-pub struct Polygon(pub Vec<Vec2>);
+pub struct Polygon(pub Vec<IVec2>);
 // Todo: areas with shared borders/corners
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
@@ -122,110 +108,130 @@ pub enum FullDir {
     ZNeg,
 }
 
-impl Vec2 {
-    pub fn clockwise(self) -> Vec2 {
-        Vec2(self.1, -self.0)
+pub trait IVec2Ext {
+    fn clockwise(self) -> Self;
+    fn counterclockwise(self) -> Self;
+    fn length(self) -> f32;
+    fn d3(self) -> IVec3;
+    fn at(self, y: i32) -> IVec3;
+}
+
+impl IVec2Ext for IVec2 {
+    fn clockwise(self) -> IVec2 {
+        ivec2(self.x, -self.y)
     }
 
-    pub fn counterclockwise(self) -> Vec2 {
-        Vec2(-self.1, self.0)
+    fn counterclockwise(self) -> IVec2 {
+        ivec2(-self.x, self.y)
     }
 
-    pub fn len(self) -> f32 {
-        ((self.0.pow(2) + self.1.pow(2)) as f32).powf(0.5)
+    fn length(self) -> f32 {
+        ((self.x.pow(2) + self.y.pow(2)) as f32).powf(0.5)
+    }
+
+    fn d3(self) -> IVec3 {
+        ivec3(self.x, 0, self.y)
+    }
+
+    fn at(self, y: i32) -> IVec3 {
+        ivec3(self.x, y, self.y)
     }
 }
 
-impl Vec3 {
+pub trait IVec3Ext {
+    fn rotated(self, turns: u8) -> Self;
+    fn mirrord(self, axis: Axis) -> Self;
+    fn d2(self) -> IVec2;
+}
+
+impl IVec3Ext for IVec3 {
     /// Turns around the y axis
-    pub fn rotated(self, turns: u8) -> Self {
+    fn rotated(self, turns: u8) -> Self {
         match turns % 4 {
-            1 => Vec3(-self.2, self.1, self.0),
-            2 => Vec3(-self.0, self.1, -self.2),
-            3 => Vec3(self.2, self.1, -self.0),
+            1 => ivec3(-self.z, self.y, self.x),
+            2 => ivec3(-self.x, self.y, -self.z),
+            3 => ivec3(self.z, self.y, -self.x),
             _ => self,
         }
     }
 
-    pub fn mirrord(self, axis: Axis) -> Self {
+    fn mirrord(self, axis: Axis) -> Self {
         match axis {
-            Axis::X => Vec3(-self.0, self.1, self.2),
-            Axis::Y => Vec3(self.0, -self.1, self.2),
-            Axis::Z => Vec3(self.0, self.1, -self.2),
+            Axis::X => ivec3(-self.x, self.y, self.z),
+            Axis::Y => ivec3(self.x, -self.y, self.z),
+            Axis::Z => ivec3(self.x, self.y, -self.z),
         }
+    }
+
+    fn d2(self) -> IVec2 {
+        ivec2(self.x, self.z)
     }
 }
 
-impl From<HDir> for Vec2 {
+impl From<HDir> for IVec2 {
     fn from(dir: HDir) -> Self {
         match dir {
-            HDir::XVec3 => Vec2(1, 0),
-            HDir::XNeg => Vec2(-1, 0),
-            HDir::ZVec3 => Vec2(0, 1),
-            HDir::ZNeg => Vec2(0, -1),
+            HDir::XVec3 => ivec2(1, 0),
+            HDir::XNeg => ivec2(-1, 0),
+            HDir::ZVec3 => ivec2(0, 1),
+            HDir::ZNeg => ivec2(0, -1),
         }
     }
 }
 
-impl From<FullDir> for Vec3 {
+impl From<FullDir> for IVec3 {
     fn from(dir: FullDir) -> Self {
         match dir {
-            FullDir::XVec3 => Vec3(1, 0, 0),
-            FullDir::XNeg => Vec3(-1, 0, 0),
-            FullDir::YVec3 => Vec3(0, 1, 0),
-            FullDir::YNeg => Vec3(0, -1, 0),
-            FullDir::ZVec3 => Vec3(0, 0, 1),
-            FullDir::ZNeg => Vec3(0, 0, -1),
+            FullDir::XVec3 => ivec3(1, 0, 0),
+            FullDir::XNeg => ivec3(-1, 0, 0),
+            FullDir::YVec3 => ivec3(0, 1, 0),
+            FullDir::YNeg => ivec3(0, -1, 0),
+            FullDir::ZVec3 => ivec3(0, 0, 1),
+            FullDir::ZNeg => ivec3(0, 0, -1),
         }
     }
 }
 
-impl From<HDir> for Vec3 {
+impl From<HDir> for IVec3 {
     fn from(dir: HDir) -> Self {
-        Vec2::from(dir).into()
-    }
-}
-
-impl From<Vec2> for Vec3 {
-    fn from(vec: Vec2) -> Self {
-        Vec3(vec.0, 0, vec.1)
+        IVec2::from(dir).d3()
     }
 }
 
 impl Rect {
-    pub fn new_centered(center: Vec2, size: Vec2) -> Rect {
+    pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
         Rect {
             min: center - size / 2,
             max: center + size / 2,
         }
     }
 
-    pub fn size(self) -> Vec2 {
-        self.max + Vec2(1, 1) - self.min
+    pub fn size(self) -> IVec2 {
+        self.max + ivec2(1, 1) - self.min
     }
 
-    pub fn center(self) -> Vec2 {
-        self.min + self.size() * 0.5
+    pub fn center(self) -> IVec2 {
+        self.min + self.size() / 2
     }
 
-    pub fn contains(self, column: Vec2) -> bool {
-        (self.min.0 <= column.0)
-            & (self.min.1 <= column.1)
-            & (self.max.0 >= column.0)
-            & (self.max.1 >= column.1)
+    pub fn contains(self, column: IVec2) -> bool {
+        (self.min.x <= column.x)
+            & (self.min.y <= column.y)
+            & (self.max.x >= column.x)
+            & (self.max.y >= column.y)
     }
 
     pub fn overlapps(self, other: Rect) -> bool {
-        (self.min.0 <= other.max.0)
-            & (self.max.0 >= other.min.0)
-            & (self.min.1 <= other.max.1)
-            & (self.max.1 >= other.min.1)
+        (self.min.x <= other.max.x)
+            & (self.max.x >= other.min.x)
+            & (self.min.y <= other.max.y)
+            & (self.max.y >= other.min.y)
     }
 
     pub fn overlap(self, other: Rect) -> Rect {
         Rect {
-            min: Vec2(self.min.0.max(other.min.0), self.min.1.max(other.min.1)),
-            max: Vec2(self.max.0.min(other.max.0), self.max.1.min(other.max.1)),
+            min: ivec2(self.min.x.max(other.min.x), self.min.x.max(other.min.y)),
+            max: ivec2(self.max.x.min(other.max.x), self.max.x.min(other.max.y)),
         }
     }
 
@@ -235,43 +241,43 @@ impl Rect {
 
     pub fn shrink(self, amount: i32) -> Self {
         Self {
-            min: self.min + Vec2(amount, amount),
-            max: self.max - Vec2(amount, amount),
+            min: self.min + ivec2(amount, amount),
+            max: self.max - ivec2(amount, amount),
         }
     }
 
-    pub fn border(self) -> impl Iterator<Item = Vec2> {
-        (self.min.0..=self.max.0)
-            .map(move |x| Vec2(x, self.min.1))
-            .chain((self.min.1..=self.max.1).map(move |z| Vec2(self.max.0, z)))
+    pub fn border(self) -> impl Iterator<Item = IVec2> {
+        (self.min.x..=self.max.x)
+            .map(move |x| ivec2(x, self.min.y))
+            .chain((self.min.y..=self.max.y).map(move |z| ivec2(self.max.x, z)))
             .chain(
-                (self.min.0..=self.max.0)
+                (self.min.x..=self.max.x)
                     .rev()
-                    .map(move |x| Vec2(x, self.max.1)),
+                    .map(move |x| ivec2(x, self.max.x)),
             )
             .chain(
-                (self.min.1..=self.max.1)
+                (self.min.y..=self.max.y)
                     .rev()
-                    .map(move |z| Vec2(self.min.0, z)),
+                    .map(move |z| ivec2(self.min.x, z)),
             )
     }
 }
 
 pub struct RectIter {
     area: Rect,
-    column: Vec2,
+    column: IVec2,
 }
 
 impl Iterator for RectIter {
-    type Item = Vec2;
+    type Item = IVec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         if self.area.contains(self.column) {
             let column = self.column;
-            self.column.0 += 1;
-            if self.column.0 > self.area.max.0 {
-                self.column.0 = self.area.min.0;
-                self.column.1 += 1;
+            self.column.x += 1;
+            if self.column.x > self.area.max.x {
+                self.column.x = self.area.min.x;
+                self.column.x += 1;
             }
             Some(column)
         } else {
@@ -281,7 +287,7 @@ impl Iterator for RectIter {
 }
 
 impl IntoIterator for Rect {
-    type Item = Vec2;
+    type Item = IVec2;
 
     type IntoIter = RectIter;
 
@@ -303,7 +309,7 @@ impl Polyline {
         }
     }
 
-    pub fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = (IVec2, IVec2)> + '_ {
         self.0.iter().cloned().tuple_windows()
     }
 }
@@ -328,7 +334,7 @@ impl Polygon {
     */
 
     // TODO important: Make sure this doesn't include borders! (also add version that does)
-    pub fn contains(&self, column: Vec2) -> bool {
+    pub fn contains(&self, column: IVec2) -> bool {
         let mut inside = false;
 
         // Cast ray in x+ direction
@@ -337,29 +343,29 @@ impl Polygon {
             let line_start = self.0[i];
             let line_end = self.0[(i + 1) % self.0.len()];
             // Todo: fix corners
-            if (line_start.1 <= column.1) & (line_end.1 > column.1)
-                | (line_start.1 >= column.1) & (line_end.1 < column.1)
+            if (line_start.y <= column.y) & (line_end.y > column.y)
+                | (line_start.y >= column.y) & (line_end.y < column.y)
             {
                 // Calculate possible intersection
-                let angle = (line_end.1 - line_start.1) as f32 / (line_end.0 - line_start.0) as f32;
-                let x = line_start.0 as f32 + ((column.1 - line_start.1) as f32 / angle + 0.5);
+                let angle = (line_end.y - line_start.y) as f32 / (line_end.x - line_start.x) as f32;
+                let x = line_start.x as f32 + ((column.y - line_start.y) as f32 / angle + 0.5);
                 if inside {
-                    if x >= column.0 as f32 {
+                    if x >= column.x as f32 {
                         inside = false;
                     }
-                } else if x > column.0 as f32 + 0.5 {
+                } else if x > column.x as f32 + 0.5 {
                     inside = true;
                 }
-            } else if (line_start.1 == column.1) & (line_end.1 == column.1) {
-                if (line_start.0 <= column.0) & (line_end.0 >= column.0)
-                    | (line_end.0 <= column.0) & (line_start.0 >= column.0)
+            } else if (line_start.y == column.y) & (line_end.y == column.y) {
+                if (line_start.x <= column.x) & (line_end.x >= column.x)
+                    | (line_end.x <= column.x) & (line_start.x >= column.x)
                 {
                     return false;
                 } else {
                     // Todo: what if there are multiple segments right after another on the same z coord?
                     let before = self.0[(i - 1) % self.0.len()];
                     let after = self.0[(i + 2) % self.0.len()];
-                    if before.1.signum() != after.1.signum() {
+                    if before.y.signum() != after.y.signum() {
                         inside ^= true;
                     }
                 }
@@ -392,7 +398,7 @@ impl Polygon {
         }
     }
 
-    pub fn segments(&self) -> impl Iterator<Item = (Vec2, Vec2)> + '_ {
+    pub fn segments(&self) -> impl Iterator<Item = (IVec2, IVec2)> + '_ {
         self.0
             .iter()
             .cloned()
@@ -408,23 +414,23 @@ impl Polygon {
 pub struct PolygonIterator<'a> {
     polygon: &'a Polygon,
     bounds: Rect, // We can't use Rect::iter() here :(
-    current: Vec2,
+    current: IVec2,
 }
 
 // Todo: look for a more performant solution
 impl Iterator for PolygonIterator<'_> {
-    type Item = Vec2;
+    type Item = IVec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         loop {
             let column = self.current;
-            self.current.0 += 1;
-            if self.current.0 > self.bounds.max.0 {
-                if self.current.1 == self.bounds.max.1 {
+            self.current.x += 1;
+            if self.current.x > self.bounds.max.x {
+                if self.current.y == self.bounds.max.y {
                     break;
                 }
-                self.current.0 = self.bounds.min.0;
-                self.current.1 += 1;
+                self.current.x = self.bounds.min.x;
+                self.current.y += 1;
             }
             if self.polygon.contains(column) {
                 return Some(column);
@@ -435,14 +441,14 @@ impl Iterator for PolygonIterator<'_> {
 }
 
 pub struct BorderIterator<'a> {
-    points: &'a [Vec2],
+    points: &'a [IVec2],
     i: usize,
     current_iter: ColumnLineIter,
     closed: bool,
 }
 
 impl Iterator for BorderIterator<'_> {
-    type Item = Vec2;
+    type Item = IVec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         match self.current_iter.next() {
@@ -470,42 +476,15 @@ impl Iterator for BorderIterator<'_> {
     }
 }
 
-impl Vec2 {
-    pub fn at(self, y: i32) -> Vec3 {
-        Vec3(self.0, y, self.1)
-    }
-
-    // Unrelated to std::cmp::min
-    pub fn min(self, other: Self) -> Self {
-        Self(self.0.min(other.0), self.1.min(other.1))
-    }
-
-    pub fn max(self, other: Self) -> Self {
-        Self(self.0.max(other.0), self.1.max(other.1))
+impl From<IVec2> for ChunkIndex {
+    fn from(column: IVec2) -> Self {
+        ChunkIndex(column.x.div_euclid(16), column.y.div_euclid(16))
     }
 }
 
-impl From<Vec3> for Vec2 {
-    fn from(pos: Vec3) -> Self {
-        Vec2(pos.0, pos.2)
-    }
-}
-
-impl From<(i32, i32)> for Vec2 {
-    fn from((x, z): (i32, i32)) -> Self {
-        Vec2(x, z)
-    }
-}
-
-impl From<Vec2> for ChunkIndex {
-    fn from(column: Vec2) -> Self {
-        ChunkIndex(column.0.div_euclid(16), column.1.div_euclid(16))
-    }
-}
-
-impl From<Vec3> for ChunkIndex {
-    fn from(pos: Vec3) -> Self {
-        Vec2(pos.0, pos.2).into()
+impl From<IVec3> for ChunkIndex {
+    fn from(pos: IVec3) -> Self {
+        ivec2(pos.x, pos.z).into()
     }
 }
 
@@ -518,33 +497,14 @@ impl From<(i32, i32)> for ChunkIndex {
 impl ChunkIndex {
     pub fn area(self) -> Rect {
         Rect {
-            min: Vec2(self.0 * 16, self.1 * 16),
-            max: Vec2(self.0 * 16, self.1 * 16) + Vec2(15, 15),
+            min: ivec2(self.0 * 16, self.1 * 16),
+            max: ivec2(self.0 * 16 + 15, self.1 * 16 + 15),
         }
     }
 }
 
-impl Vec3 {
-    // Unrelated to std::cmp::min
-    pub fn min(self, other: Vec3) -> Vec3 {
-        Vec3(
-            self.0.min(other.0),
-            self.1.min(other.1),
-            self.2.min(other.2),
-        )
-    }
-
-    pub fn max(self, other: Vec3) -> Vec3 {
-        Vec3(
-            self.0.max(other.0),
-            self.1.max(other.1),
-            self.2.max(other.2),
-        )
-    }
-}
-
 impl Cuboid {
-    pub fn new(corner_a: Vec3, corner_b: Vec3) -> Cuboid {
+    pub fn new(corner_a: IVec3, corner_b: IVec3) -> Cuboid {
         Cuboid {
             min: corner_a,
             max: corner_b,
@@ -552,151 +512,21 @@ impl Cuboid {
         .extend_to(corner_b)
     }
 
-    pub fn extend_to(self, pos: Vec3) -> Self {
+    pub fn extend_to(self, pos: IVec3) -> Self {
         Cuboid {
             min: self.min.min(pos),
             max: self.max.max(pos),
         }
     }
 
-    pub fn size(self) -> Vec3 {
-        self.max - self.min + Vec3(1, 1, 1)
+    pub fn size(self) -> IVec3 {
+        self.max - self.min + IVec3::splat(1)
     }
 
-    pub fn iter(self) -> impl Iterator<Item = Vec3> {
-        (self.min.1..=self.max.1)
-            .flat_map(move |y| (self.min.2..=self.max.2).map(move |z| (y, z)))
-            .flat_map(move |(y, z)| (self.min.0..=self.max.0).map(move |x| Vec3(x, y, z)))
-    }
-}
-
-impl Sub<Vec3> for Vec3 {
-    type Output = Vec3;
-    fn sub(self, rhs: Vec3) -> Self::Output {
-        Vec3(self.0 - rhs.0, self.1 - rhs.1, self.2 - rhs.2)
-    }
-}
-
-impl Add<Vec3> for Vec3 {
-    type Output = Vec3;
-    fn add(self, rhs: Vec3) -> Self::Output {
-        Vec3(self.0 + rhs.0, self.1 + rhs.1, self.2 + rhs.2)
-    }
-}
-
-impl AddAssign<Vec3> for Vec3 {
-    fn add_assign(&mut self, rhs: Vec3) {
-        *self = *self + rhs;
-    }
-}
-
-impl SubAssign<Vec3> for Vec3 {
-    fn sub_assign(&mut self, rhs: Vec3) {
-        *self = *self - rhs;
-    }
-}
-
-impl Add<Vec2> for Vec3 {
-    type Output = Vec3;
-    fn add(self, rhs: Vec2) -> Self::Output {
-        Vec3(self.0 + rhs.0, self.1, self.2 + rhs.1)
-    }
-}
-
-impl AddAssign<Vec2> for Vec3 {
-    fn add_assign(&mut self, rhs: Vec2) {
-        *self = *self + rhs;
-    }
-}
-
-impl Sub<Vec2> for Vec3 {
-    type Output = Vec3;
-    fn sub(self, rhs: Vec2) -> Self::Output {
-        Vec3(self.0 - rhs.0, self.1, self.2 - rhs.1)
-    }
-}
-
-impl SubAssign<Vec2> for Vec3 {
-    fn sub_assign(&mut self, rhs: Vec2) {
-        *self = *self - rhs;
-    }
-}
-
-impl Sub<Vec2> for Vec2 {
-    type Output = Vec2;
-    fn sub(self, rhs: Vec2) -> Self::Output {
-        Vec2(self.0 - rhs.0, self.1 - rhs.1)
-    }
-}
-
-impl Add<Vec2> for Vec2 {
-    type Output = Vec2;
-    fn add(self, rhs: Vec2) -> Self::Output {
-        Vec2(self.0 + rhs.0, self.1 + rhs.1)
-    }
-}
-
-impl AddAssign<Vec2> for Vec2 {
-    fn add_assign(&mut self, rhs: Vec2) {
-        *self = *self + rhs;
-    }
-}
-
-impl SubAssign<Vec2> for Vec2 {
-    fn sub_assign(&mut self, rhs: Vec2) {
-        *self = *self - rhs;
-    }
-}
-
-impl Mul<f32> for Vec2 {
-    type Output = Vec2;
-    fn mul(self, rhs: f32) -> Self::Output {
-        Self((self.0 as f32 * rhs) as i32, (self.1 as f32 * rhs) as i32)
-    }
-}
-
-impl MulAssign<f32> for Vec2 {
-    fn mul_assign(&mut self, rhs: f32) {
-        *self = *self * rhs;
-    }
-}
-
-impl Mul<i32> for Vec2 {
-    type Output = Vec2;
-    fn mul(self, rhs: i32) -> Self::Output {
-        Self(self.0 * rhs, self.1 * rhs)
-    }
-}
-
-impl MulAssign<i32> for Vec2 {
-    fn mul_assign(&mut self, rhs: i32) {
-        *self = *self * rhs;
-    }
-}
-
-impl Div<i32> for Vec2 {
-    type Output = Vec2;
-    fn div(self, rhs: i32) -> Self::Output {
-        Self(self.0 / rhs, self.1 / rhs)
-    }
-}
-
-impl DivAssign<i32> for Vec2 {
-    fn div_assign(&mut self, rhs: i32) {
-        *self = *self / rhs;
-    }
-}
-
-impl Rem<i32> for Vec2 {
-    type Output = Vec2;
-    fn rem(self, rhs: i32) -> Self::Output {
-        Self(self.0 % rhs, self.1 % rhs)
-    }
-}
-
-impl RemAssign<i32> for Vec2 {
-    fn rem_assign(&mut self, rhs: i32) {
-        *self = *self % rhs;
+    pub fn iter(self) -> impl Iterator<Item = IVec3> {
+        (self.min.y..=self.max.y)
+            .flat_map(move |y| (self.min.z..=self.max.z).map(move |z| (y, z)))
+            .flat_map(move |(y, z)| (self.min.x..=self.max.x).map(move |x| ivec3(x, y, z)))
     }
 }
 
@@ -704,8 +534,8 @@ impl RemAssign<i32> for Vec2 {
 pub struct ColumnLineIter {
     inner: bresenham::Bresenham,
     style: LineStyle,
-    prev: Vec2,
-    enqueued: Option<Vec2>,
+    prev: IVec2,
+    enqueued: Option<IVec2>,
 }
 
 #[derive(Copy, Clone, Eq, PartialEq, Debug)]
@@ -719,33 +549,33 @@ pub enum LineStyle {
 }
 
 impl Iterator for ColumnLineIter {
-    type Item = Vec2;
+    type Item = IVec2;
 
     fn next(&mut self) -> Option<Self::Item> {
         if let Some(column) = self.enqueued.take() {
             return Some(column);
         }
-        let next = self.inner.next().map(|(x, z)| Vec2(x as i32, z as i32))?;
+        let next = self.inner.next().map(|(x, z)| ivec2(x as i32, z as i32))?;
 
         if self.style == LineStyle::Thin {
             return Some(next);
         }
 
-        if (self.prev.0 != next.0) & (self.prev.1 != next.1) {
+        if (self.prev.x != next.x) & (self.prev.y != next.y) {
             let interpol = if self.style == LineStyle::ThickWobbly {
                 if rand(0.5) {
-                    Vec2(self.prev.0, next.1)
+                    ivec2(self.prev.x, next.x)
                 } else {
-                    Vec2(next.0, self.prev.1)
+                    ivec2(next.x, self.prev.x)
                 }
-            } else if self.prev.0 < next.0 {
-                Vec2(self.prev.0, next.1)
-            } else if self.prev.0 > next.0 {
-                Vec2(next.0, self.prev.1)
-            } else if self.prev.1 < next.1 {
-                Vec2(self.prev.0, next.1)
+            } else if self.prev.x < next.x {
+                ivec2(self.prev.x, next.y)
+            } else if self.prev.x > next.x {
+                ivec2(next.x, self.prev.y)
+            } else if self.prev.y < next.y {
+                ivec2(self.prev.x, next.y)
             } else {
-                Vec2(next.0, self.prev.1)
+                ivec2(next.x, self.prev.y)
             };
             self.enqueued = Some(next);
             self.prev = next;
@@ -758,11 +588,11 @@ impl Iterator for ColumnLineIter {
 }
 
 impl ColumnLineIter {
-    pub fn new(start: Vec2, end: Vec2, style: LineStyle) -> ColumnLineIter {
+    pub fn new(start: IVec2, end: IVec2, style: LineStyle) -> ColumnLineIter {
         ColumnLineIter {
             inner: bresenham::Bresenham::new(
-                (start.0 as isize, start.1 as isize),
-                (end.0 as isize, end.1 as isize),
+                (start.x as isize, start.y as isize),
+                (end.x as isize, end.y as isize),
             ),
             style,
             prev: start,
@@ -785,12 +615,12 @@ pub fn rand_1(prob: f32) -> i32 {
     }
 }
 
-pub fn rand_2(prob: f32) -> Vec2 {
-    Vec2(rand_1(prob), rand_1(prob))
+pub fn rand_2(prob: f32) -> IVec2 {
+    ivec2(rand_1(prob), rand_1(prob))
 }
 
-pub fn rand_3(prob: f32) -> Vec3 {
-    Vec3(rand_1(prob), rand_1(prob), rand_1(prob))
+pub fn rand_3(prob: f32) -> IVec3 {
+    ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
 }
 
 // Inclusive range

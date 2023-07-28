@@ -10,14 +10,14 @@ use crate::*;
 // pub mod farm;
 
 #[derive(Clone)]
-pub struct TemplateMark(Vec3, Option<HDir>, Vec<String>);
+pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
 
 // Hand-build structure, stored via structure blocks
 #[derive(Clone)]
 pub struct Template {
     _name: String,
-    _size: Vec3,
-    blocks: HashMap<Vec3, Block>,
+    _size: IVec3,
+    blocks: HashMap<IVec3, Block>,
     markers: HashMap<String, TemplateMark>,
 }
 
@@ -56,9 +56,9 @@ impl Template {
         name: &'a str,
     ) -> Result<Template, CompoundTagError<'a>> {
         #[allow(clippy::ptr_arg)]
-        fn read_pos(nbt: &Vec<Tag>) -> Vec3 {
+        fn read_pos(nbt: &Vec<Tag>) -> IVec3 {
             match [&nbt[0], &nbt[1], &nbt[2]] {
-                [Tag::Int(x), Tag::Int(y), Tag::Int(z)] => Vec3(*x, *y, *z),
+                [Tag::Int(x), Tag::Int(y), Tag::Int(z)] => ivec3(*x, *y, *z),
                 _ => panic!(),
             }
         }
@@ -134,7 +134,7 @@ impl Template {
         })
     }
 
-    pub fn build(&self, level: &mut Level, pos: Vec3, facing: HDir) {
+    pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         // TODO: better build order
         for (offset, block) in self.blocks.iter() {
@@ -142,11 +142,11 @@ impl Template {
         }
     }
 
-    pub fn build_clipped(&self, world: &mut Level, pos: Vec3, facing: HDir, area: Rect) {
+    pub fn build_clipped(&self, world: &mut Level, pos: IVec3, facing: HDir, area: Rect) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
-            if area.contains(Vec2(pos.0, pos.2)) {
+            if area.contains(pos.d2()) {
                 world[pos] = block.rotated(rotation);
             }
         }

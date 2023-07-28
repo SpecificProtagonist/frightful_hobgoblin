@@ -48,9 +48,9 @@ impl Level {
         };
         let chunk_provider = FolderRegionProvider::new(&region_path);
         let chunk_min: ChunkIndex =
-            (area.min - Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
+            (area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
         let chunk_max: ChunkIndex =
-            (area.max + Vec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
+            (area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
 
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
@@ -149,25 +149,12 @@ impl Level {
         gamerules.insert_str("commandBlockOutput", "false");
         gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
 
-        // Set spawn to the center of the area to ensure all command blocks stay loaded
-        data.insert_i32("SpawnX", self.area().center().0);
-        data.insert_i32("SpawnZ", self.area().center().1);
-
         let mut file = std::fs::OpenOptions::new()
             .write(true)
             .open(&level_nbt_path)
             .expect("Failed to open level.dat");
         nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
         Ok(())
-    }
-
-    pub fn redstone_processing_area(&self) -> Rect {
-        let min = self.area().center() - Vec2(111, 111);
-        let max = self.area().center() + Vec2(111, 111);
-        Rect {
-            min: Vec2((min.0 / 16) * 16, (min.1 / 16) * 16),
-            max: Vec2((max.0 / 16) * 16 + 15, (max.1 / 16) * 16 + 15),
-        }
     }
 
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
@@ -184,17 +171,17 @@ impl Level {
         }
     }
 
-    fn section_index(&self, pos: Vec3) -> usize {
-        self.chunk_index(pos.into()) * 24 + (pos.1 / 16 + 4) as usize
+    fn section_index(&self, pos: IVec3) -> usize {
+        self.chunk_index(pos.into()) * 24 + (pos.y / 16 + 4) as usize
     }
 
-    fn column_index(&self, column: Vec2) -> usize {
+    fn column_index(&self, column: IVec2) -> usize {
         self.chunk_index(column.into()) * 16 * 16
-            + (column.0.rem_euclid(16) + column.1.rem_euclid(16) * 16) as usize
+            + (column.x.rem_euclid(16) + column.y.rem_euclid(16) * 16) as usize
     }
 
-    fn block_in_section_index(pos: Vec3) -> usize {
-        (pos.0.rem_euclid(16) + pos.1.rem_euclid(16) * 16 * 16 + pos.2.rem_euclid(16) * 16) as usize
+    fn block_in_section_index(pos: IVec3) -> usize {
+        (pos.x.rem_euclid(16) + pos.y.rem_euclid(16) * 16 * 16 + pos.z.rem_euclid(16) * 16) as usize
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -213,8 +200,8 @@ impl Level {
 
     pub fn area(&self) -> Rect {
         Rect {
-            min: Vec2(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
-            max: Vec2(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
+            min: ivec2(self.chunk_min.0 * 16, self.chunk_min.1 * 16),
+            max: ivec2(self.chunk_max.0 * 16 + 15, self.chunk_max.1 * 16 + 15),
         }
         .shrink(crate::LOAD_MARGIN)
     }
@@ -230,20 +217,20 @@ impl Level {
     //     }
     // }
 
-    pub fn height(&self, column: Vec2) -> i32 {
+    pub fn height(&self, column: IVec2) -> i32 {
         self.heightmap[self.column_index(column)]
     }
 
-    pub fn height_mut(&mut self, column: Vec2) -> &mut i32 {
+    pub fn height_mut(&mut self, column: IVec2) -> &mut i32 {
         let index = self.column_index(column);
         &mut self.heightmap[index]
     }
 
-    pub fn water_level(&self, column: Vec2) -> Option<i32> {
+    pub fn water_level(&self, column: IVec2) -> Option<i32> {
         self.watermap[self.column_index(column)]
     }
 
-    pub fn water_level_mut(&mut self, column: Vec2) -> &mut Option<i32> {
+    pub fn water_level_mut(&mut self, column: IVec2) -> &mut Option<i32> {
         let index = self.column_index(column);
         &mut self.watermap[index]
     }
@@ -255,7 +242,7 @@ impl Level {
     pub fn pop_recording(
         &mut self,
         cursor: RecordingCursor,
-    ) -> impl Iterator<Item = (Vec3, Block)> + '_ {
+    ) -> impl Iterator<Item = (IVec3, Block)> + '_ {
         // Intermediate storage because of borrow conflict
         let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
         rec.into_iter()
@@ -270,10 +257,10 @@ impl Level {
     }
 }
 
-impl Index<Vec3> for Level {
+impl Index<IVec3> for Level {
     type Output = Block;
 
-    fn index(&self, pos: Vec3) -> &Self::Output {
+    fn index(&self, pos: IVec3) -> &Self::Output {
         if let Some(section) = &self.sections[self.section_index(pos)] {
             &section.blocks[Self::block_in_section_index(pos)]
         } else {
@@ -282,8 +269,8 @@ impl Index<Vec3> for Level {
     }
 }
 
-impl IndexMut<Vec3> for Level {
-    fn index_mut(&mut self, pos: Vec3) -> &mut Self::Output {
+impl IndexMut<IVec3> for Level {
+    fn index_mut(&mut self, pos: IVec3) -> &mut Self::Output {
         let chunk_index = self.chunk_index(pos.into());
         self.dirty_chunks[chunk_index] = true;
         let index = self.section_index(pos);
@@ -473,9 +460,9 @@ fn save_chunk(
                                 // Collect TileEntity data
                                 {
                                     let section_base =
-                                        Vec3(index.0 * 16, y_index * 16, index.1 * 16);
+                                        ivec3(index.0 * 16, y_index * 16, index.1 * 16);
                                     let pos = section_base
-                                        + Vec3(
+                                        + ivec3(
                                             i as i32 % 16,
                                             i as i32 / (16 * 16),
                                             i as i32 % (16 * 16) / 16,
@@ -514,7 +501,7 @@ impl Default for Section {
 }
 
 struct SetBlock {
-    pos: Vec3,
+    pos: IVec3,
     previous: Block,
 }
 
