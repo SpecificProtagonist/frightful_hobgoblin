@@ -1,5 +1,6 @@
 use std::fmt::Display;
 use std::fs::{read, write};
+use std::ops::DerefMut;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{fmt::Write, fs::create_dir_all, path::Path};
 
@@ -13,16 +14,18 @@ pub fn sim(level: Level, save_sim: bool) {
     world.init_resource::<Replay>();
     world.insert_resource(level);
 
-    let pos = vec3(0., 0., 200.);
+    let pos = vec3(-50., 90., 200.);
     world.spawn((
         Id::default(),
         Villager {
-            carry: None,
+            carry: Some(Bedrock),
             carry_id: default(),
         },
         Pos(pos),
         PrevPos(pos),
     ));
+
+    // let house_pos = ivec3(-77, 117, 94);
 
     let mut sched = Schedule::new();
     sched.add_systems(test_walk);
@@ -61,13 +64,14 @@ fn tick_replay(
     mut level: ResMut<Level>,
     mut replay: ResMut<Replay>,
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
-    _changed_vills: Query<(&Id, &Villager), Changed<Villager>>,
-    mut moved: Query<(&Id, &Pos, &mut PrevPos), Changed<Pos>>,
+    changed_vills: Query<&Villager, Changed<Villager>>,
+    mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&Villager>), Changed<Pos>>,
 ) {
+    let replay = replay.deref_mut();
     for (pos, block) in level.pop_recording(default()) {
         replay.block(pos, block);
     }
-    for (id, pos, _vill) in &new_vills {
+    for (id, pos, vill) in &new_vills {
         replay.start_command();
         writeln!(
             replay.commands,
@@ -78,9 +82,18 @@ fn tick_replay(
             id.snbt()
         )
         .unwrap();
-        // TODO: carrying
+        replay.start_command();
+        writeln!(
+            replay.commands,
+            "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1}}",
+            pos.x,
+            pos.z + 0.8,
+            pos.y,
+            vill.carry_id.snbt(),
+        )
+        .unwrap();
     }
-    for (id, pos, mut prev) in &mut moved {
+    for (id, pos, mut prev, vill) in &mut moved {
         let facing = pos.0 * 2.0 - prev.0;
         replay.start_command();
         writeln!(
@@ -89,8 +102,41 @@ fn tick_replay(
             id, pos.x, pos.z, pos.y, facing.x, facing.z, facing.y
         )
         .unwrap();
-        // TODO: carrying
+        if let Some(vill) = vill {
+            replay.start_command();
+            writeln!(
+                replay.commands,
+                "tp {} {} {} {} facing {} {} {}",
+                vill.carry_id,
+                pos.x,
+                pos.z + 0.8,
+                pos.y,
+                facing.x,
+                facing.z,
+                facing.y
+            )
+            .unwrap();
+        }
         prev.0 = pos.0;
+    }
+    for vill in &changed_vills {
+        replay.start_command();
+        if let Some(carry) = vill.carry {
+            writeln!(
+                replay.commands,
+                "data modify entity {} ArmorItems[3] set value {}",
+                vill.carry_id,
+                carry.blockstate(&replay.unknown_blocks).item_snbt()
+            )
+            .unwrap();
+        } else {
+            writeln!(
+                replay.commands,
+                "data modify entity {} ArmorItems[3] set value {{}}",
+                vill.carry_id,
+            )
+            .unwrap();
+        }
     }
     replay.tick += 1;
 }

@@ -284,6 +284,8 @@ impl IndexMut<IVec3> for Level {
     }
 }
 
+// TODO: load stored heightmaps, compare to found heightmaps to detect
+// man-made structures
 fn load_chunk(
     chunk_provider: &FolderRegionProvider,
     chunk_index: ChunkIndex,

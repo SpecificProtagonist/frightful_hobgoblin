@@ -14,19 +14,18 @@ pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
 
 // Hand-build structure, stored via structure blocks
 #[derive(Clone)]
-pub struct Template {
-    _name: String,
-    _size: IVec3,
+pub struct Prefab {
+    size: IVec3,
     blocks: HashMap<IVec3, Block>,
     markers: HashMap<String, TemplateMark>,
 }
 
 // Cache the templates
 lazy_static! {
-    static ref TEMPLATES: Mutex<HashMap<String, &'static Template>> = Default::default();
+    static ref TEMPLATES: Mutex<HashMap<String, &'static Prefab>> = Default::default();
 }
 
-impl Template {
+impl Prefab {
     pub fn get(name: &str) -> &'static Self {
         let mut templates = TEMPLATES.lock().unwrap();
         templates
@@ -37,7 +36,7 @@ impl Template {
     /// Panics when file is not found, isn't a valid structure or contains unknown blocks
     /// (since file is not specified by user)
     fn load(name: &str) -> Self {
-        let mut path = Path::new("templates").join(name);
+        let mut path = Path::new("prefabs").join(name);
         path.set_extension("nbt");
         let mut file =
             File::open(&path).unwrap_or_else(|_| panic!("Structure file {:?} not found", path));
@@ -54,11 +53,11 @@ impl Template {
     fn load_from_nbt<'a>(
         nbt: &'a CompoundTag,
         name: &'a str,
-    ) -> Result<Template, CompoundTagError<'a>> {
+    ) -> Result<Prefab, CompoundTagError<'a>> {
         #[allow(clippy::ptr_arg)]
         fn read_pos(nbt: &Vec<Tag>) -> IVec3 {
             match [&nbt[0], &nbt[1], &nbt[2]] {
-                [Tag::Int(x), Tag::Int(y), Tag::Int(z)] => ivec3(*x, *y, *z),
+                [Tag::Int(x), Tag::Int(z), Tag::Int(y)] => ivec3(*x, *y, *z),
                 _ => panic!(),
             }
         }
@@ -127,8 +126,7 @@ impl Template {
         }
 
         Ok(Self {
-            _name: name.to_owned(),
-            _size: size,
+            size,
             blocks,
             markers,
         })

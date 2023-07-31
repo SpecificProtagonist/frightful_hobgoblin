@@ -108,6 +108,15 @@ pub enum FullDir {
     ZNeg,
 }
 
+pub const NEIGHBORS_3D: [IVec3; 6] = [
+    ivec3(1, 0, 0),
+    ivec3(-1, 0, 0),
+    ivec3(0, 1, 0),
+    ivec3(0, -1, 0),
+    ivec3(0, 0, 1),
+    ivec3(0, 0, -1),
+];
+
 pub trait IVec2Ext {
     fn clockwise(self) -> Self;
     fn counterclockwise(self) -> Self;
@@ -262,7 +271,7 @@ impl Iterator for RectIter {
             self.column.x += 1;
             if self.column.x > self.area.max.x {
                 self.column.x = self.area.min.x;
-                self.column.x += 1;
+                self.column.y += 1;
             }
             Some(column)
         } else {

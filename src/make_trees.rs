@@ -3,7 +3,7 @@ use crate::level::*;
 
 pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     let log_block = Log(species, LogType::FullBark);
-    let leaf_block = Leaves(species);
+    let leaf_block = Leaves(species, None);
 
     let base_pos = base_pos + ivec3(0, 0, 1);
     level[base_pos] = log_block;
@@ -43,7 +43,7 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
 
 pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
     let log_block = Log(species, LogType::FullBark);
-    let leaf_block = Leaves(species);
+    let leaf_block = Leaves(species, None);
 
     let log_height = 5 + rand_1(0.5) + rand_1(0.5);
 

@@ -9,9 +9,10 @@ fn main() {
 
     let area = Rect::new_centered(ivec2(AREA[0], AREA[1]), ivec2(AREA[2], AREA[3]));
 
-    let level = Level::new(SAVE_WRITE_PATH, area);
+    let mut level = Level::new(SAVE_WRITE_PATH, area);
 
-    // remove_foliage::trees(&mut level, area, true);
+    // remove_foliage::trees(&mut level, area);
+    // level.save();
 
     sim(level, true);
 }

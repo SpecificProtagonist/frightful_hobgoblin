@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
-    fmt::Display,
+    fmt::{Display, Write},
     mem::size_of,
     str::FromStr,
     sync::{LazyLock, RwLock},
@@ -31,7 +31,8 @@ pub enum Block {
     Soil(Soil),
     // TODO: stripped logs
     Log(TreeSpecies, LogType),
-    Leaves(TreeSpecies),
+    // Store distance from log if not persistent
+    Leaves(TreeSpecies, Option<i8>),
     GroundPlant(GroundPlant),
     Wool(Color),
     Terracotta(Option<Color>),
@@ -88,6 +89,8 @@ pub enum TreeSpecies {
     Crimson,
     Mangrove,
     Cherry,
+    Azalea,
+    FloweringAzalea,
 }
 
 impl TreeSpecies {
@@ -103,6 +106,8 @@ impl TreeSpecies {
             Crimson => "crimson",
             Mangrove => "mangrove",
             Cherry => "cherry",
+            Azalea => "azalea",
+            FloweringAzalea => "flowering_azalea",
         }
     }
 }
@@ -308,18 +313,22 @@ pub struct Blockstate(
 
 impl Display for Blockstate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)?;
-        if !self.1.is_empty() {
-            write!(f, "[")?;
-            for (i, (name, state)) in self.1.iter().enumerate() {
-                write!(f, "{}={}", name, state)?;
-                if i + 1 < self.1.len() {
-                    write!(f, ",")?;
-                }
-            }
-            write!(f, "]")?;
+        write!(f, "{}[", self.0)?;
+        for (name, state) in self.1.iter() {
+            write!(f, "{}={},", name, state)?;
         }
-        Ok(())
+        write!(f, "]")
+    }
+}
+
+impl Blockstate {
+    pub fn item_snbt(&self) -> String {
+        let mut str = format!("{{id:\"{}\",Count:1,tag:{{BlockStateTag:{{", self.0);
+        for (prop, value) in &self.1 {
+            write!(str, "{prop}:\"{value}\",").unwrap();
+        }
+        str.push_str("}}}");
+        str
     }
 }
 
@@ -374,9 +383,16 @@ impl Block {
                     vec![],
                 ),
             },
-            Leaves(species) => Blockstate(
+            Leaves(species, distance) => Blockstate(
                 format!("{}_leaves", species).into(),
-                vec![("persistent".into(), "true".into())],
+                if let Some(distance) = distance {
+                    vec![
+                        ("persistent".into(), "false".into()),
+                        ("distance".into(), distance.to_string().into()),
+                    ]
+                } else {
+                    vec![("persistent".into(), "true".into())]
+                },
             ),
             GroundPlant(plant) => match plant {
                 GroundPlant::Sapling(species) => format!("{}_sapling", species).into(),
@@ -568,6 +584,17 @@ impl Block {
             )
         }
 
+        fn leaves(species: TreeSpecies, props: &CompoundTag) -> Block {
+            Leaves(
+                species,
+                if props.get_str("persistent").unwrap() == "false" {
+                    Some(props.get_str("distance").unwrap().parse().unwrap())
+                } else {
+                    None
+                },
+            )
+        }
+
         fn wall_banner(color: Color, props: &CompoundTag) -> Block {
             WallBanner(
                 HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
@@ -609,12 +636,14 @@ impl Block {
                 "dark_oak_log" => log(DarkOak, props),
                 "mangrove_log" => log(Mangrove, props),
                 "cherry_log" => log(Cherry, props),
-                "oak_leaves" => Leaves(Oak),
-                "spruce_leaves" => Leaves(Spruce),
-                "birch_leaves" => Leaves(Birch),
-                "jungle_leaves" => Leaves(Jungle),
-                "acacie_leaves" => Leaves(Acacia),
-                "dark_oak_leaves" => Leaves(DarkOak),
+                "oak_leaves" => leaves(Oak, props),
+                "spruce_leaves" => leaves(Spruce, props),
+                "birch_leaves" => leaves(Birch, props),
+                "jungle_leaves" => leaves(Jungle, props),
+                "acacie_leaves" => leaves(Acacia, props),
+                "dark_oak_leaves" => leaves(DarkOak, props),
+                "azalea_leaves" => leaves(Azalea, props),
+                "flowering_azalea_leaves" => leaves(FloweringAzalea, props),
                 "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
                 "snow" => SnowLayer, // Todo: store layer
                 "fence" => Fence(Wood(Oak)),
