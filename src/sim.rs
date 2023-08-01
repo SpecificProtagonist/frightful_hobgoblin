@@ -1,6 +1,7 @@
+use std::f32::consts::PI;
 use std::fmt::Display;
-use std::fs::{read, write};
-use std::ops::DerefMut;
+use std::fs::{create_dir, read, write};
+use std::ops::{DerefMut, RangeInclusive};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{fmt::Write, fs::create_dir_all, path::Path};
 
@@ -53,9 +54,10 @@ pub fn sim(level: Level, save_sim: bool) {
     }
 }
 
-fn test_walk(level: Res<Level>, mut query: Query<&mut Pos, With<Villager>>) {
+fn test_walk(mut rot: Local<f32>, level: Res<Level>, mut query: Query<&mut Pos, With<Villager>>) {
+    *rot += 0.01;
     for mut pos in &mut query {
-        pos.0 += vec3(0.05, 0.1, 0.0);
+        pos.0 += vec3(0.15 * rot.sin(), 0.15 * rot.cos(), 0.0);
         set_walk_height(&level, &mut pos);
     }
 }
@@ -94,7 +96,8 @@ fn tick_replay(
         .unwrap();
     }
     for (id, pos, mut prev, vill) in &mut moved {
-        let facing = pos.0 * 2.0 - prev.0;
+        let delta = pos.0 - prev.0;
+        let facing = pos.0 + delta;
         replay.start_command();
         writeln!(
             replay.commands,
@@ -106,14 +109,12 @@ fn tick_replay(
             replay.start_command();
             writeln!(
                 replay.commands,
-                "tp {} {} {} {} facing {} {} {}",
+                "tp {} {} {} {} {} 0",
                 vill.carry_id,
                 pos.x,
                 pos.z + 0.8,
                 pos.y,
-                facing.x,
-                facing.z,
-                facing.y
+                delta.y.atan2(delta.x) / PI * 180.,
             )
             .unwrap();
         }
@@ -222,8 +223,10 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 struct Replay {
     tick: i32,
     marker: Id,
-    // TODO: split into two levels if this gets too big
     commands: String,
+    command_chunks: Vec<(RangeInclusive<i32>, String)>,
+    chunk_start_tick: i32,
+    commands_this_chunk: i32,
     block_cache: HashMap<Block, String>,
     unknown_blocks: UnknownBlocks,
 }
@@ -233,15 +236,29 @@ impl Default for Replay {
         Self {
             tick: 0,
             marker: default(),
+            command_chunks: default(),
             commands: default(),
             block_cache: default(),
             unknown_blocks: UNKNOWN_BLOCKS.read().unwrap().clone(),
+            commands_this_chunk: 0,
+            chunk_start_tick: 0,
         }
     }
 }
 
+const COMMANDS_PER_CHUNK: i32 = 1000;
+
 impl Replay {
     fn start_command(&mut self) {
+        if self.commands_this_chunk == COMMANDS_PER_CHUNK {
+            self.command_chunks.push((
+                self.chunk_start_tick..=self.tick,
+                std::mem::take(&mut self.commands),
+            ));
+            self.commands_this_chunk = 0;
+            self.chunk_start_tick = self.tick;
+        }
+        self.commands_this_chunk += 1;
         write!(
             self.commands,
             "execute if score {} sim_tick matches {} run ",
@@ -266,6 +283,9 @@ impl Replay {
     }
 
     pub fn write(mut self, level: &Path) {
+        self.command_chunks
+            .push((self.chunk_start_tick..=self.tick, self.commands));
+
         let pack_path = level.join("datapacks/sim/");
         create_dir_all(&pack_path).unwrap();
         write(
@@ -312,12 +332,26 @@ impl Replay {
         // For now just start automatically
         write(tag_path.join("tick.json"), r#"{values:["sim:tick"]}"#).unwrap();
 
-        writeln!(
-            self.commands,
-            "scoreboard players add {} sim_tick 1",
-            self.marker
-        )
-        .unwrap();
-        write(sim_path.join("tick.mcfunction"), self.commands).unwrap();
+        let mut tick = String::new();
+        let tick_path = sim_path.join("ticks");
+        create_dir(&tick_path).unwrap();
+        for (ticks, commands) in self.command_chunks {
+            write(
+                tick_path.join(format!("{}.mcfunction", ticks.start())),
+                commands,
+            )
+            .unwrap();
+            writeln!(
+                tick,
+                "execute if score {} sim_tick matches {}..{} run function sim:ticks/{}",
+                self.marker,
+                ticks.start(),
+                ticks.end(),
+                ticks.start()
+            )
+            .unwrap();
+        }
+        writeln!(tick, "scoreboard players add {} sim_tick 1", self.marker).unwrap();
+        write(sim_path.join("tick.mcfunction"), tick).unwrap();
     }
 }
