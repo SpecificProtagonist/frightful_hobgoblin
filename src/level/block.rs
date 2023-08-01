@@ -45,6 +45,8 @@ pub enum Block {
     Cauldron {
         water: u8,
     },
+    Trapdoor(TreeSpecies, HDir, DoorMeta),
+    Door(TreeSpecies, HDir, DoorMeta),
     Bell(HDir, BellAttachment),
     Repeater(HDir, u8),
     Barrier,
@@ -67,6 +69,14 @@ pub static UNKNOWN_BLOCKS: LazyLock<RwLock<UnknownBlocks>> = LazyLock::new(defau
 
 pub fn debug_read_unknown(index: u16) -> Blockstate {
     UNKNOWN_BLOCKS.read().unwrap().states[index as usize].clone()
+}
+
+bitflags::bitflags! {
+    #[derive(Copy,Clone, Debug, Eq, PartialEq, Hash)]
+    pub struct DoorMeta: u8 {
+        const TOP = 0b01;
+        const OPEN = 0b10;
+    }
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -488,6 +498,44 @@ impl Block {
                     },
                 )],
             ),
+            Trapdoor(species, dir, meta) => Blockstate(
+                format!("{}_trapdoor", species).into(),
+                vec![
+                    ("facing".into(), dir.to_str().into()),
+                    (
+                        "half".into(),
+                        if meta.contains(DoorMeta::TOP) {
+                            "top"
+                        } else {
+                            "bottom"
+                        }
+                        .into(),
+                    ),
+                    (
+                        "open".into(),
+                        format!("{}", meta.contains(DoorMeta::OPEN)).into(),
+                    ),
+                ],
+            ),
+            Door(species, dir, meta) => Blockstate(
+                format!("{}_door", species).into(),
+                vec![
+                    ("facing".into(), dir.to_str().into()),
+                    (
+                        "half".into(),
+                        if meta.contains(DoorMeta::TOP) {
+                            "upper"
+                        } else {
+                            "lower"
+                        }
+                        .into(),
+                    ),
+                    (
+                        "open".into(),
+                        format!("{}", meta.contains(DoorMeta::OPEN)).into(),
+                    ),
+                ],
+            ),
             Bell(facing, attachment) => Blockstate(
                 "bell".into(),
                 vec![
@@ -602,6 +650,40 @@ impl Block {
             )
         }
 
+        fn trapdoor(species: TreeSpecies, props: &CompoundTag) -> Block {
+            Trapdoor(
+                species,
+                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                {
+                    let mut meta = DoorMeta::empty();
+                    if props.get_str("half").unwrap() == "top" {
+                        meta |= DoorMeta::TOP;
+                    }
+                    if props.get_str("open").unwrap() == "true" {
+                        meta |= DoorMeta::OPEN;
+                    }
+                    meta
+                },
+            )
+        }
+
+        fn door(species: TreeSpecies, props: &CompoundTag) -> Block {
+            Door(
+                species,
+                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                {
+                    let mut meta = DoorMeta::empty();
+                    if props.get_str("half").unwrap() == "upper" {
+                        meta |= DoorMeta::TOP;
+                    }
+                    if props.get_str("open").unwrap() == "true" {
+                        meta |= DoorMeta::OPEN;
+                    }
+                    meta
+                },
+            )
+        }
+
         fn known_block(name: &str, props: &CompoundTag) -> Option<Block> {
             // TODO: expand this
             Some(match name {
@@ -668,6 +750,7 @@ impl Block {
                 "jungle_stairs" => stair(Wood(Jungle), props),
                 "acacia_stairs" => stair(Wood(Acacia), props),
                 "dark_oak_stairs" => stair(Wood(DarkOak), props),
+                "cobblestone_stairs" => stair(Cobble, props),
                 "stone_brick_stairs" => stair(StoneBrick, props),
                 "blackstone_stairs" => stair(Blackstone, props),
                 "mud_brick_stairs" => stair(MudBrick, props),
@@ -691,6 +774,10 @@ impl Block {
                 "cauldron" => Cauldron {
                     water: props.get_str("level").unwrap().parse().unwrap(),
                 },
+                "oak_trapdoor" => trapdoor(Oak, props),
+                "spruce_trapdoor" => trapdoor(Spruce, props),
+                "oak_door" => door(Oak, props),
+                "spruce_door" => door(Spruce, props),
                 "bell" => Bell(
                     HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
                     match props.get_str("attachment").unwrap() {
@@ -779,14 +866,16 @@ impl Block {
         )
     }
 
-    pub fn rotated(&self, turns: u8) -> Self {
+    pub fn rotated(self, turns: u8) -> Self {
         match self {
-            Log(species, LogType::Normal(Axis::X)) => Log(*species, LogType::Normal(Axis::Y)),
-            Log(species, LogType::Normal(Axis::Y)) => Log(*species, LogType::Normal(Axis::X)),
-            Stair(material, facing, flipped) => Stair(*material, facing.rotated(turns), *flipped),
-            WallBanner(facing, color) => WallBanner(facing.rotated(turns), *color),
-            Repeater(dir, delay) => Repeater(dir.rotated(turns), *delay),
-            _ => *self,
+            Log(species, LogType::Normal(Axis::X)) => Log(species, LogType::Normal(Axis::Y)),
+            Log(species, LogType::Normal(Axis::Y)) => Log(species, LogType::Normal(Axis::X)),
+            Stair(material, facing, flipped) => Stair(material, facing.rotated(turns), flipped),
+            WallBanner(facing, color) => WallBanner(facing.rotated(turns), color),
+            Repeater(dir, delay) => Repeater(dir.rotated(turns), delay),
+            Trapdoor(species, dir, meta) => Trapdoor(species, dir.rotated(turns), meta),
+            Door(species, dir, meta) => Door(species, dir.rotated(turns), meta),
+            _ => self,
         }
     }
 }

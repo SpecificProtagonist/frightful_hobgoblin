@@ -22,13 +22,14 @@ pub struct Prefab {
 
 // Cache the templates
 lazy_static! {
-    static ref TEMPLATES: Mutex<HashMap<String, &'static Prefab>> = Default::default();
+    static ref PREFABS: Mutex<HashMap<String, &'static Prefab>> = Default::default();
 }
 
 impl Prefab {
     pub fn get(name: &str) -> &'static Self {
-        let mut templates = TEMPLATES.lock().unwrap();
-        templates
+        // TODO: eagerly load all prefabs to init unknown blocks
+        let mut prefabs = PREFABS.lock().unwrap();
+        prefabs
             .entry(name.into())
             .or_insert_with(|| Box::leak(Box::new(Self::load(name))))
     }
@@ -69,7 +70,7 @@ impl Prefab {
             .get_compound_tag_vec("entities")?
             .iter()
             .filter_map(|nbt| {
-                let pos = read_pos(nbt.get("blockVec3").unwrap());
+                let pos = read_pos(nbt.get("blockPos").unwrap());
                 let nbt = nbt.get_compound_tag("nbt").unwrap();
                 if let Ok("minecraft:armor_stand") = nbt.get_str("id") {
                     let tags: Vec<String> = nbt
@@ -115,6 +116,10 @@ impl Prefab {
             .iter()
             .map(|nbt| Block::from_nbt(nbt))
             .collect();
+
+        // for block in &palette {
+        //     println!("{}", block.blockstate(&UNKNOWN_BLOCKS.read().unwrap()));
+        // }
 
         let mut blocks = HashMap::new();
 

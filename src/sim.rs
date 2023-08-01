@@ -5,15 +5,54 @@ use std::ops::{DerefMut, RangeInclusive};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{fmt::Write, fs::create_dir_all, path::Path};
 
+use crate::structures::Prefab;
 use crate::*;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 
-pub fn sim(level: Level, save_sim: bool) {
+pub fn sim(mut level: Level, save_sim: bool) {
     Id::load(&level.path);
+
+    let house_pos = ivec3(-77, 117, 94);
+    let house = Building {
+        stages: vec![
+            BuildStage {
+                resource: Resource::Stone,
+                place: {
+                    let cursor = level.recording_cursor();
+                    Prefab::get("test-house/0").build(&mut level, house_pos, HDir::YPos);
+                    level.pop_recording(cursor).collect()
+                },
+            },
+            BuildStage {
+                resource: Resource::Wood,
+                place: {
+                    let cursor = level.recording_cursor();
+                    Prefab::get("test-house/1").build(&mut level, house_pos, HDir::YPos);
+                    level.pop_recording(cursor).collect()
+                },
+            },
+            BuildStage {
+                resource: Resource::Wood,
+                place: {
+                    let cursor = level.recording_cursor();
+                    Prefab::get("test-house/2").build(&mut level, house_pos, HDir::YPos);
+                    level.pop_recording(cursor).collect()
+                },
+            },
+        ],
+    };
+
+    // for i in 0..4 {
+    //     let dir = [HDir::XPos, HDir::YPos, HDir::XNeg, HDir::YNeg][i as usize];
+    //     Prefab::get("test-house/2").build(&mut level, ivec3(20 * i, 0, 100), dir);
+    // }
+
     let mut world = World::new();
     world.init_resource::<Replay>();
     world.insert_resource(level);
+
+    world.spawn((Pos(house_pos.as_vec3()), house));
 
     let pos = vec3(-50., 90., 200.);
     world.spawn((
@@ -25,8 +64,6 @@ pub fn sim(level: Level, save_sim: bool) {
         Pos(pos),
         PrevPos(pos),
     ));
-
-    // let house_pos = ivec3(-77, 117, 94);
 
     let mut sched = Schedule::new();
     sched.add_systems(test_walk);
@@ -52,6 +89,21 @@ pub fn sim(level: Level, save_sim: bool) {
     } else {
         level.save();
     }
+}
+
+enum Resource {
+    Stone,
+    Wood,
+}
+
+struct BuildStage {
+    resource: Resource,
+    place: Vec<(IVec3, Block)>,
+}
+
+#[derive(Component)]
+struct Building {
+    stages: Vec<BuildStage>,
 }
 
 fn test_walk(mut rot: Local<f32>, level: Res<Level>, mut query: Query<&mut Pos, With<Villager>>) {
