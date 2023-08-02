@@ -84,6 +84,7 @@ bitflags::bitflags! {
 pub enum LogType {
     Normal(Axis),
     FullBark,
+    Stripped(Axis),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive)]
@@ -392,6 +393,14 @@ impl Block {
                     .into(),
                     vec![],
                 ),
+                LogType::Stripped(axis) => Blockstate(
+                    match species {
+                        Warped | Crimson => format!("{}_stem", species),
+                        _ => format!("stripped_{}_log", species),
+                    }
+                    .into(),
+                    vec![("axis".into(), axis.to_str().into())],
+                ),
             },
             Leaves(species, distance) => Blockstate(
                 format!("{}_leaves", species).into(),
@@ -619,19 +628,6 @@ impl Block {
             )
         }
 
-        fn log(species: TreeSpecies, props: &CompoundTag) -> Block {
-            Log(
-                species,
-                match props.get_str("axis").unwrap() {
-                    "x" => LogType::Normal(Axis::X),
-                    "y" => LogType::Normal(Axis::Z),
-                    "z" => LogType::Normal(Axis::Y),
-                    "none" => LogType::FullBark,
-                    unknown => panic!("Invalid log axis {}", unknown),
-                },
-            )
-        }
-
         fn leaves(species: TreeSpecies, props: &CompoundTag) -> Block {
             Leaves(
                 species,
@@ -684,6 +680,14 @@ impl Block {
             )
         }
 
+        fn half(props: &CompoundTag) -> Flipped {
+            Flipped(props.get_str("half").unwrap() == "upper")
+        }
+
+        fn log_axis(props: &CompoundTag) -> Axis {
+            props.get_str("axis").unwrap().parse().unwrap()
+        }
+
         fn known_block(name: &str, props: &CompoundTag) -> Option<Block> {
             // TODO: expand this
             Some(match name {
@@ -710,14 +714,16 @@ impl Block {
                 "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => {
                     Soil(Soil::CoarseDirt)
                 }
-                "oak_log" => log(Oak, props),
-                "spruce_log" => log(Spruce, props),
-                "birch_log" => log(Birch, props),
-                "jungle_log" => log(Jungle, props),
-                "acacia_log" => log(Acacia, props),
-                "dark_oak_log" => log(DarkOak, props),
-                "mangrove_log" => log(Mangrove, props),
-                "cherry_log" => log(Cherry, props),
+                "oak_planks" => Planks(Oak),
+                "oak_log" => Log(Oak, LogType::Normal(log_axis(props))),
+                "spruce_log" => Log(Spruce, LogType::Normal(log_axis(props))),
+                "birch_log" => Log(Birch, LogType::Normal(log_axis(props))),
+                "jungle_log" => Log(Jungle, LogType::Normal(log_axis(props))),
+                "acacia_log" => Log(Acacia, LogType::Normal(log_axis(props))),
+                "dark_oak_log" => Log(DarkOak, LogType::Normal(log_axis(props))),
+                "mangrove_log" => Log(Mangrove, LogType::Normal(log_axis(props))),
+                "cherry_log" => Log(Cherry, LogType::Normal(log_axis(props))),
+                "stripped_oak_log" => Log(Oak, LogType::Stripped(log_axis(props))),
                 "oak_leaves" => leaves(Oak, props),
                 "spruce_leaves" => leaves(Spruce, props),
                 "birch_leaves" => leaves(Birch, props),
@@ -727,6 +733,13 @@ impl Block {
                 "azalea_leaves" => leaves(Azalea, props),
                 "flowering_azalea_leaves" => leaves(FloweringAzalea, props),
                 "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
+                "fern" => GroundPlant(GroundPlant::Small(SmallPlant::Fern)),
+                "tall_grass" => GroundPlant(GroundPlant::Tall(TallPlant::Grass, half(props))),
+                "large_fern" => GroundPlant(GroundPlant::Tall(TallPlant::Fern, half(props))),
+                "sunflower" => GroundPlant(GroundPlant::Tall(TallPlant::Sunflower, half(props))),
+                "lilac" => GroundPlant(GroundPlant::Tall(TallPlant::Lilac, half(props))),
+                "rose_bush" => GroundPlant(GroundPlant::Tall(TallPlant::Rose, half(props))),
+                "peony" => GroundPlant(GroundPlant::Tall(TallPlant::Peony, half(props))),
                 "snow" => SnowLayer, // Todo: store layer
                 "fence" => Fence(Wood(Oak)),
                 "cobblestone_wall" => Fence(MossyCobble),
@@ -875,6 +888,21 @@ impl Block {
             Repeater(dir, delay) => Repeater(dir.rotated(turns), delay),
             Trapdoor(species, dir, meta) => Trapdoor(species, dir.rotated(turns), meta),
             Door(species, dir, meta) => Door(species, dir.rotated(turns), meta),
+            _ => self,
+        }
+    }
+
+    pub fn swap_wood_type(self, species: TreeSpecies) -> Self {
+        match self {
+            Full(Wood(Oak)) => Full(Wood(species)),
+            Slab(Wood(Oak), flipped) => Slab(Wood(species), flipped),
+            Stair(Wood(Oak), dir, flipped) => Stair(Wood(species), dir, flipped),
+            Planks(Oak) => Planks(species),
+            Fence(Wood(Oak)) => Fence(Wood(species)),
+            Log(Oak, typ) => Log(species, typ),
+            Leaves(Oak, dist) => Leaves(species, dist),
+            Trapdoor(Oak, dir, meta) => Trapdoor(species, dir, meta),
+            Door(Oak, dir, meta) => Door(species, dir, meta),
             _ => self,
         }
     }

@@ -284,6 +284,20 @@ impl IndexMut<IVec3> for Level {
     }
 }
 
+impl Index<Vec3> for Level {
+    type Output = Block;
+
+    fn index(&self, pos: Vec3) -> &Self::Output {
+        &self[pos.block()]
+    }
+}
+
+impl IndexMut<Vec3> for Level {
+    fn index_mut(&mut self, pos: Vec3) -> &mut Self::Output {
+        &mut self[pos.block()]
+    }
+}
+
 // TODO: load stored heightmaps, compare to found heightmaps to detect
 // man-made structures
 fn load_chunk(

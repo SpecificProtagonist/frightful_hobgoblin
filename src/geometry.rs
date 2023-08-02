@@ -48,6 +48,19 @@ impl Axis {
     }
 }
 
+impl FromStr for Axis {
+    type Err = ();
+
+    fn from_str(name: &str) -> Result<Self, Self::Err> {
+        match name {
+            "x" => Ok(Axis::X),
+            "y" => Ok(Axis::Z),
+            "z" => Ok(Axis::Y),
+            _ => Err(()),
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]
 pub enum HDir {
@@ -159,6 +172,16 @@ impl IVec3Ext for IVec3 {
             Axis::Y => ivec3(self.x, -self.y, self.z),
             Axis::Z => ivec3(self.x, self.y, -self.z),
         }
+    }
+}
+
+pub trait Vec3Ext {
+    fn block(self) -> IVec3;
+}
+
+impl Vec3Ext for Vec3 {
+    fn block(self) -> IVec3 {
+        self.floor().as_ivec3()
     }
 }
 

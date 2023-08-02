@@ -1,4 +1,4 @@
-use std::{fs::File, path::Path, sync::Mutex};
+use std::{collections::VecDeque, fs::File, path::Path, sync::Mutex};
 
 use lazy_static::lazy_static;
 use nbt::{decode::read_gzip_compound_tag, CompoundTag, CompoundTagError, Tag};
@@ -16,7 +16,7 @@ pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
 #[derive(Clone)]
 pub struct Prefab {
     size: IVec3,
-    blocks: HashMap<IVec3, Block>,
+    blocks: VecDeque<(IVec3, Block)>,
     markers: HashMap<String, TemplateMark>,
 }
 
@@ -121,14 +121,22 @@ impl Prefab {
         //     println!("{}", block.blockstate(&UNKNOWN_BLOCKS.read().unwrap()));
         // }
 
-        let mut blocks = HashMap::new();
+        let mut blocks = VecDeque::new();
+        let mut air = VecDeque::new();
 
-        for nbt in nbt.get_compound_tag_vec("blocks")? {
+        for nbt in nbt.get_compound_tag_vec("blocks")?.into_iter().rev() {
             let pos = read_pos(nbt.get("pos")?);
             let block = palette[nbt.get_i32("state")? as usize];
             // TODO: nbt data
-            blocks.insert(pos - origin, block);
+            if block == Air {
+                // Clear out the area first (from top to bottom)
+                air.push_front((pos - origin, Air));
+            } else {
+                // Then do the building (from bottom to top)
+                blocks.push_back((pos - origin, block));
+            }
         }
+        blocks.extend(air);
 
         Ok(Self {
             size,
@@ -137,11 +145,10 @@ impl Prefab {
         })
     }
 
-    pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir) {
+    pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir, wood: TreeSpecies) {
         let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
-        // TODO: better build order
         for (offset, block) in self.blocks.iter() {
-            level[pos + offset.rotated(rotation)] = block.rotated(rotation);
+            level[pos + offset.rotated(rotation)] = block.rotated(rotation).swap_wood_type(wood);
         }
     }
 
