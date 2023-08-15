@@ -31,7 +31,7 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     level[pos + ivec3(0, 0, 1)] |= leaf_block;
     level[pos + ivec3(0, 0, -1)] |= leaf_block;
 
-    for leaf_pos in Cuboid::new(pos - IVec3::splat(2), pos + IVec3::splat(2)).iter() {
+    for leaf_pos in Cuboid::new(pos - IVec3::splat(2), pos + IVec3::splat(2)) {
         let distance_squared = ((leaf_pos - pos).x * (leaf_pos - pos).x
             + (leaf_pos - pos).z * (leaf_pos - pos).z
             + (leaf_pos - pos).y * (leaf_pos - pos).y) as f32;

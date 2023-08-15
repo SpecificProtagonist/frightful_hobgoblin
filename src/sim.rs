@@ -35,6 +35,7 @@ pub fn sim(level: Level, save_sim: bool) {
     };
     let house = world.spawn((Pos(house_pos.as_vec3()), house)).id();
 
+    // Find trees
     for column in level.area() {
         let pos = column.extend(level.height(column) + 1);
         if let Block::Log(..) = level[pos] {
@@ -55,20 +56,12 @@ pub fn sim(level: Level, save_sim: bool) {
     ));
 
     let mut sched = Schedule::new();
-    sched.add_systems(place);
-    sched.add_systems(chop);
-    sched.add_systems(walk);
-    sched.add_systems(build);
-
-    let mut last = Schedule::new();
-    last.add_systems(apply_deferred);
-    last.add_systems(tick_replay);
+    sched.add_systems(((place, chop, walk, build), apply_deferred, tick_replay).chain());
 
     world.init_resource::<Replay>();
     world.insert_resource(level);
     for _ in 0..10000 {
         sched.run(&mut world);
-        last.run(&mut world);
     }
 
     let level = world.remove_resource::<Level>().unwrap();
@@ -333,7 +326,7 @@ fn set_walk_height(level: &Level, pos: &mut Vec3) {
         height = height.max(
             block_pos.z as f32
                 - match level[block_pos - ivec3(0, 0, 1)] {
-                    Slab(_, Flipped(false)) => 0.5,
+                    Slab(_, Bottom) => 0.5,
                     // In theory also do stairs here
                     _ => 0.,
                 },

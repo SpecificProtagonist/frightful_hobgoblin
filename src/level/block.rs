@@ -22,10 +22,10 @@ pub enum Block {
     #[default]
     Air,
     Full(Material),
-    Slab(Material, Flipped),
-    Stair(Material, HDir, Flipped),
-    Planks(TreeSpecies),
+    Slab(Material, Half),
+    Stair(Material, HDir, Half),
     Fence(Material),
+    Ladder(HDir),
     Water,
     Lava,
     Soil(Soil),
@@ -151,7 +151,7 @@ pub enum GroundPlant {
     Reeds,
     Pumpkin,
     Small(SmallPlant),
-    Tall(TallPlant, Flipped),
+    Tall(TallPlant, Half),
     Crop(Crop),
 }
 
@@ -245,7 +245,11 @@ impl Display for Color {
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub struct Flipped(pub bool);
+pub enum Half {
+    Bottom,
+    Top,
+}
+pub use Half::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Material {
@@ -303,7 +307,7 @@ impl Material {
             PolishedBlackstone => "polished_blackstone",
             PolishedBlackstoneBrick => "polished_blackstone_brick",
             PackedMud => "packed_mud",
-            MudBrick => "mud_bricks",
+            MudBrick => "mud_brick",
         }
     }
 }
@@ -355,13 +359,13 @@ impl Block {
         match self {
             Air => "air".into(),
             Full(material) => match material {
+                Wood(species) => format!("{}_planks", species).into(),
                 Brick => "bricks".into(),
                 StoneBrick => "stone_bricks".into(),
                 MudBrick => "mud_bricks".into(),
                 PolishedBlackstoneBrick => "polished_blackstone_bricks".into(),
                 material => material.to_str().into(),
             },
-            Planks(species) => format!("{}_planks", species).into(),
             Soil(soil_type) => match soil_type {
                 Soil::Grass => "grass_block".into(),
                 Soil::Dirt => "dirt".into(),
@@ -435,7 +439,7 @@ impl Block {
                 GroundPlant::Cactus => "cactus".into(),
                 GroundPlant::Reeds => "sugar_cane".into(),
                 GroundPlant::Pumpkin => "pumpkin".into(),
-                GroundPlant::Tall(plant, Flipped(upper)) => Blockstate(
+                GroundPlant::Tall(plant, half) => Blockstate(
                     match plant {
                         TallPlant::Sunflower => "sunflower".into(),
                         TallPlant::Lilac => "lilac".into(),
@@ -444,7 +448,14 @@ impl Block {
                         TallPlant::Rose => "rose_bush".into(),
                         TallPlant::Peony => "peony".into(),
                     },
-                    vec![("half".into(), if *upper { "upper" } else { "lower" }.into())],
+                    vec![(
+                        "half".into(),
+                        match half {
+                            Top => "upper",
+                            Bottom => "lower",
+                        }
+                        .into(),
+                    )],
                 ),
                 GroundPlant::Crop(crop) => match crop {
                     Crop::Wheat => Blockstate("wheat".into(), vec![("age".into(), "7".into())]),
@@ -459,6 +470,10 @@ impl Block {
                 Wood(species) => format!("{}_fence", species).into(),
                 material => format!("{}_wall", material).into(),
             },
+            Ladder(dir) => Blockstate(
+                "ladder".into(),
+                vec![("facing".into(), dir.to_str().into())],
+            ),
             Wool(color) => format!("{}_wool", color).into(),
             Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
             Terracotta(None) => "terracotta".into(),
@@ -477,19 +492,27 @@ impl Block {
                 vec![("facing".into(), facing.to_str().into())],
             ),
             Hay => "hay_block".into(),
-            Slab(material, Flipped(flipped)) => Blockstate(
+            Slab(material, half) => Blockstate(
                 format!("{}_slab", material).into(),
                 vec![(
                     "type".into(),
-                    if *flipped { "top" } else { "bottom" }.into(),
+                    match half {
+                        Top => "top",
+                        Bottom => "bottom",
+                    }
+                    .into(),
                 )],
             ),
-            Stair(material, dir, Flipped(flipped)) => Blockstate(
+            Stair(material, dir, half) => Blockstate(
                 format!("{}_stairs", material).into(),
                 vec![
                     (
                         "half".into(),
-                        if *flipped { "top" } else { "bottom" }.into(),
+                        match half {
+                            Top => "top",
+                            Bottom => "bottom",
+                        }
+                        .into(),
                     ),
                     ("facing".into(), dir.to_str().into()),
                 ],
@@ -614,9 +637,9 @@ impl Block {
 
         fn slab(material: Material, props: &CompoundTag) -> Block {
             match props.get_str("type").unwrap() {
-                "top" => Slab(material, Flipped(true)),
+                "top" => Slab(material, Top),
                 "double" => Full(material),
-                _ => Slab(material, Flipped(false)),
+                _ => Slab(material, Bottom),
             }
         }
 
@@ -624,7 +647,7 @@ impl Block {
             Stair(
                 material,
                 HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
-                Flipped(props.get_str("half").unwrap() == "top"),
+                half(props),
             )
         }
 
@@ -680,8 +703,12 @@ impl Block {
             )
         }
 
-        fn half(props: &CompoundTag) -> Flipped {
-            Flipped(props.get_str("half").unwrap() == "upper")
+        fn half(props: &CompoundTag) -> Half {
+            if matches!(props.get_str("half").unwrap(), "upper" | "top") {
+                Top
+            } else {
+                Bottom
+            }
         }
 
         fn log_axis(props: &CompoundTag) -> Axis {
@@ -714,7 +741,7 @@ impl Block {
                 "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => {
                     Soil(Soil::CoarseDirt)
                 }
-                "oak_planks" => Planks(Oak),
+                "oak_planks" => Full(Wood(Oak)),
                 "oak_log" => Log(Oak, LogType::Normal(log_axis(props))),
                 "spruce_log" => Log(Spruce, LogType::Normal(log_axis(props))),
                 "birch_log" => Log(Birch, LogType::Normal(log_axis(props))),
@@ -897,7 +924,6 @@ impl Block {
             Full(Wood(Oak)) => Full(Wood(species)),
             Slab(Wood(Oak), flipped) => Slab(Wood(species), flipped),
             Stair(Wood(Oak), dir, flipped) => Stair(Wood(species), dir, flipped),
-            Planks(Oak) => Planks(species),
             Fence(Wood(Oak)) => Fence(Wood(species)),
             Log(Oak, typ) => Log(species, typ),
             Leaves(Oak, dist) => Leaves(species, dist),

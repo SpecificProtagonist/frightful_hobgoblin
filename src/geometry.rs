@@ -71,10 +71,8 @@ pub enum HDir {
 }
 
 impl HDir {
-    pub fn iter() -> impl Iterator<Item = HDir> {
+    pub fn all() -> [Self; 4] {
         [HDir::YPos, HDir::XNeg, HDir::YNeg, HDir::XPos]
-            .iter()
-            .cloned()
     }
 
     pub fn rotated(self, turns: u8) -> Self {
@@ -121,6 +119,8 @@ pub enum FullDir {
     ZNeg,
 }
 
+pub const NEIGHBORS_2D: [IVec2; 4] = [ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1)];
+
 pub const NEIGHBORS_3D: [IVec3; 6] = [
     ivec3(1, 0, 0),
     ivec3(-1, 0, 0),
@@ -134,6 +134,7 @@ pub trait IVec2Ext {
     fn clockwise(self) -> Self;
     fn counterclockwise(self) -> Self;
     fn length(self) -> f32;
+    fn touch_face(self, other: Self) -> bool;
 }
 
 impl IVec2Ext for IVec2 {
@@ -148,11 +149,17 @@ impl IVec2Ext for IVec2 {
     fn length(self) -> f32 {
         ((self.x.pow(2) + self.y.pow(2)) as f32).powf(0.5)
     }
+
+    fn touch_face(self, other: Self) -> bool {
+        let diff = (self - other).abs();
+        (diff == IVec2::X) | (diff == IVec2::Y)
+    }
 }
 
 pub trait IVec3Ext {
     fn rotated(self, turns: u8) -> Self;
     fn mirrord(self, axis: Axis) -> Self;
+    fn add(self, offset: impl Into<IVec2>) -> Self;
 }
 
 impl IVec3Ext for IVec3 {
@@ -172,6 +179,10 @@ impl IVec3Ext for IVec3 {
             Axis::Y => ivec3(self.x, -self.y, self.z),
             Axis::Z => ivec3(self.x, self.y, -self.z),
         }
+    }
+
+    fn add(self, offset: impl Into<IVec2>) -> Self {
+        (self.truncate() + offset.into()).extend(self.z)
     }
 }
 
@@ -263,20 +274,35 @@ impl Rect {
         }
     }
 
+    pub fn grow2(self, amount: IVec2) -> Self {
+        Self {
+            min: self.min - amount,
+            max: self.max + amount,
+        }
+    }
+
     pub fn border(self) -> impl Iterator<Item = IVec2> {
         (self.min.x..=self.max.x)
             .map(move |x| ivec2(x, self.min.y))
-            .chain((self.min.y..=self.max.y).map(move |z| ivec2(self.max.x, z)))
+            .chain((self.min.y..=self.max.y).map(move |y| ivec2(self.max.x, y)))
             .chain(
                 (self.min.x..=self.max.x)
                     .rev()
-                    .map(move |x| ivec2(x, self.max.x)),
+                    .map(move |x| ivec2(x, self.max.y)),
             )
             .chain(
                 (self.min.y..=self.max.y)
                     .rev()
-                    .map(move |z| ivec2(self.min.x, z)),
+                    .map(move |y| ivec2(self.min.x, y)),
             )
+    }
+
+    pub fn corners(self) -> impl Iterator<Item = IVec2> {
+        Some(self.min)
+            .into_iter()
+            .chain(Some(ivec2(self.min.x, self.max.y)))
+            .chain(Some(self.max))
+            .chain(Some(ivec2(self.max.x, self.min.y)))
     }
 }
 
@@ -529,6 +555,17 @@ impl Cuboid {
         .extend_to(corner_b)
     }
 
+    pub fn shrink(self, amount: i32) -> Self {
+        self.grow(-amount)
+    }
+
+    pub fn grow(self, amount: i32) -> Self {
+        Self {
+            min: self.min - IVec3::ONE * amount,
+            max: self.max + IVec3::ONE * amount,
+        }
+    }
+
     pub fn extend_to(self, pos: IVec3) -> Self {
         Cuboid {
             min: self.min.min(pos),
@@ -540,10 +577,47 @@ impl Cuboid {
         self.max - self.min + IVec3::splat(1)
     }
 
-    pub fn iter(self) -> impl Iterator<Item = IVec3> {
-        (self.min.z..=self.max.z)
-            .flat_map(move |y| (self.min.y..=self.max.y).map(move |z| (y, z)))
-            .flat_map(move |(y, z)| (self.min.x..=self.max.x).map(move |x| ivec3(x, y, z)))
+    pub fn d2(self) -> Rect {
+        Rect {
+            min: self.min.truncate(),
+            max: self.max.truncate(),
+        }
+    }
+}
+
+pub struct CuboidIter {
+    z: i32,
+    max_z: i32,
+    layer_iter: RectIter,
+}
+
+impl Iterator for CuboidIter {
+    type Item = IVec3;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if let Some(xy) = self.layer_iter.next() {
+            Some(xy.extend(self.z))
+        } else if self.z < self.max_z {
+            self.z += 1;
+            self.layer_iter.column = self.layer_iter.area.min;
+            self.next()
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Cuboid {
+    type Item = IVec3;
+
+    type IntoIter = CuboidIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        CuboidIter {
+            z: self.min.z,
+            max_z: self.max.z,
+            layer_iter: self.d2().into_iter(),
+        }
     }
 }
 

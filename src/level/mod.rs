@@ -12,7 +12,7 @@ use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
 use std::{
-    ops::{Index, IndexMut, Shr},
+    ops::{Index, IndexMut, Range, RangeInclusive, Shr},
     path::PathBuf,
 };
 
@@ -254,6 +254,60 @@ impl Level {
                     None
                 }
             })
+    }
+
+    pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, block: Block) {
+        for pos in iter {
+            self[pos] = block;
+        }
+    }
+
+    pub fn fill_at(
+        &mut self,
+        iter: impl IntoIterator<Item = IVec2>,
+        z: impl RangeOrSingle,
+        block: Block,
+    ) {
+        for pos in iter {
+            for z in z.start()..=z.end() {
+                self[pos.extend(z)] = block;
+            }
+        }
+    }
+}
+
+pub trait RangeOrSingle {
+    fn start(&self) -> i32;
+    fn end(&self) -> i32;
+}
+
+impl RangeOrSingle for Range<i32> {
+    fn start(&self) -> i32 {
+        self.start
+    }
+
+    fn end(&self) -> i32 {
+        self.end - 1
+    }
+}
+
+impl RangeOrSingle for RangeInclusive<i32> {
+    fn start(&self) -> i32 {
+        *self.start()
+    }
+
+    fn end(&self) -> i32 {
+        *self.end()
+    }
+}
+
+impl RangeOrSingle for i32 {
+    fn start(&self) -> i32 {
+        *self
+    }
+
+    fn end(&self) -> i32 {
+        *self
     }
 }
 
