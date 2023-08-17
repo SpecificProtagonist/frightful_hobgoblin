@@ -89,13 +89,13 @@ impl Prefab {
                         .to_owned();
 
                     let dir = if tags.contains(&String::from("xpos")) {
-                        Some(HDir::XPos)
+                        Some(XPos)
                     } else if tags.contains(&String::from("xneg")) {
-                        Some(HDir::XNeg)
+                        Some(XNeg)
                     } else if tags.contains(&String::from("zpos")) {
-                        Some(HDir::YPos)
+                        Some(YPos)
                     } else if tags.contains(&String::from("zneg")) {
-                        Some(HDir::YNeg)
+                        Some(YNeg)
                     } else {
                         None
                     };
@@ -146,14 +146,14 @@ impl Prefab {
     }
 
     pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir, wood: TreeSpecies) {
-        let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
+        let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
         for (offset, block) in self.blocks.iter() {
             level[pos + offset.rotated(rotation)] = block.rotated(rotation).swap_wood_type(wood);
         }
     }
 
     pub fn build_clipped(&self, world: &mut Level, pos: IVec3, facing: HDir, area: Rect) {
-        let rotation = facing as u8 + 4 - self.markers["origin"].1.unwrap() as u8;
+        let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
             if area.contains(pos.truncate()) {

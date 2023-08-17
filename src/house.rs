@@ -24,8 +24,8 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     level.fill_at(outer.d2(), outer.max.z, Full(MudBrick));
 
     let door_pos = ivec2(rng.gen_range(inner.min.x, inner.max.x), outer.min.y);
-    level[door_pos.extend(inner.min.z)] = Door(Oak, HDir::YPos, DoorMeta::empty());
-    level[door_pos.extend(inner.min.z + 1)] = Door(Oak, HDir::YPos, DoorMeta::TOP);
+    level[door_pos.extend(inner.min.z)] = Door(Oak, YPos, DoorMeta::empty());
+    level[door_pos.extend(inner.min.z + 1)] = Door(Oak, YPos, DoorMeta::TOP);
 
     let mut roof_access = false;
     if rng.gen_bool(0.7) {
@@ -85,22 +85,22 @@ pub fn house(level: &mut Level, outer: Cuboid) {
 fn crenel(width: i32, i: i32) -> Block {
     if width % 2 == 0 {
         if i % 2 == 0 {
-            Stair(MudBrick, HDir::XPos, Bottom)
+            Stair(MudBrick, XPos, Bottom)
         } else {
-            Stair(MudBrick, HDir::XNeg, Bottom)
+            Stair(MudBrick, XNeg, Bottom)
         }
     } else {
         if (width / 2) % 3 == 2 {
             if i == 0 {
-                return Stair(MudBrick, HDir::XPos, Bottom);
+                return Stair(MudBrick, XPos, Bottom);
             } else if i == width - 1 {
-                return Stair(MudBrick, HDir::XNeg, Bottom);
+                return Stair(MudBrick, XNeg, Bottom);
             }
         }
         [
-            Stair(MudBrick, HDir::XPos, Bottom),
+            Stair(MudBrick, XPos, Bottom),
             Slab(MudBrick, Bottom),
-            Stair(MudBrick, HDir::XNeg, Bottom),
+            Stair(MudBrick, XNeg, Bottom),
         ][(width + i) as usize % 3]
     }
 }
@@ -123,15 +123,15 @@ fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
 fn wall_dir(level: &Level, pos: IVec3) -> HDir {
     let mut rng = thread_rng();
     let mut count = 0;
-    for dir in HDir::all() {
+    for dir in HDir::ALL {
         if level[pos.add(dir)].solid() {
             count += 1
         }
     }
     if count == 0 {
-        return *HDir::all().choose(&mut rng).unwrap();
+        return *HDir::ALL.choose(&mut rng).unwrap();
     }
-    for dir in HDir::all() {
+    for dir in HDir::ALL {
         if level[pos.add(dir)].solid() {
             if rng.gen_range(0, count) == 0 {
                 return dir;

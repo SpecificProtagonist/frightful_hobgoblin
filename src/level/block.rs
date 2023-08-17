@@ -906,7 +906,7 @@ impl Block {
         )
     }
 
-    pub fn rotated(self, turns: u8) -> Self {
+    pub fn rotated(self, turns: i32) -> Self {
         match self {
             Log(species, LogType::Normal(Axis::X)) => Log(species, LogType::Normal(Axis::Y)),
             Log(species, LogType::Normal(Axis::Y)) => Log(species, LogType::Normal(Axis::X)),

@@ -60,7 +60,7 @@ pub fn sim(level: Level, save_sim: bool) {
 
     world.init_resource::<Replay>();
     world.insert_resource(level);
-    for _ in 0..10000 {
+    for _ in 0..10 {
         sched.run(&mut world);
     }
 
@@ -145,7 +145,7 @@ fn build(
                     Prefab::get(stage.prefab).build(
                         &mut level,
                         building_pos.block(),
-                        HDir::YPos,
+                        YPos,
                         wood_type,
                     );
                     villager.carry = None;
@@ -504,21 +504,16 @@ impl Replay {
         write(tag_path.join("tick.json"), r#"{values:["sim:tick"]}"#).unwrap();
 
         let mut tick = String::new();
-        let tick_path = sim_path.join("ticks");
-        create_dir(&tick_path).unwrap();
-        for (ticks, commands) in self.command_chunks {
-            write(
-                tick_path.join(format!("{}.mcfunction", ticks.start())),
-                commands,
-            )
-            .unwrap();
+        let chunk_path = sim_path.join("chunked");
+        create_dir(&chunk_path).unwrap();
+        for (i, (ticks, commands)) in self.command_chunks.iter().enumerate() {
+            write(chunk_path.join(format!("{i}.mcfunction")), commands).unwrap();
             writeln!(
                 tick,
-                "execute if score {} sim_tick matches {}..{} run function sim:ticks/{}",
+                "execute if score {} sim_tick matches {}..{} run function sim:chunked/{i}",
                 self.marker,
                 ticks.start(),
                 ticks.end(),
-                ticks.start()
             )
             .unwrap();
         }

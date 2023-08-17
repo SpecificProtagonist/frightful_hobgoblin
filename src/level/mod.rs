@@ -1,6 +1,7 @@
 // mod biome;
 mod block;
 // mod entity;
+mod view;
 
 use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},

@@ -1,8 +1,8 @@
 #![allow(dead_code)]
 use config::*;
+use mc_gen::sim::sim;
 use mc_gen::*;
-use mc_gen::{house::house, sim::sim};
-use rand::{thread_rng, Rng};
+use roof::roof;
 
 fn main() {
     drop(std::fs::remove_dir_all(SAVE_WRITE_PATH));
@@ -12,22 +12,15 @@ fn main() {
 
     let mut level = Level::new(SAVE_WRITE_PATH, area);
 
-    let mut rng = thread_rng();
-    for x in (0..140).step_by(14) {
-        for y in (0..140).step_by(14) {
-            let min = ivec3(x, y, 120);
-            let max = min
-                + ivec3(
-                    rng.gen_range(5, 13),
-                    rng.gen_range(5, 13),
-                    rng.gen_range(5, 10),
-                );
-            house(&mut level, Cuboid { min, max });
+    for x in (0..180).step_by(18) {
+        for y in (0..180).step_by(18) {
+            roof(&mut level, ivec3(x, y, 130));
         }
     }
+    // roof(&mut level, ivec3(0, 0, 120));
 
     // remove_foliage::trees(&mut level, area);
-    level.save();
+    // level.save();
 
-    // sim(level, true);
+    sim(level, true);
 }

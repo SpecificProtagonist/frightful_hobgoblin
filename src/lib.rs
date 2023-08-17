@@ -15,6 +15,7 @@ pub mod sim;
 pub mod structures;
 // pub mod terraform;
 pub mod house;
+pub mod roof;
 
 pub use geometry::*;
 pub use hashbrown::HashMap;

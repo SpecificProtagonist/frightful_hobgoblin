@@ -127,28 +127,28 @@ pub fn make_foundation_straight(level: &mut Level, area: Rect, height: i32, mate
         level,
         ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.min.1)),
         height,
-        HDir::ZVec3,
+        ZPos,
         material,
     );
     make_support(
         level,
         ((area.min.0 + 1)..area.max.0).map(|x| Vec2(x, area.max.1)),
         height,
-        HDir::ZNeg,
+        ZNeg,
         material,
     );
     make_support(
         level,
         ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.min.0, z)),
         height,
-        HDir::XVec3,
+        XVec3,
         material,
     );
     make_support(
         level,
         ((area.min.1 + 1)..area.max.1).map(|z| Vec2(area.max.0, z)),
         height,
-        HDir::XNeg,
+        XNeg,
         material,
     );
 

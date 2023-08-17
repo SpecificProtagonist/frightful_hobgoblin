@@ -1,6 +1,6 @@
 use itertools::Itertools;
 use num_derive::FromPrimitive;
-use std::str::FromStr;
+use std::{ops::Add, str::FromStr};
 
 pub use bevy_math::{ivec2, ivec3, vec2, vec3, IVec2, IVec3, Vec2, Vec3};
 
@@ -69,27 +69,26 @@ pub enum HDir {
     YNeg,
     XPos,
 }
+pub use HDir::*;
 
 impl HDir {
-    pub fn all() -> [Self; 4] {
-        [HDir::YPos, HDir::XNeg, HDir::YNeg, HDir::XPos]
-    }
+    pub const ALL: [Self; 4] = [YPos, XNeg, YNeg, XPos];
 
-    pub fn rotated(self, turns: u8) -> Self {
-        match (self as u8 + turns) % 4 {
-            1 => HDir::XNeg,
-            2 => HDir::YNeg,
-            3 => HDir::XPos,
-            _ => HDir::YPos,
+    pub fn rotated(self, turns: i32) -> Self {
+        match (self as i32 + turns).rem_euclid(4) {
+            1 => XNeg,
+            2 => YNeg,
+            3 => XPos,
+            _ => YPos,
         }
     }
 
     pub fn to_str(self) -> &'static str {
         match self {
-            HDir::YNeg => "north",
-            HDir::XPos => "east",
-            HDir::YPos => "south",
-            HDir::XNeg => "west",
+            YNeg => "north",
+            XPos => "east",
+            YPos => "south",
+            XNeg => "west",
         }
     }
 }
@@ -99,10 +98,10 @@ impl FromStr for HDir {
 
     fn from_str(name: &str) -> Result<Self, Self::Err> {
         match name {
-            "north" => Ok(HDir::YNeg),
-            "east" => Ok(HDir::XPos),
-            "south" => Ok(HDir::YPos),
-            "west" => Ok(HDir::XNeg),
+            "north" => Ok(YNeg),
+            "east" => Ok(XPos),
+            "south" => Ok(YPos),
+            "west" => Ok(XNeg),
             _ => Err(()),
         }
     }
@@ -157,14 +156,14 @@ impl IVec2Ext for IVec2 {
 }
 
 pub trait IVec3Ext {
-    fn rotated(self, turns: u8) -> Self;
+    fn rotated(self, turns: i32) -> Self;
     fn mirrord(self, axis: Axis) -> Self;
     fn add(self, offset: impl Into<IVec2>) -> Self;
 }
 
 impl IVec3Ext for IVec3 {
     /// Turns around the y axis
-    fn rotated(self, turns: u8) -> Self {
+    fn rotated(self, turns: i32) -> Self {
         match turns % 4 {
             1 => ivec3(-self.y, self.x, self.z),
             2 => ivec3(-self.x, -self.y, self.z),
@@ -199,11 +198,19 @@ impl Vec3Ext for Vec3 {
 impl From<HDir> for IVec2 {
     fn from(dir: HDir) -> Self {
         match dir {
-            HDir::XPos => ivec2(1, 0),
-            HDir::XNeg => ivec2(-1, 0),
-            HDir::YPos => ivec2(0, 1),
-            HDir::YNeg => ivec2(0, -1),
+            XPos => ivec2(1, 0),
+            XNeg => ivec2(-1, 0),
+            YPos => ivec2(0, 1),
+            YNeg => ivec2(0, -1),
         }
+    }
+}
+
+impl Add<HDir> for IVec2 {
+    type Output = IVec2;
+
+    fn add(self, rhs: HDir) -> Self::Output {
+        self + IVec2::from(rhs)
     }
 }
 
