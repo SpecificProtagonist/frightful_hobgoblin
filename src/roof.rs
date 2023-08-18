@@ -9,7 +9,11 @@ pub fn roof(level: &mut Level, base: IVec3) {
         middle,
         ivec2(1 + rng.gen_range(6, 20), rng.gen_range(5, 14)),
     );
-    let shape = gable(base.z as f32, area.size().as_vec2(), kerb);
+    let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb]
+        .choose(&mut rng)
+        .unwrap();
+    let base_shape = [gable, raised_gable, hip].choose(&mut rng).unwrap();
+    let shape = base_shape(base.z as f32, area.size().as_vec2(), curve);
     for pos in area {
         let rel = (pos - middle).as_vec2();
         let z = shape(rel);
@@ -44,11 +48,14 @@ pub fn roof(level: &mut Level, base: IVec3) {
             // Fill holes in steep roofs
             let mut lower = shape(rel + IVec2::from(dir).as_vec2()).round() as i32;
             let adjacent = level[(pos + dir).extend(lower)];
-            if matches!(adjacent, Slab(_, Top) | Stair(..) | Full(..)) | !area.contains(pos + dir) {
+            if matches!(adjacent, Slab(_, Top) | Full(..) | Stair(_, _, Top))
+                | matches!(adjacent, Stair(_, d, Bottom) if d==dir.rotated(2))
+                | !area.contains(pos + dir)
+            {
                 lower += 1;
             }
             let mut upper = z_block;
-            if level[pos.extend(upper)] == Slab(mat, Top) {
+            if matches!(level[pos.extend(upper)], Slab(_, Top) | Stair(_, _, Top)) {
                 upper += 1;
             }
             for z in lower..upper {
@@ -90,31 +97,31 @@ fn reverse_kerb(frac: f32) -> f32 {
 }
 
 fn gable(base: f32, size: Vec2, curve: Curve) -> Z {
-    let base = base - curve(-1. / size.x) * size.x - 1.;
-    Box::new(move |pos: Vec2| base + size.x * curve(0.5 - pos.y.abs() / size.x))
+    let base = base - curve(-1. / size.y) * size.y - 1.;
+    Box::new(move |pos: Vec2| base + size.y * curve(0.5 - pos.y.abs() / size.y))
 }
 
 fn hip(base: f32, size: Vec2, curve: Curve) -> Z {
-    let base = base - curve(-1. / size.x) * size.x - 1.;
+    let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| {
-        let scale = size.x.min(size.y);
-        base + scale * curve((0.5 * size.x - pos.y.abs()).min(0.5 * size.y - pos.x.abs()) / scale)
+        let scale = size.y.min(size.x);
+        base + scale * curve((0.5 * size.y - pos.y.abs()).min(0.5 * size.x - pos.x.abs()) / scale)
     })
 }
 
 fn tented(base: f32, size: Vec2, curve: Curve) -> Z {
-    let base = base - curve(-1. / size.x) * size.x - 1.;
+    let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| {
-        base + size.x.min(size.y)
-            * curve((0.5 - pos.y.abs() / size.x).min(0.5 - pos.x.abs() / size.y))
+        base + size.y.min(size.x)
+            * curve((0.5 - pos.y.abs() / size.y).min(0.5 - pos.x.abs() / size.x))
     })
 }
 
 fn raised_gable(base: f32, size: Vec2, curve: Curve) -> Z {
-    let base = base - curve(-1. / size.x) * size.x - 1.;
-    let scale = size.x.powf(0.3) * size.y.powf(0.) * 0.2;
+    let base = base - curve(-1. / size.y) * size.y - 1.;
+    let scale = (4. + size.y) * size.x.powf(0.1) * 0.03;
     Box::new(move |pos: Vec2| {
-        base + size.x * curve(0.5 - pos.y.abs() / size.x)
-            + (pos.x.abs() * 2. / size.x).powf(1.9) * scale
+        base + size.y * curve(0.5 - pos.y.abs() / size.y)
+            + (pos.x.abs() * 2. / size.y).powf(1.9) * scale
     })
 }
