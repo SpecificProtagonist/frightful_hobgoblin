@@ -1,6 +1,5 @@
 // mod biome;
 mod block;
-// mod entity;
 mod view;
 
 use anvil_region::{
@@ -20,7 +19,6 @@ use std::{
 use crate::{default, geometry::*, HashMap};
 // pub use biome::*;
 pub use block::*;
-// pub use entity::*;
 
 #[derive(Resource)]
 pub struct Level {
@@ -274,6 +272,22 @@ impl Level {
                 self[pos.extend(z)] = block;
             }
         }
+    }
+
+    pub fn ground(&self, col: IVec2) -> IVec3 {
+        col.extend(self.height(col))
+    }
+
+    pub fn average_height(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
+        let mut count = 0;
+        let total: f32 = area
+            .into_iter()
+            .map(|p| {
+                count += 1;
+                self.height(p) as f32
+            })
+            .sum();
+        total / count as f32
     }
 }
 

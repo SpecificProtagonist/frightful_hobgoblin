@@ -23,7 +23,6 @@ rand = "0.7.3"
 rayon = "1.4"
 itertools = "0.9"
 bresenham = { path = "bresenham-rs" }
-lazy_static = "1"
 hashlink = "0.6"
 image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
 hierarchical_pathfinding = "0.3.6"

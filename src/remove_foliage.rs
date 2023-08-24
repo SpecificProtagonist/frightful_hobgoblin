@@ -1,3 +1,5 @@
+use hashbrown::HashSet;
+
 use crate::*;
 
 pub fn ground(level: &mut Level, area: Rect) {
@@ -16,13 +18,32 @@ pub fn ground(level: &mut Level, area: Rect) {
     }
 }
 
-pub fn trees(level: &mut Level, area: impl IntoIterator<Item = IVec2>) {
+pub fn find_trees(level: &Level, area: impl IntoIterator<Item = IVec2>) -> Vec<IVec3> {
+    let mut trees = HashSet::new();
     for column in area {
         let z = level.height(column) + 1;
         if let Block::Log(..) = level[column.extend(z)] {
-            tree(level, column.extend(z));
+            // Check whether this is a tree instead of part of a man-made structure
+            let mut pos = column.extend(z);
+            while let Block::Log(..) = level[pos] {
+                pos += IVec3::Z;
+            }
+            if !matches!(level[pos], Leaves(..)) {
+                continue;
+            }
+            // Find origin
+            // TODO: find connected blocks to make this work for all kinds of trees
+            let mut pos = column.extend(z);
+            if let Block::Log(..) = level[pos - IVec3::X] {
+                pos -= IVec3::X
+            }
+            if let Block::Log(..) = level[pos - IVec3::Y] {
+                pos -= IVec3::Y
+            }
+            trees.insert(pos);
         }
     }
+    trees.into_iter().collect()
 }
 
 pub fn tree(level: &mut Level, pos: IVec3) {

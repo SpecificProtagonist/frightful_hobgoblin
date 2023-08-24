@@ -17,6 +17,7 @@ pub use Color::*;
 pub use Material::*;
 pub use TreeSpecies::*;
 
+// TODO: Waterlogged blocks
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Block {
     #[default]
@@ -28,14 +29,26 @@ pub enum Block {
     Ladder(HDir),
     Water,
     Lava,
-    Soil(Soil),
-    // TODO: stripped logs
+    Dirt,
+    Grass,
+    Sand,
+    Gravel,
+    Farmland,
+    Path,
+    Podzol,
+    CoarseDirt,
+    SoulSand,
+    PackedMud,
     Log(TreeSpecies, LogType),
     // Store distance from log if not persistent
     Leaves(TreeSpecies, Option<i8>),
+    SmallPlant(SmallPlant),
+    TallPlant(TallPlant, Half),
     GroundPlant(GroundPlant),
     Wool(Color),
     Terracotta(Option<Color>),
+    MangroveRoots,
+    MuddyMangroveRoots,
     SmoothQuartz,
     SnowLayer,
     Glowstone,
@@ -45,6 +58,8 @@ pub enum Block {
     Cauldron {
         water: u8,
     },
+    // TODO: Store orientation
+    Barrel,
     Trapdoor(TreeSpecies, HDir, DoorMeta),
     Door(TreeSpecies, HDir, DoorMeta),
     Bell(HDir, BellAttachment),
@@ -129,20 +144,7 @@ impl Display for TreeSpecies {
     }
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-#[repr(u8)]
-pub enum Soil {
-    Dirt,
-    Grass,
-    Sand,
-    Gravel,
-    Farmland,
-    Path,
-    Podzol,
-    CoarseDirt,
-    SoulSand,
-}
-
+// TODO: remove
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum GroundPlant {
@@ -150,8 +152,6 @@ pub enum GroundPlant {
     Cactus,
     Reeds,
     Pumpkin,
-    Small(SmallPlant),
-    Tall(TallPlant, Half),
     Crop(Crop),
 }
 
@@ -173,6 +173,7 @@ pub enum SmallPlant {
     WhiteTulip,
     PinkTulip,
     OxeyeDaisy,
+    Seagrass,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -184,6 +185,7 @@ pub enum TallPlant {
     Lilac,
     Rose,
     Peony,
+    Seagrass,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
@@ -273,7 +275,6 @@ pub enum Material {
     Blackstone,
     PolishedBlackstone,
     PolishedBlackstoneBrick,
-    PackedMud,
     MudBrick,
 }
 
@@ -306,7 +307,6 @@ impl Material {
             Blackstone => "blackstone",
             PolishedBlackstone => "polished_blackstone",
             PolishedBlackstoneBrick => "polished_blackstone_brick",
-            PackedMud => "packed_mud",
             MudBrick => "mud_brick",
         }
     }
@@ -366,17 +366,16 @@ impl Block {
                 PolishedBlackstoneBrick => "polished_blackstone_bricks".into(),
                 material => material.to_str().into(),
             },
-            Soil(soil_type) => match soil_type {
-                Soil::Grass => "grass_block".into(),
-                Soil::Dirt => "dirt".into(),
-                Soil::Sand => "sand".into(),
-                Soil::Gravel => "gravel".into(),
-                Soil::Farmland => "farmland".into(),
-                Soil::Path => "grass_path".into(),
-                Soil::CoarseDirt => "coarse_dirt".into(),
-                Soil::Podzol => "podzol".into(),
-                Soil::SoulSand => "soul_sand".into(),
-            },
+            Grass => "grass_block".into(),
+            Dirt => "dirt".into(),
+            Sand => "sand".into(),
+            Gravel => "gravel".into(),
+            Farmland => "farmland".into(),
+            Path => "grass_path".into(),
+            CoarseDirt => "coarse_dirt".into(),
+            Podzol => "podzol".into(),
+            SoulSand => "soul_sand".into(),
+            PackedMud => "packed_mud".into(),
             Bedrock => "bedrock".into(),
             Water => "water".into(),
             Lava => "lava".into(),
@@ -417,46 +416,48 @@ impl Block {
                     vec![("persistent".into(), "true".into())]
                 },
             ),
+            SmallPlant(plant) => match plant {
+                SmallPlant::Grass => "grass".into(),
+                SmallPlant::Fern => "fern".into(),
+                SmallPlant::DeadBush => "dead_bush".into(),
+                SmallPlant::Dandelion => "dandelion".into(),
+                SmallPlant::Poppy => "poppy".into(),
+                SmallPlant::BlueOrchid => "blue_orchid".into(),
+                SmallPlant::Allium => "allium".into(),
+                SmallPlant::AzureBluet => "azure_bluet".into(),
+                SmallPlant::RedTulip => "red_tulip".into(),
+                SmallPlant::OrangeTulip => "orange_tulip".into(),
+                SmallPlant::WhiteTulip => "white_tulip".into(),
+                SmallPlant::PinkTulip => "pink_tulip".into(),
+                SmallPlant::OxeyeDaisy => "oxeye_daisy".into(),
+                SmallPlant::BrownMushroom => "brown_mushroom".into(),
+                SmallPlant::RedMushroom => "red_mushroom".into(),
+                SmallPlant::Seagrass => "seagrass".into(),
+            },
+            TallPlant(plant, half) => Blockstate(
+                match plant {
+                    TallPlant::Sunflower => "sunflower".into(),
+                    TallPlant::Lilac => "lilac".into(),
+                    TallPlant::Grass => "tall_grass".into(),
+                    TallPlant::Fern => "large_fern".into(),
+                    TallPlant::Rose => "rose_bush".into(),
+                    TallPlant::Peony => "peony".into(),
+                    TallPlant::Seagrass => "tall_seagrass".into(),
+                },
+                vec![(
+                    "half".into(),
+                    match half {
+                        Top => "upper",
+                        Bottom => "lower",
+                    }
+                    .into(),
+                )],
+            ),
             GroundPlant(plant) => match plant {
                 GroundPlant::Sapling(species) => format!("{}_sapling", species).into(),
-                GroundPlant::Small(plant) => match plant {
-                    SmallPlant::Grass => "grass".into(),
-                    SmallPlant::Fern => "fern".into(),
-                    SmallPlant::DeadBush => "dead_bush".into(),
-                    SmallPlant::Dandelion => "dandelion".into(),
-                    SmallPlant::Poppy => "poppy".into(),
-                    SmallPlant::BlueOrchid => "blue_orchid".into(),
-                    SmallPlant::Allium => "allium".into(),
-                    SmallPlant::AzureBluet => "azure_bluet".into(),
-                    SmallPlant::RedTulip => "red_tulip".into(),
-                    SmallPlant::OrangeTulip => "orange_tulip".into(),
-                    SmallPlant::WhiteTulip => "white_tulip".into(),
-                    SmallPlant::PinkTulip => "pink_tulip".into(),
-                    SmallPlant::OxeyeDaisy => "oxeye_daisy".into(),
-                    SmallPlant::BrownMushroom => "brown_mushroom".into(),
-                    SmallPlant::RedMushroom => "red_mushroom".into(),
-                },
                 GroundPlant::Cactus => "cactus".into(),
                 GroundPlant::Reeds => "sugar_cane".into(),
                 GroundPlant::Pumpkin => "pumpkin".into(),
-                GroundPlant::Tall(plant, half) => Blockstate(
-                    match plant {
-                        TallPlant::Sunflower => "sunflower".into(),
-                        TallPlant::Lilac => "lilac".into(),
-                        TallPlant::Grass => "tall_grass".into(),
-                        TallPlant::Fern => "large_fern".into(),
-                        TallPlant::Rose => "rose_bush".into(),
-                        TallPlant::Peony => "peony".into(),
-                    },
-                    vec![(
-                        "half".into(),
-                        match half {
-                            Top => "upper",
-                            Bottom => "lower",
-                        }
-                        .into(),
-                    )],
-                ),
                 GroundPlant::Crop(crop) => match crop {
                     Crop::Wheat => Blockstate("wheat".into(), vec![("age".into(), "7".into())]),
                     Crop::Carrot => Blockstate("carrot".into(), vec![("age".into(), "7".into())]),
@@ -477,6 +478,8 @@ impl Block {
             Wool(color) => format!("{}_wool", color).into(),
             Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
             Terracotta(None) => "terracotta".into(),
+            MangroveRoots => "mangrove_roots".into(),
+            MuddyMangroveRoots => "muddy_mangrove_roots".into(),
             SmoothQuartz => "smooth_quartz".into(),
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
             Glowstone => "glowstone".into(),
@@ -530,6 +533,7 @@ impl Block {
                     },
                 )],
             ),
+            Barrel => "barrel".into(),
             Trapdoor(species, dir, meta) => Blockstate(
                 format!("{}_trapdoor", species).into(),
                 vec![
@@ -732,15 +736,13 @@ impl Block {
                 "bricks" => Full(Brick),
                 "stone_bricks" => Full(StoneBrick),
                 "mud_bricks" => Full(MudBrick),
-                "packed_pud" => Full(PackedMud),
+                "packed_pud" => PackedMud,
                 "bedrock" => Bedrock,
-                "gravel" => Soil(Soil::Gravel),
-                "grass_block" => Soil(Soil::Grass),
-                "sand" => Soil(Soil::Sand),
-                "dirt" if props.get_str("variant").is_err() => Soil(Soil::Dirt),
-                "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => {
-                    Soil(Soil::CoarseDirt)
-                }
+                "gravel" => Gravel,
+                "grass_block" => Grass,
+                "sand" => Sand,
+                "dirt" if props.get_str("variant").is_err() => Dirt,
+                "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => CoarseDirt,
                 "oak_planks" => Full(Wood(Oak)),
                 "oak_log" => Log(Oak, LogType::Normal(log_axis(props))),
                 "spruce_log" => Log(Spruce, LogType::Normal(log_axis(props))),
@@ -759,14 +761,29 @@ impl Block {
                 "dark_oak_leaves" => leaves(DarkOak, props),
                 "azalea_leaves" => leaves(Azalea, props),
                 "flowering_azalea_leaves" => leaves(FloweringAzalea, props),
-                "grass" => GroundPlant(GroundPlant::Small(SmallPlant::Grass)),
-                "fern" => GroundPlant(GroundPlant::Small(SmallPlant::Fern)),
-                "tall_grass" => GroundPlant(GroundPlant::Tall(TallPlant::Grass, half(props))),
-                "large_fern" => GroundPlant(GroundPlant::Tall(TallPlant::Fern, half(props))),
-                "sunflower" => GroundPlant(GroundPlant::Tall(TallPlant::Sunflower, half(props))),
-                "lilac" => GroundPlant(GroundPlant::Tall(TallPlant::Lilac, half(props))),
-                "rose_bush" => GroundPlant(GroundPlant::Tall(TallPlant::Rose, half(props))),
-                "peony" => GroundPlant(GroundPlant::Tall(TallPlant::Peony, half(props))),
+                "grass" => SmallPlant(SmallPlant::Grass),
+                "fern" => SmallPlant(SmallPlant::Fern),
+                "dead_bush" => SmallPlant(SmallPlant::DeadBush),
+                "brown_mushroom" => SmallPlant(SmallPlant::BrownMushroom),
+                "red_mushroom" => SmallPlant(SmallPlant::RedMushroom),
+                "dandelion" => SmallPlant(SmallPlant::Dandelion),
+                "poppy" => SmallPlant(SmallPlant::Poppy),
+                "blue_orchid" => SmallPlant(SmallPlant::BlueOrchid),
+                "allium" => SmallPlant(SmallPlant::Allium),
+                "azure_bluet" => SmallPlant(SmallPlant::AzureBluet),
+                "red_tulip" => SmallPlant(SmallPlant::RedTulip),
+                "orange_tulip" => SmallPlant(SmallPlant::OrangeTulip),
+                "white_tulip" => SmallPlant(SmallPlant::WhiteTulip),
+                "pink_tulip" => SmallPlant(SmallPlant::PinkTulip),
+                "oxeye_daisy" => SmallPlant(SmallPlant::OxeyeDaisy),
+                "seagrass" => SmallPlant(SmallPlant::Seagrass),
+                "tall_grass" => TallPlant(TallPlant::Grass, half(props)),
+                "large_fern" => TallPlant(TallPlant::Fern, half(props)),
+                "sunflower" => TallPlant(TallPlant::Sunflower, half(props)),
+                "lilac" => TallPlant(TallPlant::Lilac, half(props)),
+                "rose_bush" => TallPlant(TallPlant::Rose, half(props)),
+                "peony" => TallPlant(TallPlant::Peony, half(props)),
+                "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
                 "snow" => SnowLayer, // Todo: store layer
                 "fence" => Fence(Wood(Oak)),
                 "cobblestone_wall" => Fence(MossyCobble),
@@ -795,6 +812,8 @@ impl Block {
                 "blackstone_stairs" => stair(Blackstone, props),
                 "mud_brick_stairs" => stair(MudBrick, props),
                 "terracotta" => Terracotta(None),
+                "mangrove_roots" => MangroveRoots,
+                "muddy_mangrove_roots" => MuddyMangroveRoots,
                 "white_terracotta" => Terracotta(Some(White)),
                 "orange_terracotta" => Terracotta(Some(Orange)),
                 "magenta_terracotta" => Terracotta(Some(Magenta)),
@@ -812,8 +831,9 @@ impl Block {
                 "red_terracotta" => Terracotta(Some(Red)),
                 "black_terracotta" => Terracotta(Some(Black)),
                 "cauldron" => Cauldron {
-                    water: props.get_str("level").unwrap().parse().unwrap(),
+                    water: props.get_str("level").unwrap_or("0").parse().unwrap(),
                 },
+                "barrel" => Barrel,
                 "oak_trapdoor" => trapdoor(Oak, props),
                 "spruce_trapdoor" => trapdoor(Spruce, props),
                 "oak_door" => door(Oak, props),
@@ -902,7 +922,28 @@ impl Block {
         // Todo: expand this
         !matches!(
             self,
-            Air | Water | Lava | GroundPlant(..) | Leaves(..) | SnowLayer
+            Air | Water
+                | Lava
+                | SmallPlant(..)
+                | TallPlant(..)
+                | GroundPlant(..)
+                | Leaves(..)
+                | SnowLayer
+        )
+    }
+
+    pub fn soil(&self) -> bool {
+        matches!(
+            self,
+            Dirt | Grass
+                | Sand
+                | Gravel
+                | Farmland
+                | Path
+                | Podzol
+                | CoarseDirt
+                | SoulSand
+                | PackedMud
         )
     }
 

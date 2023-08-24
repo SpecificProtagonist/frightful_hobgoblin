@@ -19,6 +19,140 @@ pub struct Rect {
     pub max: IVec2,
 }
 
+impl Rect {
+    pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
+        Rect {
+            min: center - size / 2,
+            max: center + size / 2,
+        }
+    }
+
+    pub fn size(self) -> IVec2 {
+        self.max + ivec2(1, 1) - self.min
+    }
+
+    pub fn total(self) -> i32 {
+        self.size().x * self.size().y
+    }
+
+    pub fn center(self) -> IVec2 {
+        self.min + self.size() / 2
+    }
+
+    pub fn contains(self, column: IVec2) -> bool {
+        (self.min.x <= column.x)
+            & (self.min.y <= column.y)
+            & (self.max.x >= column.x)
+            & (self.max.y >= column.y)
+    }
+
+    pub fn overlapps(self, other: Rect) -> bool {
+        (self.min.x <= other.max.x)
+            & (self.max.x >= other.min.x)
+            & (self.min.y <= other.max.y)
+            & (self.max.y >= other.min.y)
+    }
+
+    pub fn subrect(self, subrect: Rect) -> bool {
+        (self.min.x <= subrect.min.x)
+            & (self.min.y <= subrect.min.y)
+            & (self.max.x >= subrect.max.x)
+            & (self.max.y >= subrect.max.y)
+    }
+
+    pub fn overlap(self, other: Rect) -> Rect {
+        Rect {
+            min: ivec2(self.min.x.max(other.min.x), self.min.x.max(other.min.y)),
+            max: ivec2(self.max.x.min(other.max.x), self.max.x.min(other.max.y)),
+        }
+    }
+
+    pub fn grow(self, amount: i32) -> Self {
+        self.shrink(-amount)
+    }
+
+    pub fn shrink(self, amount: i32) -> Self {
+        Self {
+            min: self.min + ivec2(amount, amount),
+            max: self.max - ivec2(amount, amount),
+        }
+    }
+
+    pub fn grow2(self, amount: IVec2) -> Self {
+        Self {
+            min: self.min - amount,
+            max: self.max + amount,
+        }
+    }
+
+    pub fn offset(self, offset: IVec2) -> Self {
+        Self {
+            min: self.min + offset,
+            max: self.max + offset,
+        }
+    }
+
+    pub fn border(self) -> impl Iterator<Item = IVec2> {
+        (self.min.x..=self.max.x)
+            .map(move |x| ivec2(x, self.min.y))
+            .chain((self.min.y..=self.max.y).map(move |y| ivec2(self.max.x, y)))
+            .chain(
+                (self.min.x..=self.max.x)
+                    .rev()
+                    .map(move |x| ivec2(x, self.max.y)),
+            )
+            .chain(
+                (self.min.y..=self.max.y)
+                    .rev()
+                    .map(move |y| ivec2(self.min.x, y)),
+            )
+    }
+
+    pub fn corners(self) -> impl Iterator<Item = IVec2> {
+        Some(self.min)
+            .into_iter()
+            .chain(Some(ivec2(self.min.x, self.max.y)))
+            .chain(Some(self.max))
+            .chain(Some(ivec2(self.max.x, self.min.y)))
+    }
+}
+
+pub struct RectIter {
+    area: Rect,
+    column: IVec2,
+}
+
+impl Iterator for RectIter {
+    type Item = IVec2;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.area.contains(self.column) {
+            let column = self.column;
+            self.column.x += 1;
+            if self.column.x > self.area.max.x {
+                self.column.x = self.area.min.x;
+                self.column.y += 1;
+            }
+            Some(column)
+        } else {
+            None
+        }
+    }
+}
+
+impl IntoIterator for Rect {
+    type Item = IVec2;
+
+    type IntoIter = RectIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RectIter {
+            area: self,
+            column: self.min,
+        }
+    }
+}
+
 #[derive(Debug, Copy, Clone)]
 pub struct Cuboid {
     pub min: IVec3,
@@ -230,122 +364,6 @@ impl From<FullDir> for IVec3 {
 impl From<HDir> for IVec3 {
     fn from(dir: HDir) -> Self {
         IVec2::from(dir).extend(0)
-    }
-}
-
-impl Rect {
-    pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
-        Rect {
-            min: center - size / 2,
-            max: center + size / 2,
-        }
-    }
-
-    pub fn size(self) -> IVec2 {
-        self.max + ivec2(1, 1) - self.min
-    }
-
-    pub fn center(self) -> IVec2 {
-        self.min + self.size() / 2
-    }
-
-    pub fn contains(self, column: IVec2) -> bool {
-        (self.min.x <= column.x)
-            & (self.min.y <= column.y)
-            & (self.max.x >= column.x)
-            & (self.max.y >= column.y)
-    }
-
-    pub fn overlapps(self, other: Rect) -> bool {
-        (self.min.x <= other.max.x)
-            & (self.max.x >= other.min.x)
-            & (self.min.y <= other.max.y)
-            & (self.max.y >= other.min.y)
-    }
-
-    pub fn overlap(self, other: Rect) -> Rect {
-        Rect {
-            min: ivec2(self.min.x.max(other.min.x), self.min.x.max(other.min.y)),
-            max: ivec2(self.max.x.min(other.max.x), self.max.x.min(other.max.y)),
-        }
-    }
-
-    pub fn grow(self, amount: i32) -> Self {
-        self.shrink(-amount)
-    }
-
-    pub fn shrink(self, amount: i32) -> Self {
-        Self {
-            min: self.min + ivec2(amount, amount),
-            max: self.max - ivec2(amount, amount),
-        }
-    }
-
-    pub fn grow2(self, amount: IVec2) -> Self {
-        Self {
-            min: self.min - amount,
-            max: self.max + amount,
-        }
-    }
-
-    pub fn border(self) -> impl Iterator<Item = IVec2> {
-        (self.min.x..=self.max.x)
-            .map(move |x| ivec2(x, self.min.y))
-            .chain((self.min.y..=self.max.y).map(move |y| ivec2(self.max.x, y)))
-            .chain(
-                (self.min.x..=self.max.x)
-                    .rev()
-                    .map(move |x| ivec2(x, self.max.y)),
-            )
-            .chain(
-                (self.min.y..=self.max.y)
-                    .rev()
-                    .map(move |y| ivec2(self.min.x, y)),
-            )
-    }
-
-    pub fn corners(self) -> impl Iterator<Item = IVec2> {
-        Some(self.min)
-            .into_iter()
-            .chain(Some(ivec2(self.min.x, self.max.y)))
-            .chain(Some(self.max))
-            .chain(Some(ivec2(self.max.x, self.min.y)))
-    }
-}
-
-pub struct RectIter {
-    area: Rect,
-    column: IVec2,
-}
-
-impl Iterator for RectIter {
-    type Item = IVec2;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.area.contains(self.column) {
-            let column = self.column;
-            self.column.x += 1;
-            if self.column.x > self.area.max.x {
-                self.column.x = self.area.min.x;
-                self.column.y += 1;
-            }
-            Some(column)
-        } else {
-            None
-        }
-    }
-}
-
-impl IntoIterator for Rect {
-    type Item = IVec2;
-
-    type IntoIter = RectIter;
-
-    fn into_iter(self) -> Self::IntoIter {
-        RectIter {
-            area: self,
-            column: self.min,
-        }
     }
 }
 

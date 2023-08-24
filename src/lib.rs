@@ -10,16 +10,19 @@ mod level;
 // pub mod make_divider;
 pub mod make_name;
 pub mod make_trees;
+pub mod prefab;
 pub mod remove_foliage;
 pub mod sim;
-pub mod structures;
 // pub mod terraform;
 pub mod house;
+pub mod house2;
 pub mod roof;
+pub mod sim_anneal;
 
 pub use geometry::*;
 pub use hashbrown::HashMap;
 pub use level::*;
+pub use prefab::PREFABS;
 
 pub fn default<T: Default>() -> T {
     Default::default()

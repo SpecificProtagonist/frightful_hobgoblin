@@ -8,7 +8,7 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     // Clear space
     level.fill(inner, Air);
     // Floor
-    level.fill_at(inner.d2().grow(2), outer.min.z, Full(PackedMud));
+    level.fill_at(inner.d2().grow(2), outer.min.z, PackedMud);
     // Walls
     for pos in outer.d2().border() {
         wall_column(level, pos, outer.min.z, outer.max.z - 1);

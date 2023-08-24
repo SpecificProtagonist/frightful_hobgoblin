@@ -6,7 +6,7 @@ use std::ops::{DerefMut, RangeInclusive};
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::{fmt::Write, fs::create_dir_all, path::Path};
 
-use crate::structures::Prefab;
+use crate::remove_foliage::find_trees;
 use crate::*;
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
@@ -36,11 +36,8 @@ pub fn sim(level: Level, save_sim: bool) {
     let house = world.spawn((Pos(house_pos.as_vec3()), house)).id();
 
     // Find trees
-    for column in level.area() {
-        let pos = column.extend(level.height(column) + 1);
-        if let Block::Log(..) = level[pos] {
-            world.spawn((Pos(pos.as_vec3()), Tree::default()));
-        }
+    for tree in find_trees(&level, level.area()) {
+        world.spawn((Pos(tree.as_vec3()), Tree::default()));
     }
 
     let pos = vec3(-50., 90., 200.);
@@ -142,12 +139,7 @@ fn build(
                         _ => Oak,
                     };
                     let cursor = level.recording_cursor();
-                    Prefab::get(stage.prefab).build(
-                        &mut level,
-                        building_pos.block(),
-                        YPos,
-                        wood_type,
-                    );
+                    PREFABS[stage.prefab].build(&mut level, building_pos.block(), YPos, wood_type);
                     villager.carry = None;
                     commands
                         .entity(builder)

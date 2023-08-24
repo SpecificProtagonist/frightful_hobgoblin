@@ -705,7 +705,6 @@ dependencies = [
  "hierarchical_pathfinding",
  "image",
  "itertools",
- "lazy_static",
  "named-binary-tag",
  "num-derive",
  "num-traits",

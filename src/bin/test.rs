@@ -12,11 +12,16 @@ fn main() {
 
     let mut level = Level::new(SAVE_WRITE_PATH, area);
 
-    for x in (0..180).step_by(18) {
-        for y in (0..180).step_by(18) {
-            roof(&mut level, ivec3(x, y, 130));
-        }
+    let test_area = sim_anneal::choose_starting_area(&level);
+    for pos in test_area {
+        let pos = level.ground(pos);
+        level[pos] = Wool(Magenta)
     }
+    // for x in (0..180).step_by(18) {
+    //     for y in (0..180).step_by(18) {
+    //         roof(&mut level, ivec3(x, y, 130));
+    //     }
+    // }
     // roof(&mut level, ivec3(0, 0, 120));
 
     // remove_foliage::trees(&mut level, area);
