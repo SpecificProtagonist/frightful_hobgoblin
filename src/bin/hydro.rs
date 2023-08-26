@@ -8,5 +8,6 @@ fn main() {
     let mut map = MapImage::new(area);
     map.heightmap(&level);
     map.water(&level);
-    map.save("heightmap.png");
+    map.ocean_and_river(&level);
+    map.save("hydro.png");
 }

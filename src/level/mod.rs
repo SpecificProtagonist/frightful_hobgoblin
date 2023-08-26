@@ -1,4 +1,4 @@
-// mod biome;
+mod biome;
 mod block;
 mod view;
 
@@ -17,7 +17,7 @@ use std::{
 };
 
 use crate::{default, geometry::*, HashMap};
-// pub use biome::*;
+pub use biome::*;
 pub use block::*;
 
 #[derive(Resource)]
@@ -30,7 +30,7 @@ pub struct Level {
     /// Sections in Z->X->Y order
     sections: Vec<Option<Box<Section>>>,
     /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
-    // biome: Vec<Biome>,
+    biome: Vec<Biome>,
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     dirty_chunks: Vec<bool>,
@@ -55,7 +55,7 @@ impl Level {
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
         let mut sections = vec![None; chunk_count * 24];
-        // let mut biome = vec![Biome::default(); chunk_count * 4 * 4];
+        let mut biome = vec![Biome::Basic; chunk_count * 4 * 4];
         let mut heightmap = vec![0; chunk_count * 16 * 16];
         let mut watermap = vec![None; chunk_count * 16 * 16];
 
@@ -63,17 +63,17 @@ impl Level {
         (chunk_min.1..=chunk_max.1)
             .flat_map(|z| (chunk_min.0..=chunk_max.0).map(move |x| (x, z)))
             .collect_vec()
-            .par_iter() //TMP no par
+            .par_iter()
             .zip(sections.par_chunks_exact_mut(24))
-            // .zip(biome.par_chunks_exact_mut(4 * 4))
+            .zip(biome.par_chunks_exact_mut(4 * 4))
             .zip(heightmap.par_chunks_exact_mut(16 * 16))
             .zip(watermap.par_chunks_exact_mut(16 * 16))
-            .for_each(|(((index, sections), heightmap), watermap)| {
+            .for_each(|((((index, sections), biome), heightmap), watermap)| {
                 load_chunk(
                     &chunk_provider,
                     (*index).into(),
                     sections,
-                    // biome,
+                    biome,
                     heightmap,
                     watermap,
                 )
@@ -85,7 +85,7 @@ impl Level {
             chunk_min,
             chunk_max,
             sections,
-            // biome,
+            biome,
             heightmap,
             watermap,
             dirty_chunks: vec![false; chunk_count],
@@ -156,6 +156,12 @@ impl Level {
         Ok(())
     }
 
+    fn biome_index(&self, column: IVec2) -> usize {
+        self.chunk_index(column.into()) * 4 * 4
+            + column.y.rem_euclid(16) as usize / 4 * 4
+            + column.x.rem_euclid(16) as usize / 4
+    }
+
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
         if (chunk.0 < self.chunk_min.0)
             | (chunk.0 > self.chunk_max.0)
@@ -180,7 +186,7 @@ impl Level {
     }
 
     fn block_in_section_index(pos: IVec3) -> usize {
-        (pos.x.rem_euclid(16) + pos.z.rem_euclid(16) * 16 * 16 + pos.y.rem_euclid(16) * 16) as usize
+        (pos.x.rem_euclid(16) + pos.y.rem_euclid(16) * 16 + pos.z.rem_euclid(16) * 16 * 16) as usize
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -194,7 +200,7 @@ impl Level {
     pub fn chunks(&self) -> impl Iterator<Item = ChunkIndex> {
         (self.chunk_min.0..=self.chunk_max.0)
             .cartesian_product(self.chunk_min.1..=self.chunk_max.1)
-            .map(|(x, z)| ChunkIndex(x, z))
+            .map(|(x, y)| ChunkIndex(x, y))
     }
 
     pub fn area(&self) -> Rect {
@@ -205,16 +211,9 @@ impl Level {
         .shrink(crate::LOAD_MARGIN)
     }
 
-    // pub fn biome(&self, column: Vec2) -> Biome {
-    //     if let Some(biome) = self.biome.get(
-    //         self.chunk_index(column.into()) * 4 * 4
-    //             + (column.0.rem_euclid(16) / 4 + column.1.rem_euclid(16) / 4 * 4) as usize,
-    //     ) {
-    //         *biome
-    //     } else {
-    //         panic!("Tried to access biome at {:?}", column);
-    //     }
-    // }
+    pub fn biome(&self, column: IVec2) -> Biome {
+        self.biome[self.biome_index(column)]
+    }
 
     pub fn height(&self, column: IVec2) -> i32 {
         self.heightmap[self.column_index(column)]
@@ -373,7 +372,7 @@ fn load_chunk(
     chunk_provider: &FolderRegionProvider,
     chunk_index: ChunkIndex,
     sections: &mut [Option<Box<Section>>],
-    // biomes: &mut [Biome],
+    biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
 ) -> Result<()> {
@@ -403,7 +402,36 @@ fn load_chunk(
     for section_nbt in sections_nbt {
         let y_index = section_nbt.get_i8("Y").unwrap();
 
-        // TODO: load biome
+        // Use a 2d representation of biomes
+        if y_index == 5 {
+            let biome = section_nbt.get_compound_tag("biomes").unwrap();
+            let palette = biome.get_str_vec("palette").unwrap();
+            let palette: Vec<Biome> = palette.iter().map(|n| Biome::from_id(n)).collect();
+            if palette.len() == 1 {
+                for biome in &mut *biomes {
+                    *biome = palette[0];
+                }
+            } else {
+                let bits_per_index = palette.len().next_power_of_two().ilog2();
+                let Ok(indices) = biome.get_i64_vec("data") else {
+                    continue;
+                };
+
+                let mut current_long = 0;
+                let mut current_bit_shift = 0;
+                for biome in &mut *biomes {
+                    let packed = indices[current_long] as u64;
+                    let index = packed.shr(current_bit_shift) as usize % (1 << bits_per_index);
+                    *biome = palette[index];
+
+                    current_bit_shift += bits_per_index;
+                    if current_bit_shift > (64 - bits_per_index) {
+                        current_bit_shift = 0;
+                        current_long += 1;
+                    }
+                }
+            }
+        }
 
         let block_states = section_nbt.get_compound_tag("block_states").unwrap();
         let palette = block_states.get_compound_tag_vec("palette").unwrap();
@@ -459,12 +487,7 @@ fn load_chunk(
 }
 
 fn bits_per_index(palette_len: usize) -> usize {
-    for bits in 4.. {
-        if palette_len <= 1 << bits {
-            return bits;
-        }
-    }
-    unreachable!()
+    palette_len.next_power_of_two().ilog2().max(4) as usize
 }
 
 fn save_chunk(
