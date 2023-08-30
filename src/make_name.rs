@@ -1,41 +1,59 @@
-use crate::geometry::rand;
+use rand::Rng;
+
+use crate::*;
 
 // Todo: Villager names
-// Todo: make toponyms take features into account
+// Todo: make toponyms take features into account (not needed for other villages mentioned but not generated)
 //       that's also something to be mentioned in the village chronicle
-// Todo: prevent bad phonome combinations
 // Todo: different generators for different biomes
 
 pub fn make_town_name() -> String {
     let prefixes = &[
-        "aber", "ard", "ash", "ast", "auch", "bre", "dal", "kil", "lang", "nor", "rother", "shep",
-        "stan", "sut",
+        "aber", "ard", "ash", "ast", "auch", "bre", "car", "dal", "inch", "kil", "lang", "nor",
+        "rother", "shep", "stan", "sut",
     ];
     let middle = &[
-        "ac", "avon", "beck", "fos", "garth", "holm", "hamp", "mere", "thorpe",
+        "ac", "avon", "beck", "fos", "garth", "grim", "holm", "hamp", "kirk", "mere", "thorp",
+        "pit",
     ];
     let suffixes = &[
-        "berry", "bourne", "burry", "bourgh", "borough", "by", "carden", "combe", "cott", "dale",
-        "esk", "ey", "field", "ham", "hurst", "ing", "stead", "ter", "ton", "wich", "wick",
-        "worth",
+        "berry", "bourne", "burry", "bourgh", "borough", "by", "carden", "cester", "combe", "cott",
+        "dale", "esk", "ey", "field", "fold", "ham", "hurst", "ing", "more", "ness", "rig", "pool",
+        "stead", "ter", "ton", "wich", "wick", "worth",
     ];
     let standalone = &["ben", "eglos", "hayes", "law", "minster", "shaw", "stoke"];
 
     // Todo: Experiment with probabilities
     let mut name = String::new();
-    if rand(0.27) {
+    if rand(0.25) {
         name.extend(uppercase(select(prefixes)));
         name += select(middle);
-    } else if rand(0.4) {
+        if name.ends_with("thorp") {
+            name += "e"
+        }
+    } else if rand(0.3) {
+        name.extend(uppercase(select(prefixes)));
+        name += select(suffixes);
+    } else if rand(0.5) {
         name.extend(uppercase(select(middle)));
         name += select(suffixes);
     } else {
         name.extend(uppercase(select(prefixes)));
+        name += select(middle);
         name += select(suffixes);
     }
 
-    if rand(0.3) {
-        name += " ";
+    name = name
+        .replace("pb", "b")
+        .replace("hh", "h")
+        .replace("tt", "t");
+
+    if rand(0.25) {
+        if rand(0.3) {
+            name += "-le-"
+        } else {
+            name += " ";
+        }
         name.extend(uppercase(select(standalone)));
     }
 
@@ -43,7 +61,6 @@ pub fn make_town_name() -> String {
 }
 
 fn select<'a>(list: &'a [&'a str]) -> &'a str {
-    use rand::Rng;
     list[rand::thread_rng().gen_range(0, list.len())]
 }
 

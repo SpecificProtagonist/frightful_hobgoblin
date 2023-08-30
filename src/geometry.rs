@@ -1,18 +1,15 @@
-use itertools::Itertools;
-use num_derive::FromPrimitive;
 use std::{ops::Add, str::FromStr};
 
 pub use bevy_math::{ivec2, ivec3, vec2, vec3, IVec2, IVec3, Vec2, Vec3};
+use itertools::Itertools;
+use num_derive::FromPrimitive;
 
-//
-// TODO: Swap Y and Z??
-// Makes things simpler in some cases, adds confusion in others
-//
+use crate::*;
 
 #[derive(Debug, Copy, Clone, Hash, Eq, PartialEq)]
 pub struct ChunkIndex(pub i32, pub i32);
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 /// Both minimum and maximum are inclusive
 pub struct Rect {
     pub min: IVec2,
@@ -23,7 +20,7 @@ impl Rect {
     pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
         Rect {
             min: center - size / 2,
-            max: center + size / 2,
+            max: center + (size + IVec2::ONE) / 2,
         }
     }
 
@@ -326,6 +323,16 @@ pub trait Vec3Ext {
 impl Vec3Ext for Vec3 {
     fn block(self) -> IVec3 {
         self.floor().as_ivec3()
+    }
+}
+
+pub trait Vec2Ext {
+    fn block(self) -> IVec2;
+}
+
+impl Vec2Ext for Vec2 {
+    fn block(self) -> IVec2 {
+        self.floor().as_ivec2()
     }
 }
 
@@ -715,31 +722,4 @@ impl ColumnLineIter {
             enqueued: None,
         }
     }
-}
-
-/* These don't really fit here, but oh well. */
-// TODO: Use world seed (and move to World?)
-pub fn rand(prob: f32) -> bool {
-    rand::random::<f32>() < prob
-}
-
-pub fn rand_1(prob: f32) -> i32 {
-    if rand::random::<f32>() < prob {
-        rand::Rng::gen_range(&mut rand::thread_rng(), -1, 2)
-    } else {
-        0
-    }
-}
-
-pub fn rand_2(prob: f32) -> IVec2 {
-    ivec2(rand_1(prob), rand_1(prob))
-}
-
-pub fn rand_3(prob: f32) -> IVec3 {
-    ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
-}
-
-// Inclusive range
-pub fn rand_range(min: i32, max: i32) -> i32 {
-    rand::Rng::gen_range(&mut rand::thread_rng(), min, max)
 }

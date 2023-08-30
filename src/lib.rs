@@ -16,8 +16,9 @@ pub mod sim;
 // pub mod terraform;
 pub mod house;
 pub mod house2;
+pub mod optimize;
+pub mod replay;
 pub mod roof;
-pub mod sim_anneal;
 
 pub use geometry::*;
 pub use hashbrown::HashMap;
@@ -34,4 +35,29 @@ const LOAD_MARGIN: i32 = 20;
 /// The config isn't commited to git because it just contains the paths to the world folders
 pub mod config {
     include!("../config_local.rs");
+}
+
+pub fn rand(prob: f32) -> bool {
+    rand::random::<f32>() < prob
+}
+
+pub fn rand_1(prob: f32) -> i32 {
+    if rand::random::<f32>() < prob {
+        rand::Rng::gen_range(&mut rand::thread_rng(), -1, 2)
+    } else {
+        0
+    }
+}
+
+pub fn rand_2(prob: f32) -> IVec2 {
+    ivec2(rand_1(prob), rand_1(prob))
+}
+
+pub fn rand_3(prob: f32) -> IVec3 {
+    ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
+}
+
+// Inclusive range
+pub fn rand_range(min: i32, max: i32) -> i32 {
+    rand::Rng::gen_range(&mut rand::thread_rng(), min, max)
 }

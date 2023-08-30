@@ -1,39 +1,32 @@
 #![allow(clippy::type_complexity)]
-use std::f32::consts::PI;
-use std::fmt::Display;
-use std::fs::{create_dir, read, write};
-use std::ops::{DerefMut, RangeInclusive};
-use std::sync::atomic::{AtomicU32, Ordering};
-use std::{fmt::Write, fs::create_dir_all, path::Path};
 
-use crate::remove_foliage::find_trees;
+use crate::optimize::optimize;
 use crate::*;
+use crate::{remove_foliage::find_trees, replay::*};
+
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
+use bevy_math::Vec2Swizzles;
+use rand::prelude::*;
 
-pub fn sim(level: Level, save_sim: bool) {
+pub fn sim(mut level: Level) {
     Id::load(&level.path);
 
     let mut world = World::new();
 
-    let house_pos = ivec3(-77, 117, 94);
-    let house = Building {
-        stages: vec![
-            BuildStage {
-                resource: Resource::Stone,
-                prefab: "test-house/0",
-            },
-            BuildStage {
-                resource: Resource::Wood,
-                prefab: "test-house/1",
-            },
-            BuildStage {
-                resource: Resource::Wood,
-                prefab: "test-house/2",
-            },
-        ],
-    };
-    let house = world.spawn((Pos(house_pos.as_vec3()), house)).id();
+    let city_center = choose_starting_area(&level);
+    let city_center_pos = level.ground(city_center.center());
+
+    world.spawn((
+        Pos(city_center_pos.as_vec3()),
+        Blocked(city_center),
+        CityCenter,
+    ));
+
+    for pos in city_center {
+        let pos = level.ground(pos);
+        level[pos] = Wool(Magenta)
+    }
 
     // Find trees
     for tree in find_trees(&level, level.area()) {
@@ -41,39 +34,47 @@ pub fn sim(level: Level, save_sim: bool) {
     }
 
     let pos = vec3(-50., 90., 200.);
-    world.spawn((
-        Id::default(),
-        Villager {
-            carry: Some(Full(Cobble)),
-            carry_id: default(),
-        },
-        Pos(pos),
-        PrevPos(pos),
-        BuildTask { building: house },
-    ));
+    world.spawn((Id::default(), Villager::default(), Pos(pos), PrevPos(pos)));
 
     let mut sched = Schedule::new();
-    sched.add_systems(((place, chop, walk, build), apply_deferred, tick_replay).chain());
+    sched.add_systems(
+        (
+            (
+                place,
+                chop,
+                walk,
+                build,
+                plan_house,
+                plan_lumberjack,
+                plan_quarry,
+            ),
+            apply_deferred,
+            assign_builds,
+            apply_deferred,
+            (test_build_house, test_build_lumberjack, test_build_quarry),
+            apply_deferred,
+            (tick_replay, remove_outdated),
+            |world: &mut World| world.clear_trackers(),
+        )
+            .chain(),
+    );
 
     world.init_resource::<Replay>();
     world.insert_resource(level);
-    for _ in 0..10 {
+    for _ in 0..10000 {
         sched.run(&mut world);
     }
 
     let level = world.remove_resource::<Level>().unwrap();
-
+    let replay = world.remove_resource::<Replay>().unwrap();
     Id::save(&level.path);
-    if save_sim {
-        world
-            .remove_resource::<Replay>()
-            .unwrap()
-            .write(&level.path);
-        level.save_metadata().unwrap();
-    } else {
-        level.save();
-    }
+    replay.write(&level.path);
+    level.save_metadata().unwrap();
+    // level.save();
 }
+
+#[derive(Component)]
+struct CityCenter;
 
 #[derive(Clone, Copy)]
 enum Resource {
@@ -222,88 +223,6 @@ fn walk(
     }
 }
 
-fn tick_replay(
-    mut level: ResMut<Level>,
-    mut replay: ResMut<Replay>,
-    new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
-    changed_vills: Query<&Villager, Changed<Villager>>,
-    mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&Villager>), Changed<Pos>>,
-) {
-    let replay = replay.deref_mut();
-    for (pos, block) in level.pop_recording(default()) {
-        replay.block(pos, block);
-    }
-    for (id, pos, vill) in &new_vills {
-        replay.start_command();
-        writeln!(
-            replay.commands,
-            "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1}}",
-            pos.x,
-            pos.z,
-            pos.y,
-            id.snbt()
-        )
-        .unwrap();
-        replay.start_command();
-        writeln!(
-            replay.commands,
-            "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1}}",
-            pos.x,
-            pos.z + 0.8,
-            pos.y,
-            vill.carry_id.snbt(),
-        )
-        .unwrap();
-    }
-    for (id, pos, mut prev, vill) in &mut moved {
-        let delta = pos.0 - prev.0;
-        let facing = pos.0 + delta;
-        replay.start_command();
-        writeln!(
-            replay.commands,
-            "tp {} {} {} {} facing {} {} {}",
-            id, pos.x, pos.z, pos.y, facing.x, facing.z, facing.y
-        )
-        .unwrap();
-        if let Some(vill) = vill {
-            replay.start_command();
-            writeln!(
-                replay.commands,
-                "tp {} {} {} {} {} 0",
-                vill.carry_id,
-                pos.x,
-                pos.z + 0.8,
-                pos.y,
-                delta.y.atan2(delta.x) / PI * 180.,
-            )
-            .unwrap();
-        }
-        prev.0 = pos.0;
-    }
-    for vill in &changed_vills {
-        replay.start_command();
-        if let Some(carry) = vill.carry {
-            writeln!(
-                replay.commands,
-                "data modify entity {} ArmorItems[3] set value {}",
-                vill.carry_id,
-                carry
-                    .blockstate(&UNKNOWN_BLOCKS.write().unwrap())
-                    .item_snbt()
-            )
-            .unwrap();
-        } else {
-            writeln!(
-                replay.commands,
-                "data modify entity {} ArmorItems[3] set value {{}}",
-                vill.carry_id,
-            )
-            .unwrap();
-        }
-    }
-    replay.tick += 1;
-}
-
 fn set_walk_height(level: &Level, pos: &mut Vec3) {
     let size = 0.35;
     let mut height = 0f32;
@@ -328,188 +247,308 @@ fn set_walk_height(level: &Level, pos: &mut Vec3) {
 }
 
 #[derive(Component, Deref, DerefMut, PartialEq)]
-struct Pos(Vec3);
+pub struct Pos(pub Vec3);
 
 #[derive(Component, Deref, DerefMut)]
-struct PrevPos(Vec3);
+pub struct PrevPos(pub Vec3);
+
+#[derive(Component, Default)]
+pub struct Villager {
+    pub carry: Option<Block>,
+    pub carry_id: Id,
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct Blocked(Rect);
+
+#[derive(Component, Deref, DerefMut)]
+pub struct Planned(Rect);
 
 #[derive(Component)]
-struct Villager {
-    carry: Option<Block>,
-    carry_id: Id,
-}
+pub struct House;
 
 #[derive(Component)]
-struct Id(u32);
+pub struct Lumberjack;
 
-impl Display for Id {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "0-0-0-0-{:x}", self.0)
-    }
+#[derive(Component)]
+pub struct Quarry;
+
+#[derive(Component)]
+pub struct ToBeBuild;
+
+#[derive(Component)]
+pub struct Build;
+
+fn not_blocked<'a>(blocked: impl IntoIterator<Item = &'a Blocked>, area: Rect) -> bool {
+    blocked.into_iter().all(|blocker| !blocker.overlapps(area))
 }
 
-impl Id {
-    fn snbt(&self) -> String {
-        format!("UUID:[I;0,0,0,{}]", self.0)
-    }
-
-    // Make sure things work if run multiple times on the same world
-    fn load(level: &Path) {
-        if let Ok(vec) = read(level.join("mcgen-last_uuid")) {
-            NEXT_ID.store(
-                u32::from_be_bytes([vec[0], vec[1], vec[2], vec[3]]),
-                Ordering::Relaxed,
-            );
-        }
-    }
-
-    fn save(level: &Path) {
-        write(
-            level.join("mcgen-last-uuid"),
-            NEXT_ID.load(Ordering::Relaxed).to_be_bytes(),
-        )
-        .unwrap();
-    }
+fn unevenness(level: &Level, area: Rect) -> f32 {
+    let avg_height = level.average_height(area);
+    area.into_iter()
+        .map(|pos| (level.height(pos) as f32 - avg_height).abs().powf(2.))
+        .sum::<f32>()
+        / area.total() as f32
 }
 
-impl Default for Id {
-    fn default() -> Self {
-        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
-    }
+fn wateryness(level: &Level, area: Rect) -> f32 {
+    area.into_iter()
+        .filter(|pos| level.water_level(*pos).is_some())
+        .count() as f32
+        / area.total() as f32
 }
 
-static NEXT_ID: AtomicU32 = AtomicU32::new(1);
-
-// In the future, this could have playback speed / reverse playback, controlled via a book
-#[derive(Resource)]
-struct Replay {
-    tick: i32,
-    marker: Id,
-    commands: String,
-    command_chunks: Vec<(RangeInclusive<i32>, String)>,
-    chunk_start_tick: i32,
-    commands_this_chunk: i32,
-    block_cache: HashMap<Block, String>,
-    // unknown_blocks: UnknownBlocks,
-}
-
-impl Default for Replay {
-    fn default() -> Self {
-        Self {
-            tick: 0,
-            marker: default(),
-            command_chunks: default(),
-            commands: default(),
-            block_cache: default(),
-            // unknown_blocks: UNKNOWN_BLOCKS.read().unwrap().clone(),
-            commands_this_chunk: 0,
-            chunk_start_tick: 0,
-        }
-    }
-}
-
-const COMMANDS_PER_CHUNK: i32 = 1000;
-
-impl Replay {
-    fn start_command(&mut self) {
-        if self.commands_this_chunk == COMMANDS_PER_CHUNK {
-            self.command_chunks.push((
-                self.chunk_start_tick..=self.tick,
-                std::mem::take(&mut self.commands),
+fn choose_starting_area(level: &Level) -> Rect {
+    optimize(
+        Rect::new_centered(level.area().center(), IVec2::splat(44)),
+        |area, temperature| {
+            let mut rng = thread_rng();
+            let max_move = (100. * temperature) as i32;
+            let new = area.offset(ivec2(
+                rng.gen_range(-max_move, max_move + 1),
+                rng.gen_range(-max_move, max_move + 1),
             ));
-            self.commands_this_chunk = 0;
-            self.chunk_start_tick = self.tick;
+            level.area().subrect(new).then_some(new)
+        },
+        |area| {
+            let distance = area
+                .center()
+                .as_vec2()
+                .distance(level.area().center().as_vec2())
+                / (level.area().size().as_vec2().min_element() - 40.);
+            wateryness(level, *area) * 10. + unevenness(level, *area) + distance.powf(2.) / 2.
+        },
+        200,
+    )
+    .shrink(10)
+}
+
+// Note this would require apply_defered after each placement
+fn remove_outdated(
+    mut commands: Commands,
+    planned: Query<(Entity, &Planned)>,
+    blocked: Query<&Blocked>,
+    mut new: RemovedComponents<Planned>,
+) {
+    for entity in new.iter() {
+        let Ok(blocked) = blocked.get(entity) else {
+            continue;
+        };
+        for (planned, area) in &planned {
+            if area.overlapps(blocked.0) {
+                commands.entity(planned).despawn();
+            }
         }
-        self.commands_this_chunk += 1;
-        write!(
-            self.commands,
-            "execute if score {} sim_tick matches {} run ",
-            self.marker, self.tick
-        )
-        .unwrap();
+    }
+}
+
+fn plan_house(
+    mut commands: Commands,
+    level: Res<Level>,
+    blocked: Query<&Blocked>,
+    planned: Query<(With<House>, With<Planned>)>,
+    center: Query<&Pos, With<CityCenter>>,
+) {
+    if planned.iter().len() > 0 {
+        return;
     }
 
-    pub fn block(&mut self, pos: IVec3, block: Block) {
-        self.start_command();
-        let block_string = self.block_cache.entry(block).or_insert_with(|| {
-            block
-                .blockstate(&UNKNOWN_BLOCKS.read().unwrap())
-                .to_string()
-        });
-        writeln!(
-            self.commands,
-            "setblock {} {} {} {block_string}",
-            pos.x, pos.z, pos.y
-        )
-        .unwrap();
+    let mut rng = thread_rng();
+    let center = center.single().truncate();
+    let start = Rect::new_centered(
+        center.block(),
+        ivec2(rng.gen_range(7, 11), rng.gen_range(7, 15)),
+    );
+    let area = optimize(
+        start,
+        |area, temperature| {
+            let mut rng = thread_rng();
+            let max_move = (60. * temperature) as i32;
+            let mut new = area.offset(ivec2(
+                rng.gen_range(-max_move, max_move + 1),
+                rng.gen_range(-max_move, max_move + 1),
+            ));
+            if rand(0.2) {
+                new = Rect::new_centered(new.center(), new.size().yx())
+            }
+            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+        },
+        |area| {
+            let distance = center.distance(area.center().as_vec2()) / 50.;
+            wateryness(&level, *area) * 5. + unevenness(&level, *area) + distance.powf(2.)
+        },
+        200,
+    );
+    if area == start {
+        return;
     }
 
-    pub fn write(mut self, level: &Path) {
-        self.command_chunks
-            .push((self.chunk_start_tick..=self.tick, self.commands));
+    commands.spawn((
+        Pos(level.ground(area.center()).as_vec3()),
+        Planned(area),
+        House,
+    ));
+}
 
-        let pack_path = level.join("datapacks/sim/");
-        create_dir_all(&pack_path).unwrap();
-        write(
-            pack_path.join("pack.mcmeta"),
-            r#"{"pack": {"pack_format": 10, "description": ""}}"#,
-        )
-        .unwrap();
+fn plan_lumberjack(
+    mut commands: Commands,
+    level: Res<Level>,
+    blocked: Query<&Blocked>,
+    planned: Query<(With<Lumberjack>, With<Planned>)>,
+    center: Query<&Pos, With<CityCenter>>,
+    trees: Query<&Pos, With<Tree>>,
+) {
+    if !planned.is_empty() {
+        return;
+    }
+    let center = center.single().truncate();
 
-        let sim_path = pack_path.join("data/sim/functions/");
-        create_dir_all(&sim_path).unwrap();
+    let start = Rect::new_centered(level.area().center(), IVec2::splat(9));
+    let area = optimize(
+        start,
+        |area, temperature| {
+            let mut rng = thread_rng();
+            let max_move = (60. * temperature) as i32;
+            let new = area.offset(ivec2(
+                rng.gen_range(-max_move, max_move + 1),
+                rng.gen_range(-max_move, max_move + 1),
+            ));
+            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+        },
+        |area| {
+            let center_distance = center.distance(area.center().as_vec2()) / 50.;
+            let tree_access = trees
+                .iter()
+                .map(|p| -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.)))
+                .sum::<f32>();
+            wateryness(&level, *area) * 5.
+                + unevenness(&level, *area) * 1.
+                + center_distance * 1.
+                + tree_access * 5.
+        },
+        200,
+    );
+    if area == start {
+        return;
+    }
 
-        // Could also just modify the world directly, but this is easier
-        write(
-            sim_path.join("setup.mcfunction"),
-            format!(
-                "
-                summon minecraft:marker ~ ~ ~ {{{}}}
-                scoreboard objectives add sim_tick dummy
-                scoreboard players set {} sim_tick 0
-                ",
-                self.marker.snbt(),
-                self.marker
-            ),
-        )
-        .unwrap();
+    commands.spawn((
+        Pos(level.ground(area.center()).as_vec3()),
+        Planned(area),
+        Lumberjack,
+    ));
+}
 
-        write(
-            sim_path.join("check_setup.mcfunction"),
-            // TODO: This doesn't actually work. Perhaps the entity isn't yet loaded when this is run?
-            format!(
-                "execute unless entity {} run function sim:setup",
-                self.marker
-            ),
-        )
-        .unwrap();
+fn plan_quarry(
+    mut commands: Commands,
+    level: Res<Level>,
+    blocked: Query<&Blocked>,
+    planned: Query<(With<Quarry>, With<Planned>)>,
+    center: Query<&Pos, With<CityCenter>>,
+) {
+    if !planned.is_empty() {
+        return;
+    }
+    let center = center.single().truncate();
 
-        let tag_path = pack_path.join("data/minecraft/tags/functions/");
-        create_dir_all(&tag_path).unwrap();
-        write(
-            tag_path.join("load.json"),
-            r#"{values:["sim:check_setup"]}"#,
-        )
-        .unwrap();
+    let start = Rect::new_centered(level.area().center(), IVec2::splat(9));
+    let area = optimize(
+        start,
+        |area, temperature| {
+            let mut rng = thread_rng();
+            let max_move = (60. * temperature) as i32;
+            let new = area.offset(ivec2(
+                rng.gen_range(-max_move, max_move + 1),
+                rng.gen_range(-max_move, max_move + 1),
+            ));
+            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+        },
+        |area| {
+            let center_distance = center.distance(area.center().as_vec2()) / 50.;
+            wateryness(&level, *area) * 5. + unevenness(&level, *area) * -3. + center_distance * 1.
+        },
+        200,
+    );
+    if area == start {
+        return;
+    }
 
-        // For now just start automatically
-        write(tag_path.join("tick.json"), r#"{values:["sim:tick"]}"#).unwrap();
+    commands.spawn((
+        Pos(level.ground(area.center()).as_vec3()),
+        Planned(area),
+        Quarry,
+    ));
+}
 
-        let mut tick = String::new();
-        let chunk_path = sim_path.join("chunked");
-        create_dir(&chunk_path).unwrap();
-        for (i, (ticks, commands)) in self.command_chunks.iter().enumerate() {
-            write(chunk_path.join(format!("{i}.mcfunction")), commands).unwrap();
-            writeln!(
-                tick,
-                "execute if score {} sim_tick matches {}..{} run function sim:chunked/{i}",
-                self.marker,
-                ticks.start(),
-                ticks.end(),
-            )
-            .unwrap();
+fn assign_builds(
+    mut commands: Commands,
+    extant_houses: Query<(With<House>, Without<Planned>)>,
+    planned_houses: Query<(Entity, &Planned), With<House>>,
+    extant_lumberjacks: Query<(With<Lumberjack>, Without<Planned>)>,
+    planned_lumberjacks: Query<(Entity, &Planned), With<Lumberjack>>,
+    extant_quarries: Query<(With<Quarry>, Without<Planned>)>,
+    planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
+) {
+    let mut plans = Vec::new();
+    if extant_houses.iter().len() < 30 {
+        plans.extend(&planned_houses)
+    }
+    if extant_lumberjacks.iter().len() < 10 {
+        plans.extend(&planned_lumberjacks)
+    }
+    if extant_quarries.iter().len() < 10 {
+        plans.extend(&planned_quarries)
+    }
+    if let Some(&(selected, area)) = plans.choose(&mut thread_rng()) {
+        commands
+            .entity(selected)
+            .remove::<Planned>()
+            .insert((Blocked(area.0), ToBeBuild));
+    }
+}
+
+fn test_build_house(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<House>)>,
+) {
+    for (entity, area) in &new {
+        for pos in area.0 {
+            let pos = level.ground(pos);
+            level[pos] = Wool(Red)
         }
-        writeln!(tick, "scoreboard players add {} sim_tick 1", self.marker).unwrap();
-        write(sim_path.join("tick.mcfunction"), tick).unwrap();
+        for pos in area.border() {
+            let pos = level.ground(pos) + IVec3::Z;
+            level[pos] = Wool(Red)
+        }
+        commands.entity(entity).remove::<ToBeBuild>().insert(Build);
+    }
+}
+
+fn test_build_lumberjack(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Lumberjack>)>,
+) {
+    for (entity, area) in &new {
+        for pos in area.0 {
+            let pos = level.ground(pos);
+            level[pos] = Wool(Orange)
+        }
+        commands.entity(entity).remove::<ToBeBuild>().insert(Build);
+    }
+}
+
+fn test_build_quarry(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Quarry>)>,
+) {
+    for (entity, area) in &new {
+        for pos in area.0 {
+            let pos = level.ground(pos);
+            level[pos] = Wool(Black)
+        }
+        commands.entity(entity).remove::<ToBeBuild>().insert(Quarry);
     }
 }

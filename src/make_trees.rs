@@ -1,5 +1,4 @@
-use crate::geometry::*;
-use crate::level::*;
+use crate::*;
 
 pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     let log_block = Log(species, LogType::FullBark);
