@@ -224,7 +224,13 @@ pub fn tick_replay(
         writeln!(
             replay.commands,
             "tp {} {} {} {} facing {} {} {}",
-            id, pos.x, pos.z, pos.y, facing.x, facing.z, facing.y
+            id,
+            pos.x + 0.5,
+            pos.z,
+            pos.y + 0.5,
+            facing.x + 0.5,
+            facing.z,
+            facing.y + 0.5
         )
         .unwrap();
         if let Some(vill) = vill {

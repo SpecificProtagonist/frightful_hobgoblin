@@ -100,7 +100,7 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
             if let Ok("minecraft:armor_stand") = nbt.get_str("id") {
                 let tags: Vec<String> = nbt
                     .get_str_vec("Tags")
-                    .unwrap_or(Vec::new())
+                    .unwrap_or_default()
                     .iter()
                     .map(|tag| (*tag).to_owned())
                     .collect();

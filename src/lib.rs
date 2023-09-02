@@ -1,5 +1,4 @@
 #![feature(option_get_or_insert_default)]
-#![feature(local_key_cell_methods)]
 #![feature(lazy_cell)]
 #![allow(dead_code)]
 
@@ -16,7 +15,9 @@ pub mod sim;
 // pub mod terraform;
 pub mod house;
 pub mod house2;
+pub mod material;
 pub mod optimize;
+pub mod pathfind;
 pub mod replay;
 pub mod roof;
 

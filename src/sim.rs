@@ -1,8 +1,9 @@
 #![allow(clippy::type_complexity)]
 
+use crate::material::Mat;
 use crate::optimize::optimize;
 use crate::*;
-use crate::{remove_foliage::find_trees, replay::*};
+use crate::{pathfind::pathfind, remove_foliage::find_trees, replay::*};
 
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
@@ -11,6 +12,13 @@ use rand::prelude::*;
 
 pub fn sim(mut level: Level) {
     Id::load(&level.path);
+
+    // let start = ivec3(-1, 80, 84);
+    // let end = level.ground(ivec2(100, 100)) + IVec3::Z;
+    // let path = pathfind(&level, start, end);
+    // for pos in path {
+    //     level[pos] = Wool(Blue);
+    // }
 
     let mut world = World::new();
 
@@ -33,20 +41,24 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(tree.as_vec3()), Tree::default()));
     }
 
-    let pos = vec3(-50., 90., 200.);
-    world.spawn((Id::default(), Villager::default(), Pos(pos), PrevPos(pos)));
+    let pos = level.ground(ivec2(20, 20)).as_vec3() + Vec3::Z;
+    world.spawn((
+        Id::default(),
+        Villager::default(),
+        Pos(pos),
+        PrevPos(pos),
+        MoveTask::new(level.ground(ivec2(40, 40)) + IVec3::Z),
+    ));
 
     let mut sched = Schedule::new();
     sched.add_systems(
         (
             (
-                place,
-                chop,
-                walk,
+                place, chop, walk,
                 build,
-                plan_house,
-                plan_lumberjack,
-                plan_quarry,
+                // plan_house,
+                // plan_lumberjack,
+                // plan_quarry,
             ),
             apply_deferred,
             assign_builds,
@@ -76,17 +88,11 @@ pub fn sim(mut level: Level) {
 #[derive(Component)]
 struct CityCenter;
 
-#[derive(Clone, Copy)]
-enum Resource {
-    Stone,
-    Wood,
-}
-
 type PlaceList = Vec<(IVec3, Block)>;
 
 #[derive(Clone, Copy)]
 struct BuildStage {
-    resource: Resource,
+    resource: Mat,
     prefab: &'static str,
 }
 
@@ -96,7 +102,20 @@ struct Building {
 }
 
 #[derive(Component)]
-struct MoveTask(Vec2);
+struct MoveTask {
+    goal: IVec3,
+    distance: i32,
+}
+
+impl MoveTask {
+    fn new(goal: IVec3) -> MoveTask {
+        Self { goal, distance: 0 }
+    }
+}
+
+/// Path to move along, in reverse order
+#[derive(Component, Deref, DerefMut)]
+struct MovePath(Vec<IVec3>);
 
 #[derive(Component)]
 struct PlaceTask(PlaceList);
@@ -110,6 +129,9 @@ struct BuildTask {
 struct ChopTask {
     tree: Entity,
 }
+
+#[derive(Component)]
+struct ReadyToChop;
 
 #[derive(Component, Default)]
 struct Tree {
@@ -133,7 +155,7 @@ fn build(
                 if pos.truncate() != building_pos.truncate() {
                     commands
                         .entity(builder)
-                        .insert(MoveTask(building_pos.truncate()));
+                        .insert(MoveTask::new(building_pos.block() + IVec3::Z));
                 } else {
                     let wood_type = match carry {
                         Log(species, _) => species,
@@ -166,27 +188,31 @@ fn build(
 fn chop(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    mut lumberjacks: Query<(Entity, &mut Villager, &Pos, &ChopTask), Without<MoveTask>>,
+    mut lumberjacks: Query<
+        (Entity, &mut Villager, &ChopTask, Option<&ReadyToChop>),
+        Without<MoveTask>,
+    >,
     trees: Query<&Pos>,
 ) {
-    for (jack, mut vill, pos, task) in &mut lumberjacks {
+    for (jack, mut vill, task, ready) in &mut lumberjacks {
         let target = trees.get(task.tree).unwrap();
-        const CHOP_DIST: f32 = 1.5;
-        let target_pos =
-            target.0 - (target.0 - pos.0).truncate().normalize().extend(0.) * CHOP_DIST * 0.99;
-        if pos.0.distance(target_pos) <= CHOP_DIST {
+        if ready.is_some() {
             let cursor = level.recording_cursor();
             vill.carry = Some(level[target.block()]);
             remove_foliage::tree(&mut level, target.block());
             commands.entity(task.tree).despawn();
             commands
                 .entity(jack)
-                .remove::<ChopTask>()
+                .remove::<(ChopTask, ReadyToChop)>()
                 .insert(PlaceTask(level.pop_recording(cursor).collect()));
         } else {
-            commands
-                .entity(jack)
-                .insert(MoveTask(target_pos.truncate()));
+            commands.entity(jack).insert((
+                ReadyToChop,
+                MoveTask {
+                    goal: target.block(),
+                    distance: 2,
+                },
+            ));
         }
     }
 }
@@ -205,20 +231,31 @@ fn place(
     }
 }
 
+// TODO: Smooth this out
 fn walk(
     mut commands: Commands,
     level: Res<Level>,
-    mut query: Query<(Entity, &mut Pos, &MoveTask), With<Villager>>,
+    mut query: Query<(Entity, &mut Pos, &MoveTask, Option<&mut MovePath>), With<Villager>>,
 ) {
-    for (entity, mut pos, goal) in &mut query {
-        const BLOCKS_PER_TICK: f32 = 0.15;
-        let diff = goal.0 - pos.0.truncate();
-        if diff.length() < BLOCKS_PER_TICK {
-            pos.0 = goal.0.extend(pos.z);
-            commands.entity(entity).remove::<MoveTask>();
-        } else {
-            pos.0 += diff.normalize().extend(0.) * BLOCKS_PER_TICK;
+    for (entity, mut pos, goal, path) in &mut query {
+        if let Some(mut path) = path {
+            const BLOCKS_PER_TICK: f32 = 0.13;
+            let mut next_node = *path.last().unwrap();
+            let diff = (next_node.as_vec3() - pos.0).truncate();
+            if diff.length() < BLOCKS_PER_TICK {
+                path.pop();
+                if let Some(&next) = path.last() {
+                    next_node = next;
+                } else {
+                    commands.entity(entity).remove::<(MoveTask, MovePath)>();
+                }
+            }
+            let diff = (next_node.as_vec3() - pos.0).truncate();
+            pos.0 += (diff.normalize() * BLOCKS_PER_TICK).extend(0.);
             set_walk_height(&level, &mut pos);
+        } else {
+            let path = pathfind(&level, goal.goal, pos.block());
+            commands.entity(entity).insert(MovePath(path));
         }
     }
 }

@@ -519,7 +519,12 @@ fn save_chunk(
                         .enumerate()
                         .filter_map(|(y_index, section)| {
                             let y_index = y_index as i32 - 4;
-                            let Some(section) = section else { return None };
+                            //https://github.com/rust-lang/rust-clippy/issues/8281
+                            #[allow(clippy::question_mark)]
+                            let Some(section) = section
+                            else {
+                                return None;
+                            };
                             let mut nbt = CompoundTag::new();
                             nbt.insert_i8("Y", y_index as i8);
 

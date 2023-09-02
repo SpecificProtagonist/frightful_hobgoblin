@@ -1,8 +1,5 @@
 use std::f32::INFINITY;
 
-use crate::*;
-use rand::prelude::*;
-
 /// Smaller score is better
 /// TODO: also try accepting worse scores on high temperatures
 /// (requires kinda normalized scores); maybe as a new function

@@ -9,12 +9,13 @@ use std::{
 
 pub use self::GroundPlant::*;
 use crate::{default, geometry::*, HashMap};
+use enum_iterator::Sequence;
 use nbt::CompoundTag;
 use num_derive::FromPrimitive;
 
 pub use Block::*;
+pub use BlockMaterial::*;
 pub use Color::*;
-pub use Material::*;
 pub use TreeSpecies::*;
 
 // TODO: Waterlogged blocks
@@ -22,10 +23,10 @@ pub use TreeSpecies::*;
 pub enum Block {
     #[default]
     Air,
-    Full(Material),
-    Slab(Material, Half),
-    Stair(Material, HDir, Half),
-    Fence(Material),
+    Full(BlockMaterial),
+    Slab(BlockMaterial, Half),
+    Stair(BlockMaterial, HDir, Half),
+    Fence(BlockMaterial),
     Ladder(HDir),
     Water,
     Lava,
@@ -102,7 +103,7 @@ pub enum LogType {
     Stripped(Axis),
 }
 
-#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive, Sequence)]
 #[repr(u8)]
 pub enum TreeSpecies {
     Oak,
@@ -254,7 +255,7 @@ pub enum Half {
 pub use Half::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
-pub enum Material {
+pub enum BlockMaterial {
     Stone,
     Granite,
     PolishedGranite,
@@ -278,13 +279,13 @@ pub enum Material {
     MudBrick,
 }
 
-impl Display for Material {
+impl Display for BlockMaterial {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}", self.to_str())
     }
 }
 
-impl Material {
+impl BlockMaterial {
     pub fn to_str(self) -> &'static str {
         match self {
             Stone => "stone",
@@ -639,7 +640,7 @@ impl Block {
         let default_props = CompoundTag::new();
         let props = nbt.get_compound_tag("Properties").unwrap_or(&default_props);
 
-        fn slab(material: Material, props: &CompoundTag) -> Block {
+        fn slab(material: BlockMaterial, props: &CompoundTag) -> Block {
             match props.get_str("type").unwrap() {
                 "top" => Slab(material, Top),
                 "double" => Full(material),
@@ -647,7 +648,7 @@ impl Block {
             }
         }
 
-        fn stair(material: Material, props: &CompoundTag) -> Block {
+        fn stair(material: BlockMaterial, props: &CompoundTag) -> Block {
             Stair(
                 material,
                 HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
@@ -929,6 +930,10 @@ impl Block {
                 | GroundPlant(..)
                 | Leaves(..)
                 | SnowLayer
+                | Ladder(..)
+                | Trapdoor(..)
+                | Door(..)
+                | WallBanner(..)
         )
     }
 
