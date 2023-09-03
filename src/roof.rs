@@ -1,71 +1,43 @@
 use crate::*;
+use bevy_math::Vec2Swizzles;
 use rand::prelude::*;
 
-pub fn roof(level: &mut Level, base: IVec3) {
+pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) {
     let mut rng = thread_rng();
-    let mat = Wood(Cherry);
-    let middle = base.truncate();
-
-    // Temporary for testing
-    enum Area {
-        Rect(Rect),
-        Circle { middle: Vec2, radius: f32 },
-    }
-    impl Area {
-        fn iter(&self) -> Box<dyn Iterator<Item = IVec2>> {
-            match self {
-                Self::Rect(rect) => Box::new(rect.into_iter()),
-                &Self::Circle { middle, radius } => Box::new(
-                    Rect::new_centered(
-                        middle.as_ivec2(),
-                        IVec2::splat((radius.ceil() * 2.) as i32),
-                    )
-                    .into_iter()
-                    .filter(move |pos| pos.as_vec2().distance(middle) < radius),
-                ),
-            }
-        }
-
-        fn contains(&self, pos: IVec2) -> bool {
-            match self {
-                Area::Rect(rect) => rect.contains(pos),
-                &Area::Circle { middle, radius } => pos.as_vec2().distance(middle) < radius,
-            }
-        }
-    }
 
     let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb]
         .choose(&mut rng)
         .unwrap();
-    let (area, shape) = if rng.gen_bool(0.7) {
-        let area = Rect::new_centered(
-            middle,
-            ivec2(1 + rng.gen_range(6, 20), rng.gen_range(5, 14)),
-        );
-        let base_shape = [gable, raised_gable, hip].choose(&mut rng).unwrap();
-        let shape = base_shape(base.z as f32, area.size().as_vec2(), curve);
-        (Area::Rect(area), shape)
+
+    // TODO: Incorporate this into the curve directly
+    #[allow(clippy::fn_address_comparisons)]
+    if (curve == kerb) | (curve == straight_high) {
+        base_z -= 1
+    }
+
+    let size = if area.size().y > area.size().x {
+        area.size().yx()
     } else {
-        let radius = rng.gen_range(4, 9) as f32 + 0.5;
-        let shape = circular(base.z as f32, radius, curve);
-        (
-            Area::Circle {
-                middle: middle.as_vec2(),
-                radius,
-            },
-            shape,
-        )
+        area.size()
     };
 
-    for pos in area.iter() {
-        let rel = (pos - middle).as_vec2();
-        let z = shape(rel);
+    let base_shape = [gable, raised_gable, hip].choose(&mut rng).unwrap();
+    let shape = base_shape(base_z as f32, size.as_vec2(), curve);
+
+    let shape: Shape = if area.size().y > area.size().x {
+        Box::new(move |pos: Vec2| shape((pos - area.center_vec2()).yx()))
+    } else {
+        Box::new(move |pos: Vec2| shape(pos - area.center_vec2()))
+    };
+
+    for pos in area {
+        let z = shape(pos.as_vec2());
         let z_block = z.round();
         let mut grad = [
-            (shape(rel + vec2(0.5, 0.)), XPos),
-            (shape(rel + vec2(-0.5, 0.)), XNeg),
-            (shape(rel + vec2(0., 0.5)), YPos),
-            (shape(rel + vec2(0., -0.5)), YNeg),
+            (shape(pos.as_vec2() + vec2(0.5, 0.)), XPos),
+            (shape(pos.as_vec2() + vec2(-0.5, 0.)), XNeg),
+            (shape(pos.as_vec2() + vec2(0., 0.5)), YPos),
+            (shape(pos.as_vec2() + vec2(0., -0.5)), YNeg),
         ];
         grad.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
         let block = if grad[3].0 >= z + 0.5 {
@@ -75,12 +47,11 @@ pub fn roof(level: &mut Level, base: IVec3) {
         } else {
             Slab(mat, Bottom)
         };
-        level[pos.extend(z_block as i32)] = block;
+        level[pos.extend(z_block as i32)] |= block;
     }
 
-    for pos in area.iter() {
-        let rel = (pos - middle).as_vec2();
-        let z_block = shape(rel).round() as i32;
+    for pos in area {
+        let z_block = shape(pos.as_vec2()).round() as i32;
         for dir in HDir::ALL {
             // Fix-up outer corners
             if (level[(pos + dir).extend(z_block)] == Stair(mat, dir.rotated(1), Bottom))
@@ -89,12 +60,8 @@ pub fn roof(level: &mut Level, base: IVec3) {
                 level[pos.extend(z_block)] = Stair(mat, dir, Bottom)
             }
 
-            // if matches!(area, Area::Circle { .. }) & !area.contains(pos + dir) {
-            //     continue;
-            // }
-
             // Fill holes in steep roofs
-            let mut lower = shape(rel + IVec2::from(dir).as_vec2()).round() as i32;
+            let mut lower = shape(pos.as_vec2() + IVec2::from(dir).as_vec2()).round() as i32;
             let adjacent = level[(pos + dir).extend(lower)];
             if matches!(adjacent, Slab(_, Top) | Full(..) | Stair(_, _, Top))
                 | matches!(adjacent, Stair(_, d, Bottom) if d==dir.rotated(2))
@@ -145,12 +112,12 @@ fn reverse_kerb(frac: f32) -> f32 {
 }
 
 fn gable(base: f32, size: Vec2, curve: Curve) -> Shape {
-    let base = base - curve(-1. / size.y) * size.y - 1.;
+    // let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| base + size.y * curve(0.5 - pos.y.abs() / size.y))
 }
 
 fn hip(base: f32, size: Vec2, curve: Curve) -> Shape {
-    let base = base - curve(-1. / size.y) * size.y - 1.;
+    // let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| {
         let scale = size.y.min(size.x);
         base + scale * curve((0.5 * size.y - pos.y.abs()).min(0.5 * size.x - pos.x.abs()) / scale)
@@ -158,7 +125,7 @@ fn hip(base: f32, size: Vec2, curve: Curve) -> Shape {
 }
 
 fn tented(base: f32, size: Vec2, curve: Curve) -> Shape {
-    let base = base - curve(-1. / size.y) * size.y - 1.;
+    // let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| {
         base + size.y.min(size.x)
             * curve((0.5 - pos.y.abs() / size.y).min(0.5 - pos.x.abs() / size.x))
@@ -166,7 +133,7 @@ fn tented(base: f32, size: Vec2, curve: Curve) -> Shape {
 }
 
 fn raised_gable(base: f32, size: Vec2, curve: Curve) -> Shape {
-    let base = base - curve(-1. / size.y) * size.y - 1.;
+    // let base = base - curve(-1. / size.y) * size.y - 1.;
     let scale = (4. + size.y) * size.x.powf(0.1) * 0.03;
     Box::new(move |pos: Vec2| {
         base + size.y * curve(0.5 - pos.y.abs() / size.y)

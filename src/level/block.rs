@@ -48,6 +48,7 @@ pub enum Block {
     GroundPlant(GroundPlant),
     Wool(Color),
     Terracotta(Option<Color>),
+    MushroomStem,
     MangroveRoots,
     MuddyMangroveRoots,
     SmoothQuartz,
@@ -95,6 +96,7 @@ bitflags::bitflags! {
     }
 }
 
+// TODO: Flatten Normal to make this more pleasant to construct
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum LogType {
@@ -479,6 +481,7 @@ impl Block {
             Wool(color) => format!("{}_wool", color).into(),
             Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
             Terracotta(None) => "terracotta".into(),
+            MushroomStem => "mushroom_stem".into(),
             MangroveRoots => "mangrove_roots".into(),
             MuddyMangroveRoots => "muddy_mangrove_roots".into(),
             SmoothQuartz => "smooth_quartz".into(),
@@ -813,6 +816,7 @@ impl Block {
                 "blackstone_stairs" => stair(Blackstone, props),
                 "mud_brick_stairs" => stair(MudBrick, props),
                 "terracotta" => Terracotta(None),
+                "mushroom_stem" => MushroomStem,
                 "mangrove_roots" => MangroveRoots,
                 "muddy_mangrove_roots" => MuddyMangroveRoots,
                 "white_terracotta" => Terracotta(Some(White)),

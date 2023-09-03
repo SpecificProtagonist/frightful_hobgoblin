@@ -1,7 +1,10 @@
 #![allow(clippy::type_complexity)]
 
+use std::collections::VecDeque;
+
 use crate::material::Mat;
 use crate::optimize::optimize;
+use crate::remove_foliage::remove_tree;
 use crate::*;
 use crate::{pathfind::pathfind, remove_foliage::find_trees, replay::*};
 
@@ -13,17 +16,11 @@ use rand::prelude::*;
 pub fn sim(mut level: Level) {
     Id::load(&level.path);
 
-    // let start = ivec3(-1, 80, 84);
-    // let end = level.ground(ivec2(100, 100)) + IVec3::Z;
-    // let path = pathfind(&level, start, end);
-    // for pos in path {
-    //     level[pos] = Wool(Blue);
-    // }
-
     let mut world = World::new();
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
+    println!("Center: {:?}", city_center_pos.truncate());
 
     world.spawn((
         Pos(city_center_pos.as_vec3()),
@@ -41,24 +38,24 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(tree.as_vec3()), Tree::default()));
     }
 
-    let pos = level.ground(ivec2(20, 20)).as_vec3() + Vec3::Z;
     world.spawn((
         Id::default(),
         Villager::default(),
-        Pos(pos),
-        PrevPos(pos),
-        MoveTask::new(level.ground(ivec2(40, 40)) + IVec3::Z),
+        Pos(city_center_pos.as_vec3() + Vec3::Z),
+        PrevPos(default()),
     ));
 
     let mut sched = Schedule::new();
     sched.add_systems(
         (
             (
-                place, chop, walk,
+                place,
+                chop,
+                walk,
                 build,
-                // plan_house,
-                // plan_lumberjack,
-                // plan_quarry,
+                plan_house,
+                plan_lumberjack,
+                plan_quarry,
             ),
             apply_deferred,
             assign_builds,
@@ -88,7 +85,7 @@ pub fn sim(mut level: Level) {
 #[derive(Component)]
 struct CityCenter;
 
-type PlaceList = Vec<(IVec3, Block)>;
+type PlaceList = VecDeque<(IVec3, Block)>;
 
 #[derive(Clone, Copy)]
 struct BuildStage {
@@ -199,7 +196,7 @@ fn chop(
         if ready.is_some() {
             let cursor = level.recording_cursor();
             vill.carry = Some(level[target.block()]);
-            remove_foliage::tree(&mut level, target.block());
+            remove_tree(&mut level, target.block());
             commands.entity(task.tree).despawn();
             commands
                 .entity(jack)
@@ -223,7 +220,7 @@ fn place(
     mut builders: Query<(Entity, &mut PlaceTask), Without<MoveTask>>,
 ) {
     for (entity, mut build) in &mut builders {
-        if let Some((pos, block)) = build.0.pop() {
+        if let Some((pos, block)) = build.0.pop_front() {
             replay.block(pos, block);
         } else {
             commands.entity(entity).remove::<PlaceTask>();
@@ -353,9 +350,9 @@ fn choose_starting_area(level: &Level) -> Rect {
                 .as_vec2()
                 .distance(level.area().center().as_vec2())
                 / (level.area().size().as_vec2().min_element() - 40.);
-            wateryness(level, *area) * 10. + unevenness(level, *area) + distance.powf(2.) / 2.
+            wateryness(level, *area) * 20. + unevenness(level, *area) + distance.powf(2.) / 2.
         },
-        200,
+        300,
     )
     .shrink(10)
 }
@@ -412,7 +409,7 @@ fn plan_house(
         },
         |area| {
             let distance = center.distance(area.center().as_vec2()) / 50.;
-            wateryness(&level, *area) * 5. + unevenness(&level, *area) + distance.powf(2.)
+            wateryness(&level, *area) * 20. + unevenness(&level, *area) + distance.powf(2.)
         },
         200,
     );
@@ -458,7 +455,7 @@ fn plan_lumberjack(
                 .iter()
                 .map(|p| -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.)))
                 .sum::<f32>();
-            wateryness(&level, *area) * 5.
+            wateryness(&level, *area) * 20.
                 + unevenness(&level, *area) * 1.
                 + center_distance * 1.
                 + tree_access * 5.
@@ -502,7 +499,7 @@ fn plan_quarry(
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
-            wateryness(&level, *area) * 5. + unevenness(&level, *area) * -3. + center_distance * 1.
+            wateryness(&level, *area) * 20. + unevenness(&level, *area) * -3. + center_distance * 1.
         },
         200,
     );
@@ -545,20 +542,26 @@ fn assign_builds(
 }
 
 fn test_build_house(
+    mut replay: ResMut<Replay>,
     mut commands: Commands,
     mut level: ResMut<Level>,
-    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<House>)>,
+    new: Query<(Entity, &Blocked), (With<ToBeBuild>, With<House>)>,
+    builders: Query<Entity, (With<Villager>, Without<PlaceTask>)>,
 ) {
-    for (entity, area) in &new {
-        for pos in area.0 {
-            let pos = level.ground(pos);
-            level[pos] = Wool(Red)
+    let mut assigned = Vec::new();
+    for builder in &builders {
+        for (entity, area) in &new {
+            if assigned.contains(&entity) {
+                continue;
+            }
+            replay.say(&format!("building house at {:?}", area.center()));
+            assigned.push(entity);
+            commands
+                .entity(builder)
+                .insert(PlaceTask(house2::build(&mut level, area.0).into()));
+            commands.entity(entity).remove::<ToBeBuild>().insert(Build);
+            break;
         }
-        for pos in area.border() {
-            let pos = level.ground(pos) + IVec3::Z;
-            level[pos] = Wool(Red)
-        }
-        commands.entity(entity).remove::<ToBeBuild>().insert(Build);
     }
 }
 

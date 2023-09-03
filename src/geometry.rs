@@ -36,6 +36,10 @@ impl Rect {
         self.min + self.size() / 2
     }
 
+    pub fn center_vec2(self) -> Vec2 {
+        self.min.as_vec2() + self.size().as_vec2() / 2.
+    }
+
     pub fn contains(self, column: IVec2) -> bool {
         (self.min.x <= column.x)
             & (self.min.y <= column.y)

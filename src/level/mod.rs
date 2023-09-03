@@ -246,11 +246,7 @@ impl Level {
         rec.into_iter()
             .filter_map(move |SetBlock { pos, previous }| {
                 let current = self[pos];
-                if current != previous {
-                    Some((pos, current))
-                } else {
-                    None
-                }
+                (current != previous).then_some((pos, current))
             })
     }
 

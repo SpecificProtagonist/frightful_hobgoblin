@@ -80,7 +80,12 @@ impl Default for Replay {
 const COMMANDS_PER_CHUNK: i32 = 1000;
 
 impl Replay {
-    pub fn start_command(&mut self) {
+    pub fn say(&mut self, msg: &str) {
+        self.start_command();
+        writeln!(self.commands, "say {msg}").unwrap();
+    }
+
+    fn start_command(&mut self) {
         if self.commands_this_chunk == COMMANDS_PER_CHUNK {
             self.command_chunks.push((
                 self.chunk_start_tick..=self.tick,
@@ -137,6 +142,8 @@ impl Replay {
                 summon minecraft:marker ~ ~ ~ {{{}}}
                 scoreboard objectives add sim_tick dummy
                 scoreboard players set {} sim_tick 0
+                gamerule randomTickSpeed 0
+                gamerule doMobSpawning false
                 ",
                 self.marker.snbt(),
                 self.marker
@@ -223,7 +230,7 @@ pub fn tick_replay(
         replay.start_command();
         writeln!(
             replay.commands,
-            "tp {} {} {} {} facing {} {} {}",
+            "tp {} {:.2} {:.2} {:.2} facing {:.2} {:.2} {:.2}",
             id,
             pos.x + 0.5,
             pos.z,
@@ -237,7 +244,7 @@ pub fn tick_replay(
             replay.start_command();
             writeln!(
                 replay.commands,
-                "tp {} {} {} {} {} 0",
+                "tp {} {:.2} {:.2} {:.2} {:.0} 0",
                 vill.carry_id,
                 pos.x,
                 pos.z + 0.8,

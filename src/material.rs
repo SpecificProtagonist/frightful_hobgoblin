@@ -7,7 +7,7 @@ use crate::*;
 pub enum Mat {
     Stone,
     Wood(TreeSpecies),
-    Mud,
+    Soil,
 }
 
 pub struct Stockpile(HashMap<Mat, f32>);
@@ -32,23 +32,9 @@ impl Stockpile {
                 .map(|species| Trapdoor(species, dir, meta)),
             Door(_, dir, meta) => self.get_log(0.25).map(|species| Door(species, dir, meta)),
             MangroveRoots => self.get_log(0.2).map(|_| MangroveRoots),
+            MuddyMangroveRoots => self.get(Mat::Soil, 1.).then_some(MuddyMangroveRoots),
             _ => Some(block),
         }
-    }
-
-    fn get(&mut self, mat: Mat, amount: f32) -> bool {
-        assert!(amount > 0.);
-        let stored = self.0.entry(mat).or_default();
-        if *stored >= amount {
-            *stored -= amount;
-            true
-        } else {
-            false
-        }
-    }
-
-    fn get_log(&mut self, amount: f32) -> Option<TreeSpecies> {
-        all::<TreeSpecies>().find(|&s| self.get(Mat::Wood(s), amount))
     }
 
     fn get_blockmaterial(&mut self, mat: BlockMaterial, amount: f32) -> Option<BlockMaterial> {
@@ -72,8 +58,23 @@ impl Stockpile {
             | SmoothSandstone
             | RedSandstone
             | SmoothRedSandstone => self.get(Mat::Stone, amount).then_some(mat),
-            MudBrick => self.get(Mat::Mud, amount).then_some(mat),
+            MudBrick => self.get(Mat::Soil, amount).then_some(mat),
             Brick => Some(Brick),
+        }
+    }
+
+    fn get_log(&mut self, amount: f32) -> Option<TreeSpecies> {
+        all::<TreeSpecies>().find(|&s| self.get(Mat::Wood(s), amount))
+    }
+
+    fn get(&mut self, mat: Mat, amount: f32) -> bool {
+        assert!(amount > 0.);
+        let stored = self.0.entry(mat).or_default();
+        if *stored >= amount {
+            *stored -= amount;
+            true
+        } else {
+            false
         }
     }
 }

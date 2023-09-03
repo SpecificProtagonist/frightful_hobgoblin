@@ -46,7 +46,7 @@ pub fn find_trees(level: &Level, area: impl IntoIterator<Item = IVec2>) -> Vec<I
     trees.into_iter().collect()
 }
 
-pub fn tree(level: &mut Level, pos: IVec3) {
+pub fn remove_tree(level: &mut Level, pos: IVec3) {
     let Log(species, ..) = level[pos] else {
         println!("Tried to remove tree at {pos:?} but not found");
         return;
