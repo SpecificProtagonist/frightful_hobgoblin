@@ -24,10 +24,11 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
     let base_shape = [gable, raised_gable, hip].choose(&mut rng).unwrap();
     let shape = base_shape(base_z as f32, size.as_vec2(), curve);
 
+    let center = area.center_vec2() - Vec2::splat(0.5);
     let shape: Shape = if area.size().y > area.size().x {
-        Box::new(move |pos: Vec2| shape((pos - area.center_vec2()).yx()))
+        Box::new(move |pos: Vec2| shape((pos - center).yx()))
     } else {
-        Box::new(move |pos: Vec2| shape(pos - area.center_vec2()))
+        Box::new(move |pos: Vec2| shape(pos - center))
     };
 
     for pos in area {

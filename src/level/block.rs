@@ -108,6 +108,7 @@ pub enum LogType {
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive, Sequence)]
 #[repr(u8)]
 pub enum TreeSpecies {
+    // Oak also stands for "any wood type". Introduce "Any" variant?
     Oak,
     Spruce,
     Birch,

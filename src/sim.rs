@@ -85,7 +85,7 @@ pub fn sim(mut level: Level) {
 #[derive(Component)]
 struct CityCenter;
 
-type PlaceList = VecDeque<(IVec3, Block)>;
+pub type PlaceList = VecDeque<(IVec3, Block)>;
 
 #[derive(Clone, Copy)]
 struct BuildStage {
@@ -437,16 +437,23 @@ fn plan_lumberjack(
     }
     let center = center.single().truncate();
 
-    let start = Rect::new_centered(level.area().center(), IVec2::splat(9));
+    let mut rng = thread_rng();
+    let start = Rect::new_centered(
+        center.block(),
+        ivec2(rng.gen_range(5, 7), rng.gen_range(5, 11)),
+    );
     let area = optimize(
         start,
         |area, temperature| {
             let mut rng = thread_rng();
             let max_move = (60. * temperature) as i32;
-            let new = area.offset(ivec2(
+            let mut new = area.offset(ivec2(
                 rng.gen_range(-max_move, max_move + 1),
                 rng.gen_range(-max_move, max_move + 1),
             ));
+            if rand(0.2) {
+                new = Rect::new_centered(new.center(), new.size().yx())
+            }
             (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },
         |area| {
@@ -558,7 +565,7 @@ fn test_build_house(
             assigned.push(entity);
             commands
                 .entity(builder)
-                .insert(PlaceTask(house2::build(&mut level, area.0).into()));
+                .insert(PlaceTask(house::house(&mut level, area.0)));
             commands.entity(entity).remove::<ToBeBuild>().insert(Build);
             break;
         }
@@ -568,12 +575,12 @@ fn test_build_house(
 fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut replay: ResMut<Replay>,
     new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Lumberjack>)>,
 ) {
     for (entity, area) in &new {
-        for pos in area.0 {
-            let pos = level.ground(pos);
-            level[pos] = Wool(Orange)
+        for (pos, block) in house::lumberjack(&mut level, area.0) {
+            replay.block(pos, block)
         }
         commands.entity(entity).remove::<ToBeBuild>().insert(Build);
     }

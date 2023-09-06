@@ -55,7 +55,6 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 #[derive(Resource)]
 pub struct Replay {
     tick: i32,
-    marker: Id,
     commands: String,
     command_chunks: Vec<(RangeInclusive<i32>, String)>,
     chunk_start_tick: i32,
@@ -67,7 +66,6 @@ impl Default for Replay {
     fn default() -> Self {
         Self {
             tick: 0,
-            marker: default(),
             command_chunks: default(),
             commands: default(),
             block_cache: default(),
@@ -97,8 +95,8 @@ impl Replay {
         self.commands_this_chunk += 1;
         write!(
             self.commands,
-            "execute if score {} sim_tick matches {} run ",
-            self.marker, self.tick
+            "execute if score SIM sim_tick matches {} run ",
+            self.tick
         )
         .unwrap();
     }
@@ -137,27 +135,22 @@ impl Replay {
         // Could also just modify the world directly, but this is easier
         write(
             sim_path.join("setup.mcfunction"),
-            format!(
-                "
-                summon minecraft:marker ~ ~ ~ {{{}}}
-                scoreboard objectives add sim_tick dummy
-                scoreboard players set {} sim_tick 0
-                gamerule randomTickSpeed 0
-                gamerule doMobSpawning false
-                ",
-                self.marker.snbt(),
-                self.marker
-            ),
+            "
+            scoreboard players set SIM sim_tick 0
+            gamerule randomTickSpeed 0
+            gamerule doMobSpawning false
+            gamerule mobGriefing false
+            gamerule doFireTick false
+            ",
         )
         .unwrap();
 
         write(
             sim_path.join("check_setup.mcfunction"),
-            // TODO: This doesn't actually work. Perhaps the entity isn't yet loaded when this is run?
-            format!(
-                "execute unless entity {} run function sim:setup",
-                self.marker
-            ),
+            "
+            scoreboard objectives add sim_tick dummy
+            execute unless score SIM sim_tick matches 0.. run function sim:setup
+            ",
         )
         .unwrap();
 
@@ -179,14 +172,13 @@ impl Replay {
             write(chunk_path.join(format!("{i}.mcfunction")), commands).unwrap();
             writeln!(
                 tick,
-                "execute if score {} sim_tick matches {}..{} run function sim:chunked/{i}",
-                self.marker,
+                "execute if score SIM sim_tick matches {}..{} run function sim:chunked/{i}",
                 ticks.start(),
                 ticks.end(),
             )
             .unwrap();
         }
-        writeln!(tick, "scoreboard players add {} sim_tick 1", self.marker).unwrap();
+        writeln!(tick, "scoreboard players add SIM sim_tick 1").unwrap();
         write(sim_path.join("tick.mcfunction"), tick).unwrap();
     }
 }

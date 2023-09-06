@@ -1,143 +1,213 @@
-use rand::{seq::SliceRandom, thread_rng, Rng};
+use crate::{
+    remove_foliage::{find_trees, remove_tree},
+    roof::roof,
+    sim::PlaceList,
+    *,
+};
+use itertools::Itertools;
+use rand::prelude::*;
 
-use crate::*;
-
-pub fn house(level: &mut Level, outer: Cuboid) {
+pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     let mut rng = thread_rng();
-    let inner = outer.shrink(1);
-    // Clear space
-    level.fill(inner, Air);
-    // Floor
-    level.fill_at(inner.d2().grow(2), outer.min.z, PackedMud);
-    // Walls
-    for pos in outer.d2().border() {
-        wall_column(level, pos, outer.min.z, outer.max.z - 1);
+    let inner = area.shrink(1);
+
+    let (floor, mut rec) = foundation(level, area);
+
+    let cursor = level.recording_cursor();
+
+    // Ground story
+    for z in floor + 1..floor + 3 {
+        level.fill_at(area.border(), z, Full(Cobble))
     }
-    // Corners
-    level.fill_at(
-        outer.d2().corners(),
-        outer.min.z..=outer.max.z,
-        Full(MudBrick),
+
+    let door_pos = ivec3(
+        rng.gen_range(inner.min.x, inner.max.x),
+        area.min.y,
+        floor + 1,
     );
+    level[door_pos] = Air;
+    level[door_pos + IVec3::Z] = Air;
+    level[door_pos.add(HDir::YNeg)] = Air;
+    level[door_pos.add(HDir::YNeg) + IVec3::Z] = Air;
 
-    // Roof
-    level.fill_at(outer.d2(), outer.max.z, Full(MudBrick));
+    let second_floor = floor + 3;
 
-    let door_pos = ivec2(rng.gen_range(inner.min.x, inner.max.x), outer.min.y);
-    level[door_pos.extend(inner.min.z)] = Door(Oak, YPos, DoorMeta::empty());
-    level[door_pos.extend(inner.min.z + 1)] = Door(Oak, YPos, DoorMeta::TOP);
+    rec.extend(level.pop_recording(cursor));
 
-    let mut roof_access = false;
-    if rng.gen_bool(0.7) {
-        roof_access = true;
-        let ladder_pos = *inner
-            .d2()
-            .border()
-            .filter(|p| !p.touch_face(door_pos))
-            .collect::<Vec<_>>()
-            .choose(&mut rng)
-            .unwrap();
-        let dir = wall_dir(level, ladder_pos.extend(inner.min.z)).rotated(2);
-        level.fill_at(Some(ladder_pos), inner.min.z..=outer.max.z, Ladder(dir));
-    }
-    if roof_access {
-        // Crenellation
-        for (i, x) in (inner.min.x..=inner.max.x).enumerate() {
-            for y in [outer.min.y, outer.max.y] {
-                level[ivec3(x, y, outer.max.z + 1)] = crenel(inner.size().x, i as i32);
-            }
-        }
-        for (i, y) in (inner.min.y..=inner.max.y).enumerate() {
-            for x in [outer.min.x, outer.max.x] {
-                level[ivec3(x, y, outer.max.z + 1)] = crenel(inner.size().y, i as i32).rotated(1);
-            }
-        }
-        level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
+    // Roof build now so we know how high the walls have to be
+    let roof_mat = if rng.gen_bool(0.3) {
+        Blackstone
     } else {
-        // Flat wooden roof
-        if rng.gen_bool(0.5) {
-            level.fill_at(
-                inner.d2().grow2(if outer.size().x > outer.size().y {
-                    IVec2::X
-                } else {
-                    IVec2::Y
-                }),
-                outer.max.z + 1,
-                Slab(Wood(Oak), Bottom),
-            );
-            if rng.gen_bool(0.5) {
-                level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
+        Wood(Oak)
+    };
+    let cursor = level.recording_cursor();
+    roof(level, area.grow(1), second_floor + 3, roof_mat);
+    let roof_rec = level.pop_recording(cursor).collect_vec();
+    let cursor = level.recording_cursor();
+
+    // Second story
+
+    for y in [area.min.y, area.max.y] {
+        for x in inner.min.x..=inner.max.x {
+            level[ivec3(x, y, second_floor)] = Log(Oak, LogType::Normal(Axis::X))
+        }
+    }
+    for x in [area.min.x, area.max.x] {
+        for y in inner.min.y..=inner.max.y {
+            level[ivec3(x, y, second_floor)] = Log(Oak, LogType::Normal(Axis::Y))
+        }
+    }
+
+    level.fill_at(inner, second_floor, Slab(Wood(Oak), Top));
+
+    let mut roof_fixup = Vec::new();
+    // TODO: Instead return roof height from roof function
+    // to avoid issues if another roof is poking in
+    let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
+        for z in second_floor.. {
+            let pos = col.extend(z);
+            match level[pos] {
+                Log(..) => (),
+                Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
+                Slab(..) | Stair(..) => {
+                    roof_fixup.push(pos);
+                    return;
+                }
+                _ => level[pos] = block,
             }
-        } else {
-            level.fill_at(inner.d2(), outer.max.z, Slab(Wood(Oak), Bottom));
-            if rng.gen_bool(0.5) {
-                level.fill_at(
-                    outer.d2().corners(),
-                    outer.max.z + 1,
-                    Slab(MudBrick, Bottom),
-                );
+        }
+    };
+
+    for pos in area.corners() {
+        column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)))
+    }
+
+    // Wattle
+    for pos in area.border() {
+        column_till_roof(level, pos, MangroveRoots);
+    }
+
+    rec.extend(level.pop_recording(cursor));
+    rec.extend(roof_rec);
+
+    let cursor = level.recording_cursor();
+    level.fill(roof_fixup, Full(roof_mat));
+
+    // Daub
+    'outer: for pos in area.border() {
+        for z in second_floor + 1.. {
+            let pos = pos.extend(z);
+            match level[pos] {
+                MangroveRoots => level[pos] = MuddyMangroveRoots,
+                _ => continue 'outer,
             }
         }
     }
-}
 
-/// Default direction: XPos
-fn crenel(width: i32, i: i32) -> Block {
-    if width % 2 == 0 {
-        if i % 2 == 0 {
-            Stair(MudBrick, XPos, Bottom)
-        } else {
-            Stair(MudBrick, XNeg, Bottom)
-        }
-    } else {
-        if (width / 2) % 3 == 2 {
-            if i == 0 {
-                return Stair(MudBrick, XPos, Bottom);
-            } else if i == width - 1 {
-                return Stair(MudBrick, XNeg, Bottom);
+    rec.extend(level.pop_recording(cursor));
+    let cursor = level.recording_cursor();
+
+    // Whitewash
+    'outer: for pos in area.border() {
+        for z in second_floor + 1.. {
+            let pos = pos.extend(z);
+            match level[pos] {
+                MuddyMangroveRoots => level[pos] = MushroomStem,
+                _ => continue 'outer,
             }
         }
-        [
-            Stair(MudBrick, XPos, Bottom),
-            Slab(MudBrick, Bottom),
-            Stair(MudBrick, XNeg, Bottom),
-        ][(width + i) as usize % 3]
     }
+
+    rec.extend(level.pop_recording(cursor));
+    rec
 }
 
-/// z_max inclusive
-fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
+pub fn lumberjack(level: &mut Level, area: Rect) -> PlaceList {
     let mut rng = thread_rng();
-    let offset = rng.gen_range(-0.2, 0.2);
-    for z in z_min..=z_max {
-        let rel_height = (z - z_min) as f32 / (z_max + 1 - z_min) as f32;
-        let block = if rel_height + offset + rng.gen_range(-0.3, 0.3) > 0.6 {
-            Full(Wood(Birch))
-        } else {
-            Log(Birch, LogType::Stripped(Axis::Z))
-        };
-        level[column.extend(z)] = block;
+
+    let (floor, mut rec) = foundation(level, area);
+
+    // Roof build now so we know how high the walls have to be
+    let roof_cursor = level.recording_cursor();
+    roof(level, area.grow(1), floor + 3, Wood(Oak));
+    let roof_rec = level.pop_recording(roof_cursor).collect_vec();
+
+    let cursor = level.recording_cursor();
+    let mut roof_fixup = Vec::new();
+    // TODO: Instead return roof height from roof function
+    // to avoid issues if another roof is poking in
+    let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
+        for z in floor + 1.. {
+            let pos = col.extend(z);
+            match level[pos] {
+                Log(..) => (),
+                Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
+                Slab(..) | Stair(..) => {
+                    roof_fixup.push(pos);
+                    return;
+                }
+                _ => level[pos] = block,
+            }
+        }
+    };
+
+    let wall_mat = if rng.gen_bool(0.5) { Cobble } else { Wood(Oak) };
+
+    if let Wood(_) = wall_mat {
+        for pos in area.corners() {
+            column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)))
+        }
     }
+
+    for pos in area.border() {
+        column_till_roof(level, pos, Full(wall_mat));
+    }
+
+    rec.extend(level.pop_recording(cursor));
+    rec.extend(roof_rec);
+
+    let cursor = level.recording_cursor();
+    level.fill(roof_fixup, Full(Wood(Oak)));
+
+    rec.extend(level.pop_recording(cursor));
+    rec
 }
 
-fn wall_dir(level: &Level, pos: IVec3) -> HDir {
-    let mut rng = thread_rng();
-    let mut count = 0;
-    for dir in HDir::ALL {
-        if level[pos.add(dir)].solid() {
-            count += 1
+fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
+    let floor = level.average_height(area.border()).round() as i32;
+
+    let cursor = level.recording_cursor();
+    for tree in find_trees(level, area.grow(1)) {
+        remove_tree(level, tree)
+    }
+
+    // Foundations
+    for z in (floor + 1..floor + 10).rev() {
+        level.fill_at(area, z, Air)
+    }
+    for col in area {
+        for z in (level.height(col)..=floor).rev() {
+            level[col.extend(z)] = Air
         }
     }
-    if count == 0 {
-        return *HDir::ALL.choose(&mut rng).unwrap();
+    let mut rec: PlaceList = level.pop_recording(cursor).collect();
+    let cursor = level.recording_cursor();
+    for col in area.border() {
+        let mut pos = col.extend(floor);
+        while level[pos].soil() | !level[pos].solid() {
+            level[pos] = Full(Cobble);
+            pos -= IVec3::Z;
+        }
     }
-    for dir in HDir::ALL {
-        if level[pos.add(dir)].solid() {
-            if rng.gen_range(0, count) == 0 {
-                return dir;
+    for col in area.shrink(1) {
+        for z in level.height(col) - 1..=floor {
+            let pos = col.extend(z);
+            if (!level[pos].solid()) | (level[pos].soil()) {
+                level[pos] = PackedMud
             }
-            count -= 1
         }
     }
-    unreachable!()
+    rec.extend(level.pop_recording(cursor));
+
+    (floor, rec)
 }

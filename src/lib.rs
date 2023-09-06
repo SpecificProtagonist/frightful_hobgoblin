@@ -14,12 +14,12 @@ pub mod remove_foliage;
 pub mod sim;
 // pub mod terraform;
 pub mod house;
-pub mod house2;
 pub mod material;
 pub mod optimize;
 pub mod pathfind;
 pub mod replay;
 pub mod roof;
+pub mod test_house;
 
 pub use geometry::*;
 pub use hashbrown::HashMap;
