@@ -51,7 +51,7 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
         println!("Tried to remove tree at {pos:?} but not found");
         return;
     };
-    // Store distance from log, 0 mean log
+    // Store distance from log, 0 means log
     let mut blocks = vec![(pos, 0)];
     while let Some((pos, distance)) = blocks.pop() {
         level[pos] = Air;
@@ -61,10 +61,12 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
                     let off = ivec3(off_x, off_y, off_z);
                     let pos = pos + off;
                     match level[pos] {
-                        Log(s, ..) if s == species => blocks.push((pos, 0)),
+                        Log(s, ..) if (s == species) & (distance <= 1) => blocks.push((pos, 0)),
                         // Checking species can leave leaves behind when trees intersect
                         // Also, azalea
-                        Leaves(_, Some(d)) if d > distance => blocks.push((pos, d)),
+                        Leaves(_, Some(d)) if (d > distance) & (off.length_squared() == 1) => {
+                            blocks.push((pos, d))
+                        }
                         // TODO: Beehives
                         // TODO: Snoe
                         _ => (),
