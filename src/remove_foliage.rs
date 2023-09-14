@@ -18,11 +18,14 @@ pub fn ground(level: &mut Level, area: Rect) {
     }
 }
 
-pub fn find_trees(level: &Level, area: impl IntoIterator<Item = IVec2>) -> Vec<IVec3> {
+pub fn find_trees(
+    level: &Level,
+    area: impl IntoIterator<Item = IVec2>,
+) -> Vec<(IVec3, TreeSpecies)> {
     let mut trees = HashSet::new();
     for column in area {
         let z = level.height(column) + 1;
-        if let Block::Log(..) = level[column.extend(z)] {
+        if let Block::Log(species, _) = level[column.extend(z)] {
             // Check whether this is a tree instead of part of a man-made structure
             let mut pos = column.extend(z);
             while let Block::Log(..) = level[pos] {
@@ -40,7 +43,7 @@ pub fn find_trees(level: &Level, area: impl IntoIterator<Item = IVec2>) -> Vec<I
             if let Block::Log(..) = level[pos - IVec3::Y] {
                 pos -= IVec3::Y
             }
-            trees.insert(pos);
+            trees.insert((pos, species));
         }
     }
     trees.into_iter().collect()

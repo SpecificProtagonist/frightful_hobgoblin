@@ -34,7 +34,7 @@ pub struct Level {
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     dirty_chunks: Vec<bool>,
-    setblock_recording: Vec<SetBlock>,
+    setblock_recording: Vec<RecordSetBlock>,
 }
 
 impl Level {
@@ -240,14 +240,17 @@ impl Level {
     pub fn pop_recording(
         &mut self,
         cursor: RecordingCursor,
-    ) -> impl Iterator<Item = (IVec3, Block)> + '_ {
+    ) -> impl Iterator<Item = SetBlock> + '_ {
         // Intermediate storage because of borrow conflict
         let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
-        rec.into_iter()
-            .filter_map(move |SetBlock { pos, previous }| {
-                let current = self[pos];
-                (current != previous).then_some((pos, current))
+        rec.into_iter().filter_map(move |setblock| {
+            let current = self[setblock.pos];
+            (current != setblock.previous).then_some(SetBlock {
+                pos: setblock.pos,
+                block: current,
+                previous: setblock.previous,
             })
+        })
     }
 
     pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, block: Block) {
@@ -340,7 +343,7 @@ impl IndexMut<IVec3> for Level {
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_default();
         let block = &mut section.blocks[Self::block_in_section_index(pos)];
-        self.setblock_recording.push(SetBlock {
+        self.setblock_recording.push(RecordSetBlock {
             pos,
             previous: *block,
         });
@@ -609,9 +612,17 @@ impl Default for Section {
     }
 }
 
-struct SetBlock {
+struct RecordSetBlock {
     pos: IVec3,
     previous: Block,
+}
+
+#[derive(Copy, Clone, Debug)]
+pub struct SetBlock {
+    pub pos: IVec3,
+    pub block: Block,
+    // TODO: This isn't accurate when the same block if overwritten multiple times (probably doesn't matter though)
+    pub previous: Block,
 }
 
 #[derive(Default)]

@@ -957,6 +957,13 @@ impl Block {
         )
     }
 
+    pub fn dirtsoil(&self) -> bool {
+        matches!(
+            self,
+            Dirt | Grass | Gravel | Farmland | Path | Podzol | CoarseDirt | SoulSand | PackedMud
+        )
+    }
+
     pub fn rotated(self, turns: i32) -> Self {
         match self {
             Log(species, LogType::Normal(Axis::X)) => Log(species, LogType::Normal(Axis::Y)),

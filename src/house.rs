@@ -32,18 +32,13 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
 
     let second_floor = floor + 3;
 
-    rec.extend(level.pop_recording(cursor));
-
     // Roof build now so we know how high the walls have to be
     let roof_mat = if rng.gen_bool(0.3) {
         Blackstone
     } else {
         Wood(Oak)
     };
-    let cursor = level.recording_cursor();
-    roof(level, area.grow(1), second_floor + 3, roof_mat);
-    let roof_rec = level.pop_recording(cursor).collect_vec();
-    let cursor = level.recording_cursor();
+    let roof_rec = roof(level, area.grow(1), second_floor + 3, roof_mat);
 
     // Second story
 
@@ -128,9 +123,7 @@ pub fn lumberjack(level: &mut Level, area: Rect) -> PlaceList {
     let (floor, mut rec) = foundation(level, area);
 
     // Roof build now so we know how high the walls have to be
-    let roof_cursor = level.recording_cursor();
-    roof(level, area.grow(1), floor + 3, Wood(Oak));
-    let roof_rec = level.pop_recording(roof_cursor).collect_vec();
+    let roof_rec = roof(level, area.grow(1), floor + 3, Wood(Oak));
 
     let cursor = level.recording_cursor();
     let mut roof_fixup = Vec::new();
@@ -177,30 +170,36 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
     let floor = level.average_height(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
-    for tree in find_trees(level, area.grow(1)) {
-        remove_tree(level, tree)
+    for (pos, _) in find_trees(level, area.grow(1)) {
+        remove_tree(level, pos)
     }
 
-    // Foundations
     for z in (floor + 1..floor + 10).rev() {
         level.fill_at(area, z, Air)
     }
     for col in area {
-        for z in (level.height(col)..=floor).rev() {
+        for z in (level.height(col) + 1..=floor).rev() {
             level[col.extend(z)] = Air
         }
     }
     let mut rec: PlaceList = level.pop_recording(cursor).collect();
     let cursor = level.recording_cursor();
     for col in area.border() {
+        // TODO: if ground is too far down, try to make supports against the nearest wall instead
         let mut pos = col.extend(floor);
-        while level[pos].soil() | !level[pos].solid() {
+        loop {
+            if level[pos].solid() & !level[pos].soil() {
+                break;
+            }
             level[pos] = Full(Cobble);
+            if NEIGHBORS_2D.iter().all(|dir| level[pos.add(*dir)].solid()) {
+                break;
+            }
             pos -= IVec3::Z;
         }
     }
     for col in area.shrink(1) {
-        for z in level.height(col) - 1..=floor {
+        for z in (level.height(col) - 1).min(floor)..=floor {
             let pos = col.extend(z);
             if (!level[pos].solid()) | (level[pos].soil()) {
                 level[pos] = PackedMud

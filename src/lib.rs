@@ -1,6 +1,6 @@
 #![feature(option_get_or_insert_default)]
 #![feature(lazy_cell)]
-#![allow(dead_code)]
+#![feature(let_chains)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;
@@ -13,8 +13,8 @@ pub mod prefab;
 pub mod remove_foliage;
 pub mod sim;
 // pub mod terraform;
+pub mod goods;
 pub mod house;
-pub mod material;
 pub mod optimize;
 pub mod pathfind;
 pub mod replay;

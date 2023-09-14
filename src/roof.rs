@@ -1,9 +1,12 @@
-use crate::*;
+use std::collections::VecDeque;
+
+use crate::{sim::PlaceList, *};
 use bevy_math::Vec2Swizzles;
 use rand::prelude::*;
 
-pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) {
+pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) -> PlaceList {
     let mut rng = thread_rng();
+    let cursor = level.recording_cursor();
 
     let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb]
         .choose(&mut rng)
@@ -87,6 +90,10 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
             }
         }
     }
+
+    let mut list = level.pop_recording(cursor).collect::<Vec<_>>();
+    list.sort_by_key(|setblock| setblock.pos.z);
+    list.into()
 }
 
 type Curve = fn(f32) -> f32;

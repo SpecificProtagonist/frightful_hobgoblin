@@ -65,7 +65,7 @@ pub struct Replay {
 impl Default for Replay {
     fn default() -> Self {
         Self {
-            tick: 0,
+            tick: 20,
             command_chunks: default(),
             commands: default(),
             block_cache: default(),
@@ -78,9 +78,15 @@ impl Default for Replay {
 const COMMANDS_PER_CHUNK: i32 = 1000;
 
 impl Replay {
-    pub fn say(&mut self, msg: &str) {
+    pub fn dbg(&mut self, msg: &str) {
+        println!("{}", msg);
         self.start_command();
         writeln!(self.commands, "say {msg}").unwrap();
+    }
+
+    pub fn command(&mut self, msg: &str) {
+        self.start_command();
+        writeln!(self.commands, "{msg}").unwrap();
     }
 
     fn start_command(&mut self) {
@@ -191,8 +197,8 @@ pub fn tick_replay(
     mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&Villager>), Changed<Pos>>,
 ) {
     let replay = replay.deref_mut();
-    for (pos, block) in level.pop_recording(default()) {
-        replay.block(pos, block);
+    for set in level.pop_recording(default()) {
+        replay.block(set.pos, set.block);
     }
     for (id, pos, vill) in &new_vills {
         replay.start_command();
@@ -208,6 +214,7 @@ pub fn tick_replay(
         replay.start_command();
         writeln!(
             replay.commands,
+            // TODO: Use block display
             "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1}}",
             pos.x,
             pos.z + 0.8,
@@ -238,9 +245,9 @@ pub fn tick_replay(
                 replay.commands,
                 "tp {} {:.2} {:.2} {:.2} {:.0} 0",
                 vill.carry_id,
-                pos.x,
+                pos.x + 0.5,
                 pos.z + 0.8,
-                pos.y,
+                pos.y + 0.5,
                 delta.y.atan2(delta.x) / PI * 180.,
             )
             .unwrap();
@@ -249,12 +256,14 @@ pub fn tick_replay(
     }
     for vill in &changed_vills {
         replay.start_command();
-        if let Some(carry) = vill.carry {
+        if let Some(stack) = vill.carry {
             writeln!(
                 replay.commands,
                 "data modify entity {} ArmorItems[3] set value {}",
                 vill.carry_id,
-                carry
+                stack
+                    .kind
+                    .display_as_block()
                     .blockstate(&UNKNOWN_BLOCKS.write().unwrap())
                     .item_snbt()
             )

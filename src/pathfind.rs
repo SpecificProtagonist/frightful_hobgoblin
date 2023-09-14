@@ -1,4 +1,7 @@
-use std::{cmp::Ordering, collections::BinaryHeap};
+use std::{
+    cmp::Ordering,
+    collections::{BinaryHeap, VecDeque},
+};
 
 use crate::*;
 
@@ -27,8 +30,13 @@ impl PartialOrd for Node {
     }
 }
 
-pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3) -> Vec<IVec3> {
-    for pos in [&mut start, &mut end] {
+pub fn pathfind(
+    level: &Level,
+    mut start: IVec3,
+    mut end: IVec3,
+    range_to_end: i32,
+) -> VecDeque<IVec3> {
+    for pos in [&mut end, &mut start] {
         while level[*pos].solid() {
             *pos += IVec3::Z
         }
@@ -39,13 +47,16 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3) -> Vec<IVec3> {
     let mut path = HashMap::<IVec3, IVec3>::new();
     let mut queue = BinaryHeap::new();
     queue.push(Node {
-        pos: end,
+        pos: start,
         dist: 0,
         with_heuristic: 0,
     });
     while let Some(node) = queue.pop() {
         for dir in HDir::ALL {
             let mut new_pos = node.pos.add(dir);
+            if !level.area().contains(new_pos.truncate()) {
+                continue;
+            }
             if level[node.pos.add(dir)].solid() {
                 new_pos += IVec3::Z;
                 if level[node.pos + IVec3::Z].solid() {
@@ -69,23 +80,25 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3) -> Vec<IVec3> {
             }
             path.insert(new_pos, node.pos);
 
-            let heuristic = (new_pos.x - start.x).abs()
-                + (new_pos.y - start.y).abs()
-                + ((new_pos.z - start.z) * (new_pos.z - node.pos.z)).clamp(0, 1);
+            let heuristic = (new_pos.x - end.x).abs()
+                + (new_pos.y - end.y).abs()
+                + ((new_pos.z - end.z) * (new_pos.z - node.pos.z)).clamp(0, 1);
             queue.push(Node {
                 pos: new_pos,
                 dist: node.dist + 1,
                 with_heuristic: node.dist + 1 + heuristic as u32,
             });
 
-            if new_pos == start {
-                let mut steps = Vec::with_capacity((node.dist + 1) as usize);
-                steps.push(start);
-                let mut prev = start;
-                loop {
-                    let next = path[&prev];
-                    steps.push(next);
-                    if next == end {
+            // TMP
+            let tmp_early_break = path.len() > 20000;
+
+            if (heuristic <= range_to_end) | tmp_early_break {
+                let mut steps = VecDeque::with_capacity((node.dist + 1) as usize);
+                steps.push_front(end);
+                let mut prev = end;
+                while let Some(&next) = path.get(&prev) {
+                    steps.push_front(next);
+                    if next == start {
                         break;
                     }
                     prev = next;
@@ -93,9 +106,10 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3) -> Vec<IVec3> {
                 return steps;
             }
         }
-        if path.len() > 20000 {
-            break;
-        }
     }
-    todo!()
+
+    // Maybe: If a path hasn't been found (search time depends on distance + constant factor),
+    // just go to the closest location and pretend that's enough?
+    // todo!();
+    vec![start].into()
 }

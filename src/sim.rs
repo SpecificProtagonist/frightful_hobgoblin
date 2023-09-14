@@ -1,8 +1,9 @@
 #![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 
 use std::collections::VecDeque;
 
-use crate::material::Mat;
+use crate::goods::*;
 use crate::optimize::optimize;
 use crate::remove_foliage::remove_tree;
 use crate::*;
@@ -10,6 +11,7 @@ use crate::{pathfind::pathfind, remove_foliage::find_trees, replay::*};
 
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
+use bevy_ecs::query::Has;
 use bevy_math::Vec2Swizzles;
 use rand::prelude::*;
 
@@ -20,12 +22,21 @@ pub fn sim(mut level: Level) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
-    println!("Center: {:?}", city_center_pos.truncate());
+    println!("say Center: {:?}", city_center_pos.truncate());
 
     world.spawn((
         Pos(city_center_pos.as_vec3()),
         Blocked(city_center),
         CityCenter,
+        OutPile {
+            available: {
+                let mut stock = Stockpile::default();
+                stock.add(Stack::new(Good::Stone, 999.));
+                stock.add(Stack::new(Good::Wood, 999.));
+                stock.add(Stack::new(Good::Soil, 999.));
+                stock
+            },
+        },
     ));
 
     for pos in city_center {
@@ -34,8 +45,8 @@ pub fn sim(mut level: Level) {
     }
 
     // Find trees
-    for tree in find_trees(&level, level.area()) {
-        world.spawn((Pos(tree.as_vec3()), Tree::default()));
+    for (pos, species) in find_trees(&level, level.area()) {
+        world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
     world.spawn((
@@ -53,14 +64,20 @@ pub fn sim(mut level: Level) {
                 chop,
                 walk,
                 build,
+                (carry, check_construction_site_readiness).chain(),
                 plan_house,
                 plan_lumberjack,
                 plan_quarry,
             ),
             apply_deferred,
-            assign_builds,
+            (assign_builds, assign_work),
             apply_deferred,
-            (test_build_house, test_build_lumberjack, test_build_quarry),
+            (
+                new_construction_site,
+                test_build_house,
+                test_build_lumberjack,
+                test_build_quarry,
+            ),
             apply_deferred,
             (tick_replay, remove_outdated),
             |world: &mut World| world.clear_trackers(),
@@ -68,7 +85,14 @@ pub fn sim(mut level: Level) {
             .chain(),
     );
 
-    world.init_resource::<Replay>();
+    let mut replay = Replay::default();
+    replay.command(&format!(
+        "tp @p {} {} {}",
+        city_center_pos.x,
+        city_center_pos.z + 30,
+        city_center_pos.y
+    ));
+    world.insert_resource(replay);
     world.insert_resource(level);
     for _ in 0..10000 {
         sched.run(&mut world);
@@ -85,17 +109,24 @@ pub fn sim(mut level: Level) {
 #[derive(Component)]
 struct CityCenter;
 
-pub type PlaceList = VecDeque<(IVec3, Block)>;
-
-#[derive(Clone, Copy)]
-struct BuildStage {
-    resource: Mat,
-    prefab: &'static str,
-}
+pub type PlaceList = VecDeque<SetBlock>;
 
 #[derive(Component)]
-struct Building {
-    stages: Vec<BuildStage>,
+struct ConstructionSite {
+    todo: PlaceList,
+    has_builder: bool,
+    /// Whether it has the materials necessary for the next block
+    has_materials: bool,
+}
+
+impl ConstructionSite {
+    fn new(blocks: PlaceList) -> Self {
+        Self {
+            todo: blocks,
+            has_builder: false,
+            has_materials: false,
+        }
+    }
 }
 
 #[derive(Component)]
@@ -112,7 +143,7 @@ impl MoveTask {
 
 /// Path to move along, in reverse order
 #[derive(Component, Deref, DerefMut)]
-struct MovePath(Vec<IVec3>);
+struct MovePath(VecDeque<IVec3>);
 
 #[derive(Component)]
 struct PlaceTask(PlaceList);
@@ -127,84 +158,284 @@ struct ChopTask {
     tree: Entity,
 }
 
+// Assumes reservations have already been made
 #[derive(Component)]
-struct ReadyToChop;
-
-#[derive(Component, Default)]
-struct Tree {
-    to_be_chopped: bool,
+struct CarryTask {
+    from: Entity,
+    to: Entity,
+    stack: Stack,
+    max_stack: f32,
 }
 
-fn build(
-    mut commands: Commands,
-    mut level: ResMut<Level>,
-    mut buildings: Query<(&Pos, &mut Building)>,
-    mut builders: Query<
-        (Entity, &Pos, &mut Villager, &BuildTask),
-        (Without<ChopTask>, Without<PlaceTask>),
-    >,
-    mut trees: Query<(Entity, &Pos, &mut Tree)>,
-) {
-    for (builder, pos, mut villager, build_task) in &mut builders {
-        let (building_pos, mut building) = buildings.get_mut(build_task.building).unwrap();
-        if let Some(stage) = building.stages.first().cloned() {
-            if let Some(carry) = villager.carry {
-                if pos.truncate() != building_pos.truncate() {
-                    commands
-                        .entity(builder)
-                        .insert(MoveTask::new(building_pos.block() + IVec3::Z));
-                } else {
-                    let wood_type = match carry {
-                        Log(species, _) => species,
-                        _ => Oak,
-                    };
-                    let cursor = level.recording_cursor();
-                    PREFABS[stage.prefab].build(&mut level, building_pos.block(), YPos, wood_type);
-                    villager.carry = None;
-                    commands
-                        .entity(builder)
-                        .insert(PlaceTask(level.pop_recording(cursor).collect()));
-                    building.stages.remove(0);
-                }
-            } else {
-                let (tree, _, mut tree_meta) = trees
-                    .iter_mut()
-                    .filter(|(_, _, meta)| !meta.to_be_chopped)
-                    .min_by_key(|(_, pos, _)| pos.distance_squared(building_pos.0) as i32)
-                    .expect("no trees");
-                tree_meta.to_be_chopped = true;
-                commands.entity(builder).insert(ChopTask { tree });
-            }
-        } else {
-            commands.entity(builder).remove::<BuildTask>();
-            commands.entity(build_task.building).remove::<Building>();
+#[derive(Component)]
+struct Tree {
+    _species: TreeSpecies,
+    _to_be_chopped: bool,
+}
+
+impl Tree {
+    fn new(species: TreeSpecies) -> Self {
+        Self {
+            _species: species,
+            _to_be_chopped: false,
         }
     }
 }
 
+#[derive(Component, Default, Debug)]
+struct InPile {
+    stock: Stockpile,
+    requested: Stockpile,
+    // Gets reset after delivery of priority good
+    priority: Option<Good>,
+}
+
+#[derive(Component, Default, Debug)]
+struct OutPile {
+    // TODO: When adding piles that visualize what is available,
+    // this also needs a `current` field
+    available: Stockpile,
+}
+
+fn new_construction_site(
+    mut commands: Commands,
+    new: Query<(Entity, &ConstructionSite), Added<ConstructionSite>>,
+) {
+    for (entity, site) in &new {
+        let mut stock = Stockpile::default();
+        let mut requested = Stockpile::default();
+        let mut priority = None;
+        for set_block in &site.todo {
+            if let Some(stack) = goods_for_block(set_block.block) {
+                requested.add(stack);
+                if priority.is_none() {
+                    priority = Some(stack.kind);
+                }
+            }
+            if let Some(mined) = goods_for_block(set_block.previous) {
+                stock.add(mined);
+                requested.remove(mined);
+            }
+        }
+        commands.entity(entity).insert(InPile {
+            stock,
+            requested,
+            priority,
+        });
+    }
+}
+
+fn assign_work(
+    mut commands: Commands,
+    mut replay: ResMut<Replay>,
+    idle: Query<(Entity, &Pos), (With<Villager>, Without<CarryTask>, Without<BuildTask>)>,
+    mut out_piles: Query<(Entity, &Pos, &mut OutPile)>,
+    mut in_piles: Query<(Entity, &Pos, &mut InPile)>,
+    mut construction_sites: Query<(Entity, &Pos, &mut ConstructionSite)>,
+) {
+    for (vill, vil_pos) in &idle {
+        if let Some((building, pos, mut site)) = construction_sites
+            .iter_mut()
+            .filter(|(_, _, site)| site.has_materials & !site.has_builder)
+            .min_by_key(|(_, pos, _)| pos.distance_squared(vil_pos.0) as u32)
+        {
+            site.has_builder = true;
+            commands
+                .entity(vill)
+                .insert((MoveTask::new(pos.0.block()), BuildTask { building }));
+            continue;
+        }
+
+        if let Some((_, task)) = out_piles
+            .iter_mut()
+            .filter_map(|(out_entity, out_pos, out_pile)| {
+                let mut best_score = f32::INFINITY;
+                let mut task = None;
+                for (good, &amount) in &out_pile.available.0 {
+                    if amount == 0. {
+                        continue;
+                    }
+                    for (in_entity, in_pos, in_pile) in &mut in_piles {
+                        if let Some(&requested) = in_pile.requested.0.get(good) && requested > 0. {
+                            if let Some(priority) = in_pile.priority {
+                                if priority != *good {continue}
+                            }
+                            let mut score = out_pos.distance_squared(in_pos.0);
+                            // Try to reduce the amount of trips
+                            if amount < requested {
+                                score *= 2.;
+                            }
+                            if score < best_score {
+                                best_score = score;
+                                task = Some(CarryTask {
+                                    from: out_entity,
+                                    to: in_entity,
+                                    stack: Stack::new(
+                                        *good,
+                                        amount.min(requested).min(CARRY_CAPACITY),
+                                    ),
+                                    max_stack: requested.min(CARRY_CAPACITY),
+                                });
+                            }
+                        }
+                    }
+                }
+                task.map(|task| (vil_pos.distance_squared(out_pos.0), task))
+            })
+            // TODO: Also influence via best_score?
+            .min_by_key(|(d, _)| *d as i32)
+        {
+            out_piles
+                .get_component_mut::<OutPile>(task.from)
+                .unwrap()
+                .available
+                .remove(task.stack);
+            in_piles
+                .get_component_mut::<InPile>(task.to)
+                .unwrap()
+                .requested
+                .remove(task.stack);
+            commands.entity(vill).insert(task);
+        }
+    }
+}
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+struct PickupReady;
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+struct DeliverReady;
+
+fn carry(
+    mut commands: Commands,
+    pos: Query<&Pos>,
+    mut out_piles: Query<&mut OutPile>,
+    mut in_piles: Query<&mut InPile>,
+    mut workers: Query<
+        (
+            Entity,
+            &mut Villager,
+            &mut CarryTask,
+            Has<PickupReady>,
+            Has<DeliverReady>,
+        ),
+        Without<MoveTask>,
+    >,
+) {
+    for (entity, mut villager, mut task, pickup_ready, deliver_ready) in &mut workers {
+        if !pickup_ready {
+            commands.entity(entity).insert((
+                MoveTask::new(pos.get(task.from).unwrap().block()),
+                PickupReady,
+            ));
+        } else if villager.carry.is_none() {
+            let mut out = out_piles.get_mut(task.from).unwrap();
+            // If more goodds have been deposited since the task was set, take them too
+            let missing = task.max_stack - task.stack.amount;
+            let extra = out.available.remove_up_to(Stack {
+                kind: task.stack.kind,
+                amount: missing,
+            });
+            task.stack.amount += extra.amount;
+            villager.carry = Some(task.stack);
+        } else if !deliver_ready {
+            commands.entity(entity).insert((
+                MoveTask::new(pos.get(task.to).unwrap().block()),
+                DeliverReady,
+            ));
+        } else {
+            let mut pile = in_piles.get_mut(task.to).unwrap();
+            pile.stock.add(task.stack);
+            if pile.priority == Some(task.stack.kind) {
+                pile.priority = None
+            }
+            villager.carry = None;
+            commands
+                .entity(entity)
+                .remove::<(CarryTask, PickupReady, DeliverReady)>();
+        }
+    }
+}
+
+fn build(
+    mut commands: Commands,
+    mut replay: ResMut<Replay>,
+    mut builders: Query<
+        (Entity, &BuildTask),
+        (With<Villager>, Without<ChopTask>, Without<MoveTask>),
+    >,
+    mut buildings: Query<(Entity, &mut ConstructionSite, &mut InPile)>,
+) {
+    for (builder, build_task) in &mut builders {
+        let Ok((entity, mut building, mut pile)) = buildings.get_mut(build_task.building) else {
+            continue;
+        };
+        if let Some(set) = building.todo.get(0).copied() {
+            if let Some(block) = pile.stock.build(set.block) {
+                replay.block(set.pos, block);
+                building.todo.pop_front();
+            } else {
+                building.has_builder = false;
+                building.has_materials = false;
+                commands.entity(builder).remove::<BuildTask>();
+            }
+        } else {
+            replay.dbg("Building finished");
+            commands.entity(builder).remove::<BuildTask>();
+            commands
+                .entity(entity)
+                .remove::<(InPile, ConstructionSite)>()
+                .insert(OutPile {
+                    available: std::mem::take(&mut pile.stock),
+                });
+        }
+    }
+}
+
+fn check_construction_site_readiness(
+    mut query: Query<(&mut ConstructionSite, &mut InPile), Changed<InPile>>,
+) {
+    for (mut site, mut pile) in &mut query {
+        if !site.has_materials {
+            if let Some(needed) = goods_for_block(site.todo[0].block) {
+                if pile.stock.has(needed) {
+                    site.has_materials = true
+                } else if pile.priority.is_none() {
+                    pile.priority = Some(needed.kind);
+                }
+            } else {
+                site.has_materials = true
+            }
+        }
+    }
+}
+
+#[derive(Component)]
+#[component(storage = "SparseSet")]
+struct ChopReady;
+
 fn chop(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    mut lumberjacks: Query<
-        (Entity, &mut Villager, &ChopTask, Option<&ReadyToChop>),
-        Without<MoveTask>,
-    >,
-    trees: Query<&Pos>,
+    mut lumberjacks: Query<(Entity, &mut Villager, &ChopTask, Has<ChopReady>), Without<MoveTask>>,
+    trees: Query<(&Pos, &Tree)>,
 ) {
     for (jack, mut vill, task, ready) in &mut lumberjacks {
-        let target = trees.get(task.tree).unwrap();
-        if ready.is_some() {
+        let (target, _tree) = trees.get(task.tree).unwrap();
+        if ready {
             let cursor = level.recording_cursor();
-            vill.carry = Some(level[target.block()]);
+            vill.carry = Some(Stack::new(Good::Wood, 1.));
             remove_tree(&mut level, target.block());
             commands.entity(task.tree).despawn();
             commands
                 .entity(jack)
-                .remove::<(ChopTask, ReadyToChop)>()
+                .remove::<(ChopTask, ChopReady)>()
                 .insert(PlaceTask(level.pop_recording(cursor).collect()));
         } else {
             commands.entity(jack).insert((
-                ReadyToChop,
+                ChopReady,
                 MoveTask {
                     goal: target.block(),
                     distance: 2,
@@ -220,8 +451,8 @@ fn place(
     mut builders: Query<(Entity, &mut PlaceTask), Without<MoveTask>>,
 ) {
     for (entity, mut build) in &mut builders {
-        if let Some((pos, block)) = build.0.pop_front() {
-            replay.block(pos, block);
+        if let Some(set) = build.0.pop_front() {
+            replay.block(set.pos, set.block);
         } else {
             commands.entity(entity).remove::<PlaceTask>();
         }
@@ -231,64 +462,72 @@ fn place(
 // TODO: Smooth this out
 fn walk(
     mut commands: Commands,
+    mut replay: ResMut<Replay>,
     level: Res<Level>,
     mut query: Query<(Entity, &mut Pos, &MoveTask, Option<&mut MovePath>), With<Villager>>,
 ) {
     for (entity, mut pos, goal, path) in &mut query {
         if let Some(mut path) = path {
-            const BLOCKS_PER_TICK: f32 = 0.13;
-            let mut next_node = *path.last().unwrap();
-            let diff = (next_node.as_vec3() - pos.0).truncate();
+            const BLOCKS_PER_TICK: f32 = 0.16;
+            let mut next_node = *path.front().unwrap();
+            let diff = next_node.as_vec3() - pos.0; //.truncate();
             if diff.length() < BLOCKS_PER_TICK {
-                path.pop();
-                if let Some(&next) = path.last() {
+                path.pop_front();
+                if let Some(&next) = path.front() {
                     next_node = next;
                 } else {
                     commands.entity(entity).remove::<(MoveTask, MovePath)>();
                 }
             }
-            let diff = (next_node.as_vec3() - pos.0).truncate();
-            pos.0 += (diff.normalize() * BLOCKS_PER_TICK).extend(0.);
-            set_walk_height(&level, &mut pos);
+            let diff = next_node.as_vec3() - pos.0; //.truncate();
+            pos.0 += diff.normalize_or_zero() * BLOCKS_PER_TICK;
+            //.extend(0.);
+            // set_walk_height(&level, &mut pos);
         } else {
-            let path = pathfind(&level, goal.goal, pos.block());
+            let path = pathfind(&level, pos.block(), goal.goal, goal.distance);
             commands.entity(entity).insert(MovePath(path));
         }
     }
 }
 
-fn set_walk_height(level: &Level, pos: &mut Vec3) {
-    let size = 0.35;
-    let mut height = 0f32;
-    for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
-        let mut block_pos = (*pos + off.extend(0.) * size).block();
-        while !level[block_pos].solid() {
-            block_pos.z -= 1
-        }
-        while level[block_pos].solid() {
-            block_pos.z += 1
-        }
-        height = height.max(
-            block_pos.z as f32
-                - match level[block_pos - ivec3(0, 0, 1)] {
-                    Slab(_, Bottom) => 0.5,
-                    // In theory also do stairs here
-                    _ => 0.,
-                },
-        );
-    }
-    pos.z = height;
-}
+// fn set_walk_height(level: &Level, pos: &mut Vec3) {
+//     let size = 0.35;
+//     let mut height = 0f32;
+//     for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
+//         let mut block_pos = (*pos + off.extend(0.) * size).block();
+//         if !level[block_pos].solid() {
+//             block_pos.z -= 1
+//         }
+//         if level[block_pos].solid() {
+//             block_pos.z += 1
+//         }
+//         height = height.max(
+//             block_pos.z as f32
+//                 - match level[block_pos - ivec3(0, 0, 1)] {
+//                     Slab(_, Bottom) => 0.5,
+//                     // In theory also do stairs here
+//                     _ => 0.,
+//                 },
+//         );
+//     }
+//     pos.z = height;
+// }
 
 #[derive(Component, Deref, DerefMut, PartialEq)]
 pub struct Pos(pub Vec3);
+
+impl std::fmt::Display for Pos {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{} {} {}", self.0.x, self.0.y, self.0.z)
+    }
+}
 
 #[derive(Component, Deref, DerefMut)]
 pub struct PrevPos(pub Vec3);
 
 #[derive(Component, Default)]
 pub struct Villager {
-    pub carry: Option<Block>,
+    pub carry: Option<Stack>,
     pub carry_id: Id,
 }
 
@@ -521,9 +760,11 @@ fn plan_quarry(
     ));
 }
 
+// Very temporary, just for testing!
 fn assign_builds(
     mut commands: Commands,
     extant_houses: Query<(With<House>, Without<Planned>)>,
+    wip_houses: Query<(With<House>, With<ConstructionSite>)>,
     planned_houses: Query<(Entity, &Planned), With<House>>,
     extant_lumberjacks: Query<(With<Lumberjack>, Without<Planned>)>,
     planned_lumberjacks: Query<(Entity, &Planned), With<Lumberjack>>,
@@ -531,7 +772,7 @@ fn assign_builds(
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
     let mut plans = Vec::new();
-    if extant_houses.iter().len() < 30 {
+    if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() == 0) {
         plans.extend(&planned_houses)
     }
     if extant_lumberjacks.iter().len() < 10 {
@@ -548,30 +789,23 @@ fn assign_builds(
     }
 }
 
+// TMP
 fn test_build_house(
     mut replay: ResMut<Replay>,
     mut commands: Commands,
     mut level: ResMut<Level>,
     new: Query<(Entity, &Blocked), (With<ToBeBuild>, With<House>)>,
-    builders: Query<Entity, (With<Villager>, Without<PlaceTask>)>,
 ) {
-    let mut assigned = Vec::new();
-    for builder in &builders {
-        for (entity, area) in &new {
-            if assigned.contains(&entity) {
-                continue;
-            }
-            replay.say(&format!("building house at {:?}", area.center()));
-            assigned.push(entity);
-            commands
-                .entity(builder)
-                .insert(PlaceTask(house::house(&mut level, area.0)));
-            commands.entity(entity).remove::<ToBeBuild>().insert(Build);
-            break;
-        }
+    for (entity, area) in &new {
+        replay.dbg(&format!("building house at {:?}", area.center()));
+        commands
+            .entity(entity)
+            .remove::<ToBeBuild>()
+            .insert(ConstructionSite::new(house::house(&mut level, area.0)));
     }
 }
 
+// TMP
 fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
@@ -579,13 +813,14 @@ fn test_build_lumberjack(
     new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Lumberjack>)>,
 ) {
     for (entity, area) in &new {
-        for (pos, block) in house::lumberjack(&mut level, area.0) {
-            replay.block(pos, block)
+        for set in house::lumberjack(&mut level, area.0) {
+            replay.block(set.pos, set.block)
         }
         commands.entity(entity).remove::<ToBeBuild>().insert(Build);
     }
 }
 
+// TMP
 fn test_build_quarry(
     mut commands: Commands,
     mut level: ResMut<Level>,
