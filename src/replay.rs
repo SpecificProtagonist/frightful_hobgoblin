@@ -59,8 +59,8 @@ pub struct Replay {
     block_cache: HashMap<Block, String>,
     commands_this_tick: Vec<Tag>,
     commands: VecDeque<Tag>,
-    commands_lvl_2: VecDeque<Tag>,
-    tmp_total_commands: i32,
+    // Only out of curiosity
+    total_commands: u64,
 }
 
 impl Default for Replay {
@@ -69,8 +69,7 @@ impl Default for Replay {
             block_cache: default(),
             commands_this_tick: default(),
             commands: default(),
-            commands_lvl_2: default(),
-            tmp_total_commands: 0,
+            total_commands: 0,
         };
         // Wait for the player to load in
         for _ in 0..10 {
@@ -101,28 +100,26 @@ impl Replay {
             nbt.insert("cmd", msg);
             nbt.into()
         });
-        self.tmp_total_commands += 1;
+        self.total_commands += 1;
     }
 
     fn tick(&mut self) {
         let commands = std::mem::take(&mut self.commands_this_tick);
         self.commands.push_front(commands.into());
-        if self.commands.len() > 1000 {
-            let commands = self.commands.drain(..);
-            self.commands_lvl_2
-                .push_front(Tag::List(commands.collect()));
-        }
     }
 
     // TODO: do this asynchronically in the background as commands come in
     pub fn write(mut self, level: &Path) {
-        println!("Total: {}", self.tmp_total_commands);
+        // println!("Total commands: {}", self.total_commands);
+        if self.total_commands > i32::MAX as u64 {
+            eprintln!(
+                "Too many commands: {} (reemploy chunking)",
+                self.total_commands
+            );
+        }
         // Flush final commands
         let commands = std::mem::take(&mut self.commands_this_tick);
         self.commands.push_front(commands.into());
-        let commands = self.commands.drain(..);
-        self.commands_lvl_2
-            .push_front(Tag::List(commands.collect()));
         // Write commands to nbt
         let data_path = level.join("data/");
         create_dir_all(&data_path).unwrap();
@@ -136,7 +133,7 @@ impl Replay {
                     let mut nbt = CompoundTag::new();
                     nbt.insert(
                         "commands",
-                        nbt::Tag::List(self.commands_lvl_2.drain(..).collect()),
+                        nbt::Tag::List(self.commands.drain(..).collect()),
                     );
                     nbt
                 });
@@ -197,21 +194,11 @@ impl Replay {
         // To log in chat, add $say eval: $(cmd)\n
         write(sim_path.join("eval.mcfunction"), "$$(cmd)").unwrap();
         write(
-            sim_path.join("try_run_command.mcfunction"),
-            "
-            say test
-            tellraw @a {\"storage\":\"sim:data\",\"nbt\":\"current_commands[-1]\"}
-            function sim:eval with storage sim:data current_commands[-1]
-            return run data remove storage sim:data current_commands[-1]
-            ",
-        )
-        .unwrap();
-        write(
             sim_path.join("run_current_commands.mcfunction"),
             "
-            function sim:eval with storage sim:data current_commands[-1]
-            data remove storage sim:data current_commands[-1]
-            execute if data storage sim:data current_commands[-1] run function sim:run_current_commands
+            function sim:eval with storage sim:data commands[-1][-1]
+            data remove storage sim:data commands[-1][-1]
+            execute if data storage sim:data commands[-1][0] run function sim:run_current_commands
             ",
         )
         .unwrap();
@@ -220,10 +207,8 @@ impl Replay {
         writeln!(
             tick,
             "
-            execute unless data storage sim:data commands[-1][0] run data remove storage sim:data commands[-1]
-            data modify storage sim:data current_commands set from storage sim:data commands[-1][-1]
-            data remove storage sim:data commands[-1][-1]
             function sim:run_current_commands
+            data remove storage sim:data commands[-1]
             scoreboard players add SIM sim_tick 1
             "
         )

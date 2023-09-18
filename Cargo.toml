@@ -36,4 +36,3 @@ enum-iterator = "1.4.1"
 [patch.crates-io]
 # Fix corruped gzip
 named-binary-tag = { git = "https://github.com/SpecificProtagonist/named-binary-tag.git", branch = "fix-gzip" }
-# named-binary-tag = { path = "named-binary-tag" }
