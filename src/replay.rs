@@ -1,7 +1,9 @@
 use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
+use nbt::{CompoundTag, Tag};
 
+use std::collections::VecDeque;
 use std::f32::consts::PI;
 use std::fmt::{Display, Write};
 use std::fs::{create_dir, create_dir_all, read, write};
@@ -54,78 +56,99 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 // In the future, this could have playback speed / reverse playback, controlled via a book
 #[derive(Resource)]
 pub struct Replay {
-    tick: i32,
-    commands: String,
-    command_chunks: Vec<(RangeInclusive<i32>, String)>,
-    chunk_start_tick: i32,
-    commands_this_chunk: i32,
     block_cache: HashMap<Block, String>,
+    commands_this_tick: Vec<Tag>,
+    commands: VecDeque<Tag>,
+    commands_lvl_2: VecDeque<Tag>,
+    tmp_total_commands: i32,
 }
 
 impl Default for Replay {
     fn default() -> Self {
-        Self {
-            tick: 20,
-            command_chunks: default(),
-            commands: default(),
+        let mut replay = Self {
             block_cache: default(),
-            commands_this_chunk: 0,
-            chunk_start_tick: 0,
+            commands_this_tick: default(),
+            commands: default(),
+            commands_lvl_2: default(),
+            tmp_total_commands: 0,
+        };
+        // Wait for the player to load in
+        for _ in 0..10 {
+            replay.tick();
         }
+        replay
     }
 }
 
-const COMMANDS_PER_CHUNK: i32 = 1000;
-
 impl Replay {
     pub fn dbg(&mut self, msg: &str) {
-        println!("{}", msg);
-        self.start_command();
-        writeln!(self.commands, "say {msg}").unwrap();
-    }
-
-    pub fn command(&mut self, msg: &str) {
-        self.start_command();
-        writeln!(self.commands, "{msg}").unwrap();
-    }
-
-    fn start_command(&mut self) {
-        if self.commands_this_chunk == COMMANDS_PER_CHUNK {
-            self.command_chunks.push((
-                self.chunk_start_tick..=self.tick,
-                std::mem::take(&mut self.commands),
-            ));
-            self.commands_this_chunk = 0;
-            self.chunk_start_tick = self.tick;
-        }
-        self.commands_this_chunk += 1;
-        write!(
-            self.commands,
-            "execute if score SIM sim_tick matches {} run ",
-            self.tick
-        )
-        .unwrap();
+        self.command(format!("say {msg}"));
     }
 
     pub fn block(&mut self, pos: IVec3, block: Block) {
-        self.start_command();
         let block_string = self.block_cache.entry(block).or_insert_with(|| {
             block
                 .blockstate(&UNKNOWN_BLOCKS.read().unwrap())
                 .to_string()
         });
-        writeln!(
-            self.commands,
-            "setblock {} {} {} {block_string}",
-            pos.x, pos.z, pos.y
-        )
-        .unwrap();
+        let command = format!("setblock {} {} {} {block_string}", pos.x, pos.z, pos.y);
+        self.command(command);
+    }
+
+    pub fn command(&mut self, msg: String) {
+        self.commands_this_tick.push({
+            let mut nbt = CompoundTag::new();
+            nbt.insert("cmd", msg);
+            nbt.into()
+        });
+        self.tmp_total_commands += 1;
+    }
+
+    fn tick(&mut self) {
+        let commands = std::mem::take(&mut self.commands_this_tick);
+        self.commands.push_front(commands.into());
+        if self.commands.len() > 1000 {
+            let commands = self.commands.drain(..);
+            self.commands_lvl_2
+                .push_front(Tag::List(commands.collect()));
+        }
     }
 
     // TODO: do this asynchronically in the background as commands come in
     pub fn write(mut self, level: &Path) {
-        self.command_chunks
-            .push((self.chunk_start_tick..=self.tick, self.commands));
+        println!("Total: {}", self.tmp_total_commands);
+        // Flush final commands
+        let commands = std::mem::take(&mut self.commands_this_tick);
+        self.commands.push_front(commands.into());
+        let commands = self.commands.drain(..);
+        self.commands_lvl_2
+            .push_front(Tag::List(commands.collect()));
+        // Write commands to nbt
+        let data_path = level.join("data/");
+        create_dir_all(&data_path).unwrap();
+        let mut nbt = CompoundTag::new();
+        nbt.insert("DataVersion", DATA_VERSION);
+        nbt.insert("data", {
+            let mut nbt = CompoundTag::new();
+            nbt.insert("contents", {
+                let mut nbt = CompoundTag::new();
+                nbt.insert("data", {
+                    let mut nbt = CompoundTag::new();
+                    nbt.insert(
+                        "commands",
+                        nbt::Tag::List(self.commands_lvl_2.drain(..).collect()),
+                    );
+                    nbt
+                });
+                nbt
+            });
+            nbt
+        });
+        nbt::encode::write_gzip_compound_tag(
+            &mut std::fs::File::create(data_path.join("command_storage_sim.dat")).unwrap(),
+            &nbt,
+        )
+        .unwrap();
 
         let pack_path = level.join("datapacks/sim/");
         create_dir_all(&pack_path).unwrap();
@@ -171,20 +194,40 @@ impl Replay {
         // For now just start automatically
         write(tag_path.join("tick.json"), r#"{values:["sim:tick"]}"#).unwrap();
 
+        // To log in chat, add $say eval: $(cmd)\n
+        write(sim_path.join("eval.mcfunction"), "$$(cmd)").unwrap();
+        write(
+            sim_path.join("try_run_command.mcfunction"),
+            "
+            say test
+            tellraw @a {\"storage\":\"sim:data\",\"nbt\":\"current_commands[-1]\"}
+            function sim:eval with storage sim:data current_commands[-1]
+            return run data remove storage sim:data current_commands[-1]
+            ",
+        )
+        .unwrap();
+        write(
+            sim_path.join("run_current_commands.mcfunction"),
+            "
+            function sim:eval with storage sim:data current_commands[-1]
+            data remove storage sim:data current_commands[-1]
+            execute if data storage sim:data current_commands[-1] run function sim:run_current_commands
+            ",
+        )
+        .unwrap();
         let mut tick = String::new();
-        let chunk_path = sim_path.join("chunked");
-        create_dir(&chunk_path).unwrap();
-        for (i, (ticks, commands)) in self.command_chunks.iter().enumerate() {
-            write(chunk_path.join(format!("{i}.mcfunction")), commands).unwrap();
-            writeln!(
-                tick,
-                "execute if score SIM sim_tick matches {}..{} run function sim:chunked/{i}",
-                ticks.start(),
-                ticks.end(),
-            )
-            .unwrap();
-        }
-        writeln!(tick, "scoreboard players add SIM sim_tick 1").unwrap();
+        // TODO
+        writeln!(
+            tick,
+            "
+            execute unless data storage sim:data commands[-1][0] run data remove storage sim:data commands[-1]
+            data modify storage sim:data current_commands set from storage sim:data commands[-1][-1]
+            data remove storage sim:data commands[-1][-1]
+            function sim:run_current_commands
+            scoreboard players add SIM sim_tick 1
+            "
+        )
+        .unwrap();
         write(sim_path.join("tick.mcfunction"), tick).unwrap();
     }
 }
@@ -201,34 +244,26 @@ pub fn tick_replay(
         replay.block(set.pos, set.block);
     }
     for (id, pos, vill) in &new_vills {
-        replay.start_command();
-        writeln!(
-            replay.commands,
+        replay.command(format!(
             "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1}}",
             pos.x,
             pos.z,
             pos.y,
             id.snbt()
-        )
-        .unwrap();
-        replay.start_command();
-        writeln!(
-            replay.commands,
+        ));
+        replay.command(format!(
             // TODO: Use block display
             "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1}}",
             pos.x,
             pos.z + 0.8,
             pos.y,
             vill.carry_id.snbt(),
-        )
-        .unwrap();
+        ));
     }
     for (id, pos, mut prev, vill) in &mut moved {
         let delta = pos.0 - prev.0;
         let facing = pos.0 + delta;
-        replay.start_command();
-        writeln!(
-            replay.commands,
+        replay.command(format!(
             "tp {} {:.2} {:.2} {:.2} facing {:.2} {:.2} {:.2}",
             id,
             pos.x + 0.5,
@@ -237,28 +272,22 @@ pub fn tick_replay(
             facing.x + 0.5,
             facing.z,
             facing.y + 0.5
-        )
-        .unwrap();
+        ));
         if let Some(vill) = vill {
-            replay.start_command();
-            writeln!(
-                replay.commands,
+            replay.command(format!(
                 "tp {} {:.2} {:.2} {:.2} {:.0} 0",
                 vill.carry_id,
                 pos.x + 0.5,
                 pos.z + 0.8,
                 pos.y + 0.5,
                 delta.y.atan2(delta.x) / PI * 180.,
-            )
-            .unwrap();
+            ));
         }
         prev.0 = pos.0;
     }
     for vill in &changed_vills {
-        replay.start_command();
         if let Some(stack) = vill.carry {
-            writeln!(
-                replay.commands,
+            replay.command(format!(
                 "data modify entity {} ArmorItems[3] set value {}",
                 vill.carry_id,
                 stack
@@ -266,16 +295,13 @@ pub fn tick_replay(
                     .display_as_block()
                     .blockstate(&UNKNOWN_BLOCKS.write().unwrap())
                     .item_snbt()
-            )
-            .unwrap();
+            ));
         } else {
-            writeln!(
-                replay.commands,
+            replay.command(format!(
                 "data modify entity {} ArmorItems[3] set value {{}}",
                 vill.carry_id,
-            )
-            .unwrap();
+            ));
         }
     }
-    replay.tick += 1;
+    replay.tick();
 }

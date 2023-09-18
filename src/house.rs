@@ -4,7 +4,6 @@ use crate::{
     sim::PlaceList,
     *,
 };
-use itertools::Itertools;
 use rand::prelude::*;
 
 pub fn house(level: &mut Level, area: Rect) -> PlaceList {

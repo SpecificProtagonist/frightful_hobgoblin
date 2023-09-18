@@ -770,8 +770,7 @@ dependencies = [
 [[package]]
 name = "named-binary-tag"
 version = "0.6.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "523298fac63bd954f9a2e03b962b8a4a0e95110ad1b2fa3e0d7048660ffecec3"
+source = "git+https://github.com/SpecificProtagonist/named-binary-tag.git?branch=fix-gzip#097fa905eb1e6cc70e240a71f5c37035628d6497"
 dependencies = [
  "byteorder",
  "flate2",

@@ -16,7 +16,7 @@ use std::{
     path::PathBuf,
 };
 
-use crate::{default, geometry::*, HashMap};
+use crate::{default, geometry::*, HashMap, DATA_VERSION};
 pub use biome::*;
 pub use block::*;
 
@@ -386,7 +386,7 @@ fn load_chunk(
         ))
         .map_err(|_| anyhow!("Chunk read error"))?;
     let version = nbt.get_i32("DataVersion").unwrap();
-    if version != 3465 {
+    if (version > DATA_VERSION) | (version < 3465) {
         eprintln!(
             "Using version {}; only 1.20.1 is currently tested.",
             version
@@ -500,7 +500,7 @@ fn save_chunk(
             RegionChunkPosition::from_chunk_position(index.0, index.1),
             {
                 let mut nbt = CompoundTag::new();
-                nbt.insert_i32("DataVersion", 3465);
+                nbt.insert_i32("DataVersion", DATA_VERSION);
                 nbt.insert_i32("xVec3", index.0);
                 nbt.insert_i32("zVec3", index.1);
 

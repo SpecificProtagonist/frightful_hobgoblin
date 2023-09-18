@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use crate::{sim::PlaceList, *};
 use bevy_math::Vec2Swizzles;
 use rand::prelude::*;

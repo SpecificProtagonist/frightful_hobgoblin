@@ -31,9 +31,9 @@ pub fn sim(mut level: Level) {
         OutPile {
             available: {
                 let mut stock = Stockpile::default();
-                stock.add(Stack::new(Good::Stone, 999.));
-                stock.add(Stack::new(Good::Wood, 999.));
-                stock.add(Stack::new(Good::Soil, 999.));
+                stock.add(Stack::new(Good::Stone, 999999.));
+                stock.add(Stack::new(Good::Wood, 999999.));
+                stock.add(Stack::new(Good::Soil, 999999.));
                 stock
             },
         },
@@ -66,8 +66,8 @@ pub fn sim(mut level: Level) {
                 build,
                 (carry, check_construction_site_readiness).chain(),
                 plan_house,
-                plan_lumberjack,
-                plan_quarry,
+                // plan_lumberjack,
+                // plan_quarry,
             ),
             apply_deferred,
             (assign_builds, assign_work),
@@ -86,7 +86,7 @@ pub fn sim(mut level: Level) {
     );
 
     let mut replay = Replay::default();
-    replay.command(&format!(
+    replay.command(format!(
         "tp @p {} {} {}",
         city_center_pos.x,
         city_center_pos.z + 30,
@@ -94,7 +94,7 @@ pub fn sim(mut level: Level) {
     ));
     world.insert_resource(replay);
     world.insert_resource(level);
-    for _ in 0..10000 {
+    for _ in 0..100000 {
         sched.run(&mut world);
     }
 
@@ -773,6 +773,7 @@ fn assign_builds(
 ) {
     let mut plans = Vec::new();
     if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() == 0) {
+        println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
         plans.extend(&planned_houses)
     }
     if extant_lumberjacks.iter().len() < 10 {
