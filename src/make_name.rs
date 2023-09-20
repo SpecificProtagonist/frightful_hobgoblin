@@ -61,7 +61,7 @@ pub fn make_town_name() -> String {
 }
 
 fn select<'a>(list: &'a [&'a str]) -> &'a str {
-    list[rand::thread_rng().gen_range(0, list.len())]
+    list[rand_range(0, list.len() as i32) as usize]
 }
 
 fn uppercase(word: &'static str) -> impl Iterator<Item = char> {

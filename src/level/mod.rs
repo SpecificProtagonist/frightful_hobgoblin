@@ -386,7 +386,7 @@ fn load_chunk(
         ))
         .map_err(|_| anyhow!("Chunk read error"))?;
     let version = nbt.get_i32("DataVersion").unwrap();
-    if (version > DATA_VERSION) | (version < 3465) {
+    if !(3465..=DATA_VERSION).contains(&version) {
         eprintln!(
             "Using version {}; only 1.20.1 is currently tested.",
             version

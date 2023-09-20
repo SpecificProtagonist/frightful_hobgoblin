@@ -11,5 +11,8 @@ fn main() {
 
     let level = Level::new(SAVE_WRITE_PATH, area);
 
-    sim(level);
+    let seed = std::env::args()
+        .nth(1)
+        .map(|seed| seed.parse().expect("Invalid seed"));
+    sim(level, seed);
 }

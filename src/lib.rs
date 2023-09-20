@@ -21,10 +21,13 @@ pub mod replay;
 pub mod roof;
 pub mod test_house;
 
+use std::cell::RefCell;
+
 pub use geometry::*;
 pub use hashbrown::HashMap;
 pub use level::*;
 pub use prefab::PREFABS;
+use rand::{rngs::StdRng, Rng, SeedableRng};
 
 pub fn default<T: Default>() -> T {
     Default::default()
@@ -41,12 +44,16 @@ pub mod config {
 }
 
 pub fn rand(prob: f32) -> bool {
-    rand::random::<f32>() < prob
+    RNG.with_borrow_mut(|rng| rng.gen_bool(prob as f64))
 }
 
 pub fn rand_1(prob: f32) -> i32 {
-    if rand::random::<f32>() < prob {
-        rand::Rng::gen_range(&mut rand::thread_rng(), -1, 2)
+    if rand(prob) {
+        if rand(0.5) {
+            1
+        } else {
+            -1
+        }
     } else {
         0
     }
@@ -60,7 +67,19 @@ pub fn rand_3(prob: f32) -> IVec3 {
     ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
 }
 
-// Inclusive range
+/// Inclusive range
 pub fn rand_range(min: i32, max: i32) -> i32 {
-    rand::Rng::gen_range(&mut rand::thread_rng(), min, max)
+    RNG.with_borrow_mut(|rng| rng.gen_range(min, max + 1))
+}
+
+pub fn rand_range_f32(min: f32, max: f32) -> f32 {
+    RNG.with_borrow_mut(|rng| rng.gen_range(min, max))
+}
+
+trait ChooseExt: ExactSizeIterator {
+    // TODO
+}
+
+thread_local! {
+    static RNG: RefCell<StdRng> = StdRng::from_entropy().into();
 }

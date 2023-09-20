@@ -15,7 +15,11 @@ use bevy_ecs::query::Has;
 use bevy_math::Vec2Swizzles;
 use rand::prelude::*;
 
-pub fn sim(mut level: Level) {
+pub fn sim(mut level: Level, seed: Option<u64>) {
+    let seed = seed.unwrap_or(thread_rng().next_u64());
+    println!("Seed: {seed}");
+    RNG.set(StdRng::seed_from_u64(seed));
+
     Id::load(&level.path);
 
     let mut world = World::new();
@@ -575,11 +579,10 @@ fn choose_starting_area(level: &Level) -> Rect {
     optimize(
         Rect::new_centered(level.area().center(), IVec2::splat(44)),
         |area, temperature| {
-            let mut rng = thread_rng();
             let max_move = (100. * temperature) as i32;
             let new = area.offset(ivec2(
-                rng.gen_range(-max_move, max_move + 1),
-                rng.gen_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move),
+                rand_range(-max_move, max_move),
             ));
             level.area().subrect(new).then_some(new)
         },
@@ -626,20 +629,15 @@ fn plan_house(
         return;
     }
 
-    let mut rng = thread_rng();
     let center = center.single().truncate();
-    let start = Rect::new_centered(
-        center.block(),
-        ivec2(rng.gen_range(7, 11), rng.gen_range(7, 15)),
-    );
+    let start = Rect::new_centered(center.block(), ivec2(rand_range(7, 11), rand_range(7, 15)));
     let area = optimize(
         start,
         |area, temperature| {
-            let mut rng = thread_rng();
             let max_move = (60. * temperature) as i32;
             let mut new = area.offset(ivec2(
-                rng.gen_range(-max_move, max_move + 1),
-                rng.gen_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
             ));
             if rand(0.2) {
                 new = Rect::new_centered(new.center(), new.size().yx())
@@ -676,19 +674,14 @@ fn plan_lumberjack(
     }
     let center = center.single().truncate();
 
-    let mut rng = thread_rng();
-    let start = Rect::new_centered(
-        center.block(),
-        ivec2(rng.gen_range(5, 7), rng.gen_range(5, 11)),
-    );
+    let start = Rect::new_centered(center.block(), ivec2(rand_range(5, 7), rand_range(5, 11)));
     let area = optimize(
         start,
         |area, temperature| {
-            let mut rng = thread_rng();
             let max_move = (60. * temperature) as i32;
             let mut new = area.offset(ivec2(
-                rng.gen_range(-max_move, max_move + 1),
-                rng.gen_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
             ));
             if rand(0.2) {
                 new = Rect::new_centered(new.center(), new.size().yx())
@@ -735,11 +728,10 @@ fn plan_quarry(
     let area = optimize(
         start,
         |area, temperature| {
-            let mut rng = thread_rng();
             let max_move = (60. * temperature) as i32;
             let new = area.offset(ivec2(
-                rng.gen_range(-max_move, max_move + 1),
-                rng.gen_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move, max_move + 1),
             ));
             (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },
@@ -773,7 +765,7 @@ fn assign_builds(
 ) {
     let mut plans = Vec::new();
     if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() == 0) {
-        println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
+        // println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
         plans.extend(&planned_houses)
     }
     if extant_lumberjacks.iter().len() < 10 {
@@ -782,7 +774,7 @@ fn assign_builds(
     if extant_quarries.iter().len() < 10 {
         plans.extend(&planned_quarries)
     }
-    if let Some(&(selected, area)) = plans.choose(&mut thread_rng()) {
+    if let Some(&(selected, area)) = RNG.with_borrow_mut(|rng| plans.choose(rng)) {
         commands
             .entity(selected)
             .remove::<Planned>()
