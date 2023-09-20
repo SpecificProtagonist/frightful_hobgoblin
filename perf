@@ -1,8 +1,11 @@
 Capture:
 perf stat -r 10 target/release/test
 
+Record:
+perf record -e L1-dcache-loads,LLC-load-misses --call-graph dwarf -- target/release/test
+
 Show in perf:
-perg report -F+srcline
+perf report -F+srcline
 
 Show in flamegraph:
 perf script -F+srcline | inferno-collapse-perf | inferno-flamegraph > profile.svg

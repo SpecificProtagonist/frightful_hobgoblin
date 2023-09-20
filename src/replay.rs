@@ -6,8 +6,8 @@ use nbt::{CompoundTag, Tag};
 use std::collections::VecDeque;
 use std::f32::consts::PI;
 use std::fmt::{Display, Write};
-use std::fs::{create_dir, create_dir_all, read, write};
-use std::ops::{DerefMut, RangeInclusive};
+use std::fs::{create_dir_all, read, write};
+use std::ops::DerefMut;
 use std::path::Path;
 use std::sync::atomic::{AtomicU32, Ordering};
 
@@ -191,7 +191,6 @@ impl Replay {
         // For now just start automatically
         write(tag_path.join("tick.json"), r#"{values:["sim:tick"]}"#).unwrap();
 
-        // To log in chat, add $say eval: $(cmd)\n
         write(sim_path.join("eval.mcfunction"), "$$(cmd)").unwrap();
         write(
             sim_path.join("run_current_commands.mcfunction"),
