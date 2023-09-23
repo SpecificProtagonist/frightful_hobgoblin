@@ -1,5 +1,3 @@
-use rand::{seq::SliceRandom, Rng};
-
 use crate::*;
 
 pub fn house(level: &mut Level, outer: Cuboid) {
@@ -29,15 +27,12 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     let mut roof_access = false;
     if rand(0.7) {
         roof_access = true;
-        let ladder_pos = RNG.with_borrow_mut(|rng| {
-            *inner
-                .d2()
-                .border()
-                .filter(|p| !p.touch_face(door_pos))
-                .collect::<Vec<_>>()
-                .choose(rng)
-                .unwrap()
-        });
+        let ladder_pos = *inner
+            .d2()
+            .border()
+            .filter(|p| !p.touch_face(door_pos))
+            .collect::<Vec<_>>()
+            .choose();
         let dir = wall_dir(level, ladder_pos.extend(inner.min.z)).rotated(2);
         level.fill_at(Some(ladder_pos), inner.min.z..=outer.max.z, Ladder(dir));
     }
@@ -108,10 +103,10 @@ fn crenel(width: i32, i: i32) -> Block {
 
 /// z_max inclusive
 fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
-    let offset = rand_range_f32(-0.2, 0.2);
+    let offset = rand_f32(-0.2, 0.2);
     for z in z_min..=z_max {
         let rel_height = (z - z_min) as f32 / (z_max + 1 - z_min) as f32;
-        let block = if rel_height + offset + rand_range_f32(-0.3, 0.3) > 0.6 {
+        let block = if rel_height + offset + rand_f32(-0.3, 0.3) > 0.6 {
             Full(Wood(Birch))
         } else {
             Log(Birch, LogType::Stripped(Axis::Z))
@@ -128,7 +123,7 @@ fn wall_dir(level: &Level, pos: IVec3) -> HDir {
         }
     }
     if count == 0 {
-        return RNG.with_borrow_mut(|rng| *HDir::ALL.choose(rng).unwrap());
+        return *HDir::ALL.choose();
     }
     for dir in HDir::ALL {
         if level[pos.add(dir)].solid() {

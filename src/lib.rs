@@ -44,7 +44,7 @@ pub mod config {
 }
 
 pub fn rand(prob: f32) -> bool {
-    RNG.with_borrow_mut(|rng| rng.gen_bool(prob as f64))
+    RNG.with_borrow_mut(|rng| rng.gen_bool(prob.clamp(0., 1.) as f64))
 }
 
 pub fn rand_1(prob: f32) -> i32 {
@@ -72,14 +72,32 @@ pub fn rand_range(min: i32, max: i32) -> i32 {
     RNG.with_borrow_mut(|rng| rng.gen_range(min, max + 1))
 }
 
-pub fn rand_range_f32(min: f32, max: f32) -> f32 {
+pub fn rand_f32(min: f32, max: f32) -> f32 {
     RNG.with_borrow_mut(|rng| rng.gen_range(min, max))
 }
 
-trait ChooseExt: ExactSizeIterator {
+trait ChooseExt {
+    type Item;
+    fn try_choose(&self) -> Option<&Self::Item>;
+    fn choose(&self) -> &Self::Item;
+}
+
+impl<T> ChooseExt for [T] {
+    type Item = T;
+
+    fn try_choose(&self) -> Option<&T> {
+        RNG.with_borrow_mut(|rng| rand::seq::SliceRandom::choose(self, rng))
+    }
+
+    fn choose(&self) -> &T {
+        self.try_choose().unwrap()
+    }
+}
+
+trait ChooseExt2: ExactSizeIterator {
     // TODO
 }
 
 thread_local! {
-    static RNG: RefCell<StdRng> = StdRng::from_entropy().into();
+    pub static RNG: RefCell<StdRng> = StdRng::from_entropy().into();
 }

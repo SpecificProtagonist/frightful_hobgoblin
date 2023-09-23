@@ -4,6 +4,7 @@
 use std::collections::VecDeque;
 
 use crate::goods::*;
+use crate::make_trees::{grow_trees, GrowTree};
 use crate::optimize::optimize;
 use crate::remove_foliage::remove_tree;
 use crate::*;
@@ -13,16 +14,12 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_ecs::query::Has;
 use bevy_math::Vec2Swizzles;
-use rand::prelude::*;
 
-pub fn sim(mut level: Level, seed: Option<u64>) {
-    let seed = seed.unwrap_or(thread_rng().next_u64());
-    println!("Seed: {seed}");
-    RNG.set(StdRng::seed_from_u64(seed));
-
+pub fn sim(mut level: Level) {
     Id::load(&level.path);
 
     let mut world = World::new();
+    world.init_resource::<Tick>();
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
@@ -53,62 +50,82 @@ pub fn sim(mut level: Level, seed: Option<u64>) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
-    world.spawn((
-        Id::default(),
-        Villager::default(),
-        Pos(city_center_pos.as_vec3() + Vec3::Z),
-        PrevPos(default()),
-    ));
+    for x in 0..20 {
+        for y in 0..20 {
+            let col = ivec2(x * 7 + rand_range(0, 4), y * 7 + rand_range(0, 4));
+            if level.water_level(col).is_none() {
+                world.spawn((
+                    Pos(level.ground(col).as_vec3() + Vec3::Z),
+                    GrowTree::make(Oak, 0),
+                ));
+            }
+        }
+    }
 
     let mut sched = Schedule::new();
     sched.add_systems(
         (
+            grow_trees,
             (
                 place,
                 chop,
                 walk,
                 build,
-                (carry, check_construction_site_readiness).chain(),
-                plan_house,
-                // plan_lumberjack,
-                // plan_quarry,
+                carry,
+                check_construction_site_readiness,
             ),
+            plan_house,
+            // plan_lumberjack,
+            plan_quarry,
             apply_deferred,
-            (assign_builds, assign_work),
+            assign_builds,
+            assign_work,
             apply_deferred,
-            (
-                new_construction_site,
-                test_build_house,
-                test_build_lumberjack,
-                test_build_quarry,
-            ),
+            new_construction_site,
+            test_build_house,
+            test_build_lumberjack,
+            test_build_quarry,
             apply_deferred,
-            (tick_replay, remove_outdated),
+            tick_replay,
+            remove_outdated,
+            |mut tick: ResMut<Tick>| tick.0 += 1,
             |world: &mut World| world.clear_trackers(),
         )
             .chain(),
     );
 
-    let mut replay = Replay::default();
-    replay.command(format!(
-        "tp @p {} {} {}",
-        city_center_pos.x,
-        city_center_pos.z + 30,
-        city_center_pos.y
-    ));
+    let mut replay = Replay::new(level.path.clone());
+    // replay.command(format!(
+    //     "tp @p {} {} {}",
+    //     city_center_pos.x,
+    //     city_center_pos.z + 30,
+    //     city_center_pos.y
+    // ));
     world.insert_resource(replay);
     world.insert_resource(level);
-    for _ in 0..100000 {
+    for tick in 0..10000 {
         sched.run(&mut world);
+
+        if tick < 0 {
+            world.spawn((
+                Id::default(),
+                Villager::default(),
+                Pos(city_center_pos.as_vec3() + Vec3::Z),
+                PrevPos(default()),
+            ));
+        }
     }
 
     let level = world.remove_resource::<Level>().unwrap();
     let replay = world.remove_resource::<Replay>().unwrap();
     Id::save(&level.path);
-    replay.write(&level.path);
+    replay.write();
     level.save_metadata().unwrap();
     // level.save();
 }
+
+#[derive(Resource, Default, Deref, DerefMut)]
+pub struct Tick(pub i32);
 
 #[derive(Component)]
 struct CityCenter;
@@ -231,7 +248,6 @@ fn new_construction_site(
 
 fn assign_work(
     mut commands: Commands,
-    mut replay: ResMut<Replay>,
     idle: Query<(Entity, &Pos), (With<Villager>, Without<CarryTask>, Without<BuildTask>)>,
     mut out_piles: Query<(Entity, &Pos, &mut OutPile)>,
     mut in_piles: Query<(Entity, &Pos, &mut InPile)>,
@@ -466,7 +482,6 @@ fn place(
 // TODO: Smooth this out
 fn walk(
     mut commands: Commands,
-    mut replay: ResMut<Replay>,
     level: Res<Level>,
     mut query: Query<(Entity, &mut Pos, &MoveTask, Option<&mut MovePath>), With<Villager>>,
 ) {
@@ -764,7 +779,7 @@ fn assign_builds(
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
     let mut plans = Vec::new();
-    if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() == 0) {
+    if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() <= 12) {
         // println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
         plans.extend(&planned_houses)
     }
@@ -774,7 +789,7 @@ fn assign_builds(
     if extant_quarries.iter().len() < 10 {
         plans.extend(&planned_quarries)
     }
-    if let Some(&(selected, area)) = RNG.with_borrow_mut(|rng| plans.choose(rng)) {
+    if let Some(&(selected, area)) = plans.try_choose() {
         commands
             .entity(selected)
             .remove::<Planned>()

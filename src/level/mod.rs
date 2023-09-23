@@ -253,6 +253,25 @@ impl Level {
         })
     }
 
+    pub fn get_recording(
+        &mut self,
+        cursor: RecordingCursor,
+    ) -> impl Iterator<Item = SetBlock> + '_ {
+        // Intermediate storage because of borrow conflict
+        let rec = self.setblock_recording[cursor.0..]
+            .iter()
+            .copied()
+            .collect_vec();
+        rec.into_iter().filter_map(move |setblock| {
+            let current = self[setblock.pos];
+            (current != setblock.previous).then_some(SetBlock {
+                pos: setblock.pos,
+                block: current,
+                previous: setblock.previous,
+            })
+        })
+    }
+
     pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, block: Block) {
         for pos in iter {
             self[pos] = block;
@@ -612,6 +631,7 @@ impl Default for Section {
     }
 }
 
+#[derive(Copy, Clone)]
 struct RecordSetBlock {
     pos: IVec3,
     previous: Block,

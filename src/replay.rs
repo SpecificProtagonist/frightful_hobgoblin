@@ -8,7 +8,7 @@ use std::f32::consts::PI;
 use std::fmt::{Display, Write};
 use std::fs::{create_dir_all, read, write};
 use std::ops::DerefMut;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
 
 #[derive(Component)]
@@ -56,19 +56,24 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 // In the future, this could have playback speed / reverse playback, controlled via a book
 #[derive(Resource)]
 pub struct Replay {
+    level_path: PathBuf,
     block_cache: HashMap<Block, String>,
     commands_this_tick: Vec<Tag>,
     commands: VecDeque<Tag>,
-    // Only out of curiosity
+    command_chunk: i32,
+    commands_this_chunk: i32,
     total_commands: u64,
 }
 
-impl Default for Replay {
-    fn default() -> Self {
+impl Replay {
+    pub fn new(level_path: PathBuf) -> Self {
         let mut replay = Self {
+            level_path,
             block_cache: default(),
             commands_this_tick: default(),
             commands: default(),
+            command_chunk: 0,
+            commands_this_chunk: 0,
             total_commands: 0,
         };
         // Wait for the player to load in
@@ -77,9 +82,6 @@ impl Default for Replay {
         }
         replay
     }
-}
-
-impl Replay {
     pub fn dbg(&mut self, msg: &str) {
         self.command(format!("say {msg}"));
     }
@@ -100,28 +102,28 @@ impl Replay {
             nbt.insert("cmd", msg);
             nbt.into()
         });
+        self.commands_this_chunk += 1;
         self.total_commands += 1;
     }
 
     fn tick(&mut self) {
         let commands = std::mem::take(&mut self.commands_this_tick);
-        self.commands.push_front(commands.into());
+        if self.commands_this_chunk < 100000 {
+            self.commands.push_front(commands.into());
+        } else {
+            self.flush_chunk();
+        }
     }
 
-    // TODO: do this asynchronically in the background as commands come in
-    pub fn write(mut self, level: &Path) {
-        // println!("Total commands: {}", self.total_commands);
-        if self.total_commands > i32::MAX as u64 {
-            eprintln!(
-                "Too many commands: {} (reemploy chunking)",
-                self.total_commands
-            );
-        }
-        // Flush final commands
+    fn flush_chunk(&mut self) {
+        self.command(format!(
+            "data modify storage sim_0:data commands set from storage sim_{}:data commands",
+            self.command_chunk + 1
+        ));
         let commands = std::mem::take(&mut self.commands_this_tick);
         self.commands.push_front(commands.into());
-        // Write commands to nbt
-        let data_path = level.join("data/");
+
+        let data_path = self.level_path.join("data/");
         create_dir_all(&data_path).unwrap();
         let mut nbt = CompoundTag::new();
         nbt.insert("DataVersion", DATA_VERSION);
@@ -142,12 +144,24 @@ impl Replay {
             nbt
         });
         nbt::encode::write_gzip_compound_tag(
-            &mut std::fs::File::create(data_path.join("command_storage_sim.dat")).unwrap(),
+            &mut std::fs::File::create(
+                data_path.join(format!("command_storage_sim_{}.dat", self.command_chunk)),
+            )
+            .unwrap(),
             &nbt,
         )
         .unwrap();
 
-        let pack_path = level.join("datapacks/sim/");
+        self.command_chunk += 1;
+        self.commands_this_chunk = 0;
+    }
+
+    // TODO: do this asynchronically in the background as commands come in
+    pub fn write(mut self) {
+        self.flush_chunk();
+        println!("Total commands: {}", self.total_commands);
+
+        let pack_path = self.level_path.join("datapacks/sim/");
         create_dir_all(&pack_path).unwrap();
         write(
             pack_path.join("pack.mcmeta"),
@@ -195,9 +209,9 @@ impl Replay {
         write(
             sim_path.join("run_current_commands.mcfunction"),
             "
-            function sim:eval with storage sim:data commands[-1][-1]
-            data remove storage sim:data commands[-1][-1]
-            execute if data storage sim:data commands[-1][0] run function sim:run_current_commands
+            function sim:eval with storage sim_0:data commands[-1][-1]
+            data remove storage sim_0:data commands[-1][-1]
+            execute if data storage sim_0:data commands[-1][0] run function sim:run_current_commands
             ",
         )
         .unwrap();
@@ -207,7 +221,7 @@ impl Replay {
             tick,
             "
             function sim:run_current_commands
-            data remove storage sim:data commands[-1]
+            data remove storage sim_0:data commands[-1]
             scoreboard players add SIM sim_tick 1
             "
         )

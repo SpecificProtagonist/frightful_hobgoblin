@@ -583,12 +583,19 @@ impl ChunkIndex {
 }
 
 impl Cuboid {
-    pub fn new(corner_a: IVec3, corner_b: IVec3) -> Cuboid {
+    pub fn new(corner_a: IVec3, corner_b: IVec3) -> Self {
         Cuboid {
             min: corner_a,
             max: corner_b,
         }
         .extend_to(corner_b)
+    }
+
+    pub fn around(center: IVec3, radius: i32) -> Self {
+        Cuboid {
+            min: center - IVec3::splat(radius),
+            max: center + IVec3::splat(radius),
+        }
     }
 
     pub fn shrink(self, amount: i32) -> Self {

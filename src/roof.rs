@@ -1,15 +1,10 @@
 use crate::{sim::PlaceList, *};
 use bevy_math::Vec2Swizzles;
-use rand::prelude::*;
 
 pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) -> PlaceList {
     let cursor = level.recording_cursor();
 
-    let curve = RNG.with_borrow_mut(|rng| {
-        *[straight, straight_high, straight_low, kerb, reverse_kerb]
-            .choose(rng)
-            .unwrap()
-    });
+    let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb].choose();
 
     // TODO: Incorporate this into the curve directly
     #[allow(clippy::fn_address_comparisons)]
@@ -23,7 +18,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
         area.size()
     };
 
-    let base_shape = RNG.with_borrow_mut(|rng| [gable, raised_gable, hip].choose(rng).unwrap());
+    let base_shape = [gable, raised_gable, hip].choose();
     let shape = base_shape(base_z as f32, size.as_vec2(), curve);
 
     let center = area.center_vec2() - Vec2::splat(0.5);
