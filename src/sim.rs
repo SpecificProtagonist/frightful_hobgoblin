@@ -50,17 +50,17 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
-    for x in 0..20 {
-        for y in 0..20 {
-            let col = ivec2(x * 7 + rand_range(0, 4), y * 7 + rand_range(0, 4));
-            if level.water_level(col).is_none() {
-                world.spawn((
-                    Pos(level.ground(col).as_vec3() + Vec3::Z),
-                    GrowTree::make(Oak, rand_range(-300, 0)),
-                ));
-            }
-        }
-    }
+    // for x in 0..20 {
+    //     for y in 0..20 {
+    //         let col = ivec2(x * 7 + rand_range(0, 4), y * 7 + rand_range(0, 4));
+    //         if level.water_level(col).is_none() {
+    //             world.spawn((
+    //                 Pos(level.ground(col).as_vec3() + Vec3::Z),
+    //                 GrowTree::make(Oak, rand_range(-300, 0)),
+    //             ));
+    //         }
+    //     }
+    // }
 
     let mut sched = Schedule::new();
     sched.add_systems(
@@ -95,18 +95,18 @@ pub fn sim(mut level: Level) {
     );
 
     let mut replay = Replay::new(level.path.clone());
-    // replay.command(format!(
-    //     "tp @p {} {} {}",
-    //     city_center_pos.x,
-    //     city_center_pos.z + 30,
-    //     city_center_pos.y
-    // ));
+    replay.command(format!(
+        "tp @p {} {} {}",
+        city_center_pos.x,
+        city_center_pos.z + 30,
+        city_center_pos.y
+    ));
     world.insert_resource(replay);
     world.insert_resource(level);
     for tick in 0..10000 {
         sched.run(&mut world);
 
-        if tick < 0 {
+        if tick < 15 {
             world.spawn((
                 Id::default(),
                 Villager::default(),
@@ -395,6 +395,7 @@ fn build(
         if let Some(set) = building.todo.get(0).copied() {
             if let Some(block) = pile.stock.build(set.block) {
                 replay.block(set.pos, block);
+                replay.dust(set.pos);
                 building.todo.pop_front();
             } else {
                 building.has_builder = false;

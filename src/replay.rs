@@ -141,6 +141,13 @@ impl Replay {
         self.command(format!("say {msg}"));
     }
 
+    pub fn dust(&mut self, pos: IVec3) {
+        self.command(format!(
+            "particle campfire_cosy_smoke {} {} {} 1.3 1.3 1.3 0.006 10",
+            pos.x, pos.z, pos.y
+        ));
+    }
+
     pub fn block(&mut self, pos: IVec3, block: Block) {
         let block_string = self.block_cache.entry(block).or_insert_with(|| {
             block
