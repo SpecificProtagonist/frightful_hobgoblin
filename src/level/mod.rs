@@ -39,13 +39,22 @@ pub struct Level {
 
 impl Level {
     // No nice error handling, but we don't really need that for just the three invocations
-    pub fn new(path: &str, area: Rect) -> Self {
+    pub fn new(read_path: &str, write_path: &str, area: Rect) -> Self {
+        if read_path != write_path {
+            let read_path = read_path.to_owned();
+            let write_path = write_path.to_owned();
+            rayon::spawn(move || {
+                let _ = std::fs::remove_dir_all(&write_path);
+                copy_dir::copy_dir(read_path, write_path).expect("Failed to create save");
+            });
+        }
         let region_path = {
-            let mut region_path = PathBuf::from(path);
+            let mut region_path = PathBuf::from(read_path);
             region_path.push("region");
             region_path.into_os_string().into_string().unwrap()
         };
         let chunk_provider = FolderRegionProvider::new(&region_path);
+        // TODO: use area just as a settlement area but try to load a wider margin around it (need to detect if chunks are present)
         let chunk_min: ChunkIndex =
             (area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
         let chunk_max: ChunkIndex =
@@ -81,7 +90,7 @@ impl Level {
             });
 
         Self {
-            path: PathBuf::from(path),
+            path: PathBuf::from(write_path),
             chunk_min,
             chunk_max,
             sections,

@@ -16,7 +16,7 @@ pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
 // Hand-build structure, stored via structure blocks
 #[derive(Clone)]
 pub struct Prefab {
-    size: IVec3,
+    _size: IVec3,
     blocks: VecDeque<(IVec3, Block)>,
     markers: HashMap<String, TemplateMark>,
 }
@@ -170,7 +170,7 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
     blocks.extend(air);
 
     Prefab {
-        size,
+        _size: size,
         blocks,
         markers,
     }

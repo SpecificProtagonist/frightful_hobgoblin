@@ -1,5 +1,3 @@
-use rand::Rng;
-
 use crate::*;
 
 // Todo: Villager names

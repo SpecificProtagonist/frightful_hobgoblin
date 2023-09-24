@@ -126,7 +126,7 @@ fn hip(base: f32, size: Vec2, curve: Curve) -> Shape {
     })
 }
 
-fn tented(base: f32, size: Vec2, curve: Curve) -> Shape {
+fn _tented(base: f32, size: Vec2, curve: Curve) -> Shape {
     // let base = base - curve(-1. / size.y) * size.y - 1.;
     Box::new(move |pos: Vec2| {
         base + size.y.min(size.x)
@@ -143,11 +143,11 @@ fn raised_gable(base: f32, size: Vec2, curve: Curve) -> Shape {
     })
 }
 
-fn half_hip(base: f32, size: Vec2, curve: Curve) -> Shape {
+fn _half_hip(base: f32, size: Vec2, curve: Curve) -> Shape {
     let size = vec2(size.x + size.y * 0.5, size.y);
     hip(base, size, curve)
 }
 
-fn circular(base: f32, radius: f32, curve: Curve) -> Shape {
+fn _circular(base: f32, radius: f32, curve: Curve) -> Shape {
     Box::new(move |pos: Vec2| base + radius * curve(1. - pos.length() / radius).max(0.))
 }

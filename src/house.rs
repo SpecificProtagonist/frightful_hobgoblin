@@ -4,7 +4,6 @@ use crate::{
     sim::PlaceList,
     *,
 };
-use rand::prelude::*;
 
 pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     let inner = area.shrink(1);

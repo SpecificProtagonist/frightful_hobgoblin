@@ -2,7 +2,6 @@ use bevy_ecs::prelude::*;
 use std::f32::consts::PI;
 
 use crate::{
-    replay::Replay,
     sim::{Pos, Tick},
     *,
 };

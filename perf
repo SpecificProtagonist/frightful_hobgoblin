@@ -9,3 +9,7 @@ perf report -F+srcline
 
 Show in flamegraph:
 perf script -F+srcline | inferno-collapse-perf | inferno-flamegraph > profile.svg
+
+Shpw in Firefox profiler:
+perf script > profile
+profiler.firefox.com

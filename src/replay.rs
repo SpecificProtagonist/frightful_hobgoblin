@@ -10,8 +10,7 @@ use std::fs::{create_dir_all, read, write};
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
-use std::sync::mpsc::{channel, Sender};
-use std::thread::JoinHandle;
+use std::sync::Arc;
 
 #[derive(Component)]
 pub struct Id(u32);
@@ -65,59 +64,11 @@ pub struct Replay {
     command_chunk: i32,
     commands_this_chunk: i32,
     total_commands: u64,
-    chunk_sender: Sender<Output>,
-    handle: JoinHandle<()>,
-}
-
-enum Output {
-    Write(VecDeque<Tag>),
-    Done,
+    writes_in_flight: Arc<AtomicU32>,
 }
 
 impl Replay {
     pub fn new(level_path: PathBuf) -> Self {
-        let (chunk_sender, chunk_receiver) = channel();
-        // Output thread
-        let data_path = level_path.join("data/");
-        let handle = std::thread::spawn(move || {
-            let mut chunk_count = 0;
-
-            loop {
-                let recieved: Output = chunk_receiver.recv().unwrap();
-                let mut commands = match recieved {
-                    Output::Write(c) => c,
-                    Output::Done => return,
-                };
-
-                create_dir_all(&data_path).unwrap();
-                let mut nbt = CompoundTag::new();
-                nbt.insert("DataVersion", DATA_VERSION);
-                nbt.insert("data", {
-                    let mut nbt = CompoundTag::new();
-                    nbt.insert("contents", {
-                        let mut nbt = CompoundTag::new();
-                        nbt.insert("data", {
-                            let mut nbt = CompoundTag::new();
-                            nbt.insert("commands", nbt::Tag::List(commands.drain(..).collect()));
-                            nbt
-                        });
-                        nbt
-                    });
-                    nbt
-                });
-                nbt::encode::write_gzip_compound_tag(
-                    &mut std::fs::File::create(
-                        data_path.join(format!("command_storage_sim_{}.dat", chunk_count)),
-                    )
-                    .unwrap(),
-                    &nbt,
-                )
-                .unwrap();
-
-                chunk_count += 1;
-            }
-        });
-
         let mut replay = Self {
             level_path,
             block_cache: default(),
@@ -126,8 +77,7 @@ impl Replay {
             command_chunk: 0,
             commands_this_chunk: 0,
             total_commands: 0,
-            chunk_sender,
-            handle,
+            writes_in_flight: default(),
         };
 
         // Wait for the player to load in
@@ -169,8 +119,9 @@ impl Replay {
     }
 
     fn tick(&mut self) {
+        const MAX_COMMANDS_PER_CHUNK: i32 = 50000;
         let commands = std::mem::take(&mut self.commands_this_tick);
-        if self.commands_this_chunk < 100000 {
+        if self.commands_this_chunk < MAX_COMMANDS_PER_CHUNK {
             self.commands.push_front(commands.into());
         } else {
             self.flush_chunk();
@@ -178,14 +129,49 @@ impl Replay {
     }
 
     fn flush_chunk(&mut self) {
+        const INITIAL_CAPACITY: usize = 5000;
         self.command(format!(
             "data modify storage sim_0:data commands set from storage sim_{}:data commands",
             self.command_chunk + 1
         ));
         let tick_commands = std::mem::take(&mut self.commands_this_tick);
-        let mut commands = std::mem::replace(&mut self.commands, VecDeque::with_capacity(10000));
+        let mut commands = std::mem::replace(
+            &mut self.commands,
+            VecDeque::with_capacity(INITIAL_CAPACITY),
+        );
         commands.push_front(tick_commands.into());
-        self.chunk_sender.send(Output::Write(commands)).unwrap();
+
+        let data_path = self.level_path.join("data/");
+        let chunk = self.command_chunk;
+        let arc = self.writes_in_flight.clone();
+        arc.fetch_add(1, Ordering::Relaxed);
+        rayon::spawn(move || {
+            create_dir_all(&data_path).unwrap();
+            let mut nbt = CompoundTag::new();
+            nbt.insert("DataVersion", DATA_VERSION);
+            nbt.insert("data", {
+                let mut nbt = CompoundTag::new();
+                nbt.insert("contents", {
+                    let mut nbt = CompoundTag::new();
+                    nbt.insert("data", {
+                        let mut nbt = CompoundTag::new();
+                        nbt.insert("commands", nbt::Tag::List(commands.drain(..).collect()));
+                        nbt
+                    });
+                    nbt
+                });
+                nbt
+            });
+            nbt::encode::write_gzip_compound_tag(
+                &mut std::fs::File::create(
+                    data_path.join(format!("command_storage_sim_{}.dat", chunk)),
+                )
+                .unwrap(),
+                &nbt,
+            )
+            .unwrap();
+            arc.fetch_sub(1, Ordering::Relaxed);
+        });
 
         self.command_chunk += 1;
         self.commands_this_chunk = 0;
@@ -194,8 +180,10 @@ impl Replay {
     // TODO: do this asynchronically in the background as commands come in
     pub fn finish(mut self) {
         self.flush_chunk();
-        self.chunk_sender.send(Output::Done).unwrap();
-        self.handle.join().unwrap();
+        // Could have used a condvar instead
+        while self.writes_in_flight.load(Ordering::Relaxed) > 0 {
+            std::thread::yield_now()
+        }
         println!("Total commands: {}", self.total_commands);
 
         let pack_path = self.level_path.join("datapacks/sim/");
