@@ -5,11 +5,13 @@ use nbt::{CompoundTag, Tag};
 
 use std::collections::VecDeque;
 use std::f32::consts::PI;
-use std::fmt::{Display, Write};
+use std::fmt::Display;
 use std::fs::{create_dir_all, read, write};
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::mpsc::{channel, Sender};
+use std::thread::JoinHandle;
 
 #[derive(Component)]
 pub struct Id(u32);
@@ -63,10 +65,59 @@ pub struct Replay {
     command_chunk: i32,
     commands_this_chunk: i32,
     total_commands: u64,
+    chunk_sender: Sender<Output>,
+    handle: JoinHandle<()>,
+}
+
+enum Output {
+    Write(VecDeque<Tag>),
+    Done,
 }
 
 impl Replay {
     pub fn new(level_path: PathBuf) -> Self {
+        let (chunk_sender, chunk_receiver) = channel();
+        // Output thread
+        let data_path = level_path.join("data/");
+        let handle = std::thread::spawn(move || {
+            let mut chunk_count = 0;
+
+            loop {
+                let recieved: Output = chunk_receiver.recv().unwrap();
+                let mut commands = match recieved {
+                    Output::Write(c) => c,
+                    Output::Done => return,
+                };
+
+                create_dir_all(&data_path).unwrap();
+                let mut nbt = CompoundTag::new();
+                nbt.insert("DataVersion", DATA_VERSION);
+                nbt.insert("data", {
+                    let mut nbt = CompoundTag::new();
+                    nbt.insert("contents", {
+                        let mut nbt = CompoundTag::new();
+                        nbt.insert("data", {
+                            let mut nbt = CompoundTag::new();
+                            nbt.insert("commands", nbt::Tag::List(commands.drain(..).collect()));
+                            nbt
+                        });
+                        nbt
+                    });
+                    nbt
+                });
+                nbt::encode::write_gzip_compound_tag(
+                    &mut std::fs::File::create(
+                        data_path.join(format!("command_storage_sim_{}.dat", chunk_count)),
+                    )
+                    .unwrap(),
+                    &nbt,
+                )
+                .unwrap();
+
+                chunk_count += 1;
+            }
+        });
+
         let mut replay = Self {
             level_path,
             block_cache: default(),
@@ -75,13 +126,17 @@ impl Replay {
             command_chunk: 0,
             commands_this_chunk: 0,
             total_commands: 0,
+            chunk_sender,
+            handle,
         };
+
         // Wait for the player to load in
         for _ in 0..10 {
             replay.tick();
         }
         replay
     }
+
     pub fn dbg(&mut self, msg: &str) {
         self.command(format!("say {msg}"));
     }
@@ -120,45 +175,20 @@ impl Replay {
             "data modify storage sim_0:data commands set from storage sim_{}:data commands",
             self.command_chunk + 1
         ));
-        let commands = std::mem::take(&mut self.commands_this_tick);
-        self.commands.push_front(commands.into());
-
-        let data_path = self.level_path.join("data/");
-        create_dir_all(&data_path).unwrap();
-        let mut nbt = CompoundTag::new();
-        nbt.insert("DataVersion", DATA_VERSION);
-        nbt.insert("data", {
-            let mut nbt = CompoundTag::new();
-            nbt.insert("contents", {
-                let mut nbt = CompoundTag::new();
-                nbt.insert("data", {
-                    let mut nbt = CompoundTag::new();
-                    nbt.insert(
-                        "commands",
-                        nbt::Tag::List(self.commands.drain(..).collect()),
-                    );
-                    nbt
-                });
-                nbt
-            });
-            nbt
-        });
-        nbt::encode::write_gzip_compound_tag(
-            &mut std::fs::File::create(
-                data_path.join(format!("command_storage_sim_{}.dat", self.command_chunk)),
-            )
-            .unwrap(),
-            &nbt,
-        )
-        .unwrap();
+        let tick_commands = std::mem::take(&mut self.commands_this_tick);
+        let mut commands = std::mem::replace(&mut self.commands, VecDeque::with_capacity(10000));
+        commands.push_front(tick_commands.into());
+        self.chunk_sender.send(Output::Write(commands)).unwrap();
 
         self.command_chunk += 1;
         self.commands_this_chunk = 0;
     }
 
     // TODO: do this asynchronically in the background as commands come in
-    pub fn write(mut self) {
+    pub fn finish(mut self) {
         self.flush_chunk();
+        self.chunk_sender.send(Output::Done).unwrap();
+        self.handle.join().unwrap();
         println!("Total commands: {}", self.total_commands);
 
         let pack_path = self.level_path.join("datapacks/sim/");
@@ -215,18 +245,16 @@ impl Replay {
             ",
         )
         .unwrap();
-        let mut tick = String::new();
-        // TODO
-        writeln!(
-            tick,
+
+        write(
+            sim_path.join("tick.mcfunction"),
             "
             function sim:run_current_commands
             data remove storage sim_0:data commands[-1]
             scoreboard players add SIM sim_tick 1
-            "
+            ",
         )
         .unwrap();
-        write(sim_path.join("tick.mcfunction"), tick).unwrap();
     }
 }
 

@@ -56,7 +56,7 @@ pub fn sim(mut level: Level) {
             if level.water_level(col).is_none() {
                 world.spawn((
                     Pos(level.ground(col).as_vec3() + Vec3::Z),
-                    GrowTree::make(Oak, 0),
+                    GrowTree::make(Oak, rand_range(-300, 0)),
                 ));
             }
         }
@@ -119,7 +119,7 @@ pub fn sim(mut level: Level) {
     let level = world.remove_resource::<Level>().unwrap();
     let replay = world.remove_resource::<Replay>().unwrap();
     Id::save(&level.path);
-    replay.write();
+    replay.finish();
     level.save_metadata().unwrap();
     // level.save();
 }

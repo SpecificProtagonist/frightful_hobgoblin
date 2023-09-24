@@ -99,7 +99,7 @@ pub fn grow_trees(
 ) {
     for (pos, mut tree) in &mut trees {
         if rand_range(0, tick.0 - tree.last_grown) > 100 {
-            if tree.size < 5. {
+            if tree.size < 4. {
                 tree.build(&mut level, pos.0);
                 tree.size += 0.2;
             }
