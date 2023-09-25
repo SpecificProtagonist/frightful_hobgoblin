@@ -355,6 +355,7 @@ impl RangeOrSingle for i32 {
 impl Index<IVec3> for Level {
     type Output = Block;
 
+    // TODO: On out of bounds, print warning (only once) and return dummy
     fn index(&self, pos: IVec3) -> &Self::Output {
         if let Some(section) = &self.sections[self.section_index(pos)] {
             &section.blocks[Self::block_in_section_index(pos)]

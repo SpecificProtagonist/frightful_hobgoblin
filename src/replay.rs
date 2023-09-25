@@ -120,8 +120,8 @@ impl Replay {
 
     fn tick(&mut self) {
         const MAX_COMMANDS_PER_CHUNK: i32 = 50000;
-        let commands = std::mem::take(&mut self.commands_this_tick);
         if self.commands_this_chunk < MAX_COMMANDS_PER_CHUNK {
+            let commands = std::mem::take(&mut self.commands_this_tick);
             self.commands.push_front(commands.into());
         } else {
             self.flush_chunk();
@@ -130,11 +130,13 @@ impl Replay {
 
     fn flush_chunk(&mut self) {
         const INITIAL_CAPACITY: usize = 5000;
+        let mut tick_commands = std::mem::take(&mut self.commands_this_tick);
+        // This needs to be the last commands to get executed this tick
         self.command(format!(
             "data modify storage sim_0:data commands set from storage sim_{}:data commands",
             self.command_chunk + 1
         ));
-        let tick_commands = std::mem::take(&mut self.commands_this_tick);
+        tick_commands.insert(0, self.commands_this_tick.pop().unwrap());
         let mut commands = std::mem::replace(
             &mut self.commands,
             VecDeque::with_capacity(INITIAL_CAPACITY),
@@ -177,7 +179,6 @@ impl Replay {
         self.commands_this_chunk = 0;
     }
 
-    // TODO: do this asynchronically in the background as commands come in
     pub fn finish(mut self) {
         self.flush_chunk();
         // Could have used a condvar instead
@@ -245,7 +246,7 @@ impl Replay {
             sim_path.join("tick.mcfunction"),
             "
             function sim:run_current_commands
-            data remove storage sim_0:data commands[-1]
+            execute unless data storage sim_0:data commands[-1][0] run data remove storage sim_0:data commands[-1]
             scoreboard players add SIM sim_tick 1
             ",
         )

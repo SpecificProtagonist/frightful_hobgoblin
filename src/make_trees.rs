@@ -78,11 +78,11 @@ pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
 // Very basic, but good enough for testing
 #[derive(Component)]
 pub struct GrowTree {
-    species: TreeSpecies,
+    pub blocks: Vec<(IVec3, Block)>,
+    pub size: f32,
     stem: Branch,
-    previous_stage: Vec<(IVec3, Block)>,
-    size: f32,
     last_grown: i32,
+    params: TreeParams,
 }
 
 struct Branch {
@@ -100,15 +100,49 @@ pub fn grow_trees(
         if rand_range(0, tick.0 - tree.last_grown) > 100 {
             if tree.size < 4. {
                 tree.build(&mut level, pos.0);
-                tree.size += 0.2;
+                tree.size += rand_f32(0.13, 0.25);
             }
             tree.last_grown = tick.0;
         }
     }
 }
 
+struct TreeParams {
+    species: TreeSpecies,
+    leaf_z_factor: f32,
+    stem_thickness: f32,
+    stem_len: f32,
+}
+
 impl GrowTree {
-    pub fn make(species: TreeSpecies, tick: i32) -> Self {
+    pub fn oak() -> Self {
+        Self::make(TreeParams {
+            species: Oak,
+            leaf_z_factor: 1.,
+            stem_thickness: 1.,
+            stem_len: 2.,
+        })
+    }
+
+    pub fn birch() -> Self {
+        Self::make(TreeParams {
+            species: Birch,
+            leaf_z_factor: 1.3,
+            stem_thickness: 1.,
+            stem_len: 2.,
+        })
+    }
+
+    pub fn pine() -> Self {
+        Self::make(TreeParams {
+            species: Spruce,
+            leaf_z_factor: 0.4,
+            stem_thickness: 0.7,
+            stem_len: 1.,
+        })
+    }
+
+    fn make(params: TreeParams) -> Self {
         fn branch(thickness: f32, len: f32, dir: Vec3) -> Branch {
             let extent = dir * len;
             let children = if thickness > 0.2 {
@@ -137,32 +171,32 @@ impl GrowTree {
                 children,
             }
         }
-        let stem = branch(1., 2., Vec3::Z);
+        let stem = branch(params.stem_thickness, params.stem_len, Vec3::Z);
         Self {
-            species,
             stem,
-            previous_stage: default(),
-            size: 0.,
-            last_grown: tick,
+            blocks: default(),
+            size: -0.1,
+            last_grown: 0,
+            params,
         }
     }
 
     pub fn build(&mut self, level: &mut Level, pos: Vec3) {
-        if self.size < 0.2 {
-            level[pos.block()] = GroundPlant(Sapling(self.species));
+        if self.size < 0.25 {
+            level[pos.block()] = GroundPlant(Sapling(self.params.species));
             return;
         }
-        for (pos, block) in self.previous_stage.drain(..) {
+        for (pos, block) in self.blocks.drain(..) {
             if level[pos] == block {
                 level[pos] = Air
             }
         }
         let cursor = level.recording_cursor();
         fn place(
+            params: &TreeParams,
             level: &mut Level,
             pos: Vec3,
             scale: f32,
-            species: TreeSpecies,
             branch: &Branch,
             branch_base: Vec3,
             i: i32,
@@ -170,9 +204,11 @@ impl GrowTree {
             let start = pos + branch_base * scale;
             let extent = branch.extent * scale;
             if (branch.thickness * scale < 0.2) | branch.children.is_empty() {
-                for block_pos in Cuboid::around((start + extent).block(), i - 1) {
-                    if block_pos.as_vec3().distance(start + extent) < i as f32 - rand_f32(0.8, 2.) {
-                        level[block_pos] |= Leaves(species, None);
+                for block_pos in Cuboid::around((start + extent).block(), i) {
+                    let mut diff = block_pos.as_vec3() - (start + extent);
+                    diff.z /= params.leaf_z_factor;
+                    if diff.length() < i as f32 - rand_f32(0.8, 2.) {
+                        level[block_pos] |= Leaves(params.species, None);
                     }
                 }
                 return;
@@ -184,17 +220,17 @@ impl GrowTree {
             for step in 0..=steps {
                 let block_pos = (start + extent / steps as f32 * step as f32).block();
                 if fence {
-                    level[block_pos] |= Fence(Wood(species));
+                    level[block_pos] |= Fence(Wood(params.species));
                 } else {
-                    level[block_pos] = Log(species, LogType::FullBark);
+                    level[block_pos] = Log(params.species, LogType::FullBark);
                 }
             }
             for child in &branch.children {
                 place(
+                    params,
                     level,
                     pos,
                     scale,
-                    species,
                     child,
                     branch_base + branch.extent,
                     i + 1,
@@ -202,15 +238,15 @@ impl GrowTree {
             }
         }
         place(
+            &self.params,
             level,
             pos,
             self.size,
-            self.species,
             &self.stem,
             Vec3::ZERO,
             0,
         );
-        self.previous_stage
+        self.blocks
             .extend(level.get_recording(cursor).map(|r| (r.pos, r.block)));
     }
 }
