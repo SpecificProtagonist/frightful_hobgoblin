@@ -32,9 +32,9 @@ pub fn sim(mut level: Level) {
         OutPile {
             available: {
                 let mut stock = Stockpile::default();
-                stock.add(Stack::new(Good::Stone, 999999.));
-                stock.add(Stack::new(Good::Wood, 999999.));
-                stock.add(Stack::new(Good::Soil, 999999.));
+                stock.add(Stack::new(Good::Stone, 99999999.));
+                stock.add(Stack::new(Good::Wood, 99999999.));
+                stock.add(Stack::new(Good::Soil, 99999999.));
                 stock
             },
         },
@@ -52,10 +52,10 @@ pub fn sim(mut level: Level) {
 
     for x in 0..20 {
         for y in 0..20 {
-            let mut tree = [GrowTree::pine, GrowTree::oak, GrowTree::birch].choose()();
-            tree.size = rand_f32(0.3, 4.);
-            let pos = level.ground(ivec2(x * 7, y * 7)).as_vec3() + Vec3::Z;
-            tree.build(&mut level, pos);
+            // let mut tree = [GrowTree::pine, GrowTree::oak, GrowTree::birch].choose()();
+            // tree.size = rand_f32(0.3, 4.);
+            // let pos = level.ground(ivec2(x * 7, y * 7)).as_vec3() + Vec3::Z;
+            // tree.build(&mut level, pos);
             // let col = ivec2(x * 7 + rand_range(0, 4), y * 7 + rand_range(0, 4));
             // if level.water_level(col).is_none() {
             //     world.spawn((Pos(level.ground(col).as_vec3() + Vec3::Z), GrowTree::pine()));
@@ -104,24 +104,24 @@ pub fn sim(mut level: Level) {
     ));
     world.insert_resource(replay);
     world.insert_resource(level);
-    for tick in 0..100 {
+    for tick in 0..30000 {
         sched.run(&mut world);
 
-        // if tick < 15 {
-        //     world.spawn((
-        //         Id::default(),
-        //         Villager::default(),
-        //         Pos(city_center_pos.as_vec3() + Vec3::Z),
-        //         PrevPos(default()),
-        //     ));
-        // }
+        if tick < 20 {
+            world.spawn((
+                Id::default(),
+                Villager::default(),
+                Pos(city_center_pos.as_vec3() + Vec3::Z),
+                PrevPos(default()),
+            ));
+        }
     }
 
     let level = world.remove_resource::<Level>().unwrap();
     let replay = world.remove_resource::<Replay>().unwrap();
     Id::save(&level.path);
+    rayon::spawn(move || level.save_metadata().unwrap());
     replay.finish();
-    level.save_metadata().unwrap();
     // level.save();
 }
 
@@ -222,6 +222,7 @@ struct OutPile {
 fn new_construction_site(
     mut commands: Commands,
     new: Query<(Entity, &ConstructionSite), Added<ConstructionSite>>,
+    tick: Res<Tick>,
 ) {
     for (entity, site) in &new {
         let mut stock = Stockpile::default();
@@ -781,7 +782,7 @@ fn assign_builds(
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
     let mut plans = Vec::new();
-    if (extant_houses.iter().len() < 30) & (wip_houses.iter().len() <= 12) {
+    if (extant_houses.iter().len() < 50) & (wip_houses.iter().len() <= 12) {
         // println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
         plans.extend(&planned_houses)
     }
