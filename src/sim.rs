@@ -56,7 +56,7 @@ pub fn sim(mut level: Level) {
             // tree.size = rand_f32(0.3, 4.);
             // let pos = level.ground(ivec2(x * 7, y * 7)).as_vec3() + Vec3::Z;
             // tree.build(&mut level, pos);
-            // let col = ivec2(x * 7 + rand_range(0, 4), y * 7 + rand_range(0, 4));
+            // let col = ivec2(x * 7 + rand_range(0..5), y * 7 + rand_range(0..5));
             // if level.water_level(col).is_none() {
             //     world.spawn((Pos(level.ground(col).as_vec3() + Vec3::Z), GrowTree::pine()));
             // }
@@ -222,7 +222,6 @@ struct OutPile {
 fn new_construction_site(
     mut commands: Commands,
     new: Query<(Entity, &ConstructionSite), Added<ConstructionSite>>,
-    tick: Res<Tick>,
 ) {
     for (entity, site) in &new {
         let mut stock = Stockpile::default();
@@ -599,8 +598,8 @@ fn choose_starting_area(level: &Level) -> Rect {
         |area, temperature| {
             let max_move = (100. * temperature) as i32;
             let new = area.offset(ivec2(
-                rand_range(-max_move, max_move),
-                rand_range(-max_move, max_move),
+                rand_range(-max_move..=max_move),
+                rand_range(-max_move..=max_move),
             ));
             level.area().subrect(new).then_some(new)
         },
@@ -648,16 +647,19 @@ fn plan_house(
     }
 
     let center = center.single().truncate();
-    let start = Rect::new_centered(center.block(), ivec2(rand_range(7, 11), rand_range(7, 15)));
+    let start = Rect::new_centered(
+        center.block(),
+        ivec2(rand_range(7..=11), rand_range(7..=15)),
+    );
     let area = optimize(
         start,
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
             let mut new = area.offset(ivec2(
-                rand_range(-max_move, max_move + 1),
-                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move..=max_move),
+                rand_range(-max_move..=max_move),
             ));
-            if rand(0.2) {
+            if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
             (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
@@ -692,16 +694,16 @@ fn plan_lumberjack(
     }
     let center = center.single().truncate();
 
-    let start = Rect::new_centered(center.block(), ivec2(rand_range(5, 7), rand_range(5, 11)));
+    let start = Rect::new_centered(center.block(), ivec2(rand_range(5..=7), rand_range(5..=11)));
     let area = optimize(
         start,
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
             let mut new = area.offset(ivec2(
-                rand_range(-max_move, max_move + 1),
-                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move..=max_move),
+                rand_range(-max_move..=max_move),
             ));
-            if rand(0.2) {
+            if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
             (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
@@ -748,8 +750,8 @@ fn plan_quarry(
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
             let new = area.offset(ivec2(
-                rand_range(-max_move, max_move + 1),
-                rand_range(-max_move, max_move + 1),
+                rand_range(-max_move..=max_move),
+                rand_range(-max_move..=max_move),
             ));
             (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },

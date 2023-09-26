@@ -17,7 +17,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         level.fill_at(area.border(), z, Full(Cobble))
     }
 
-    let door_pos = ivec3(rand_range(inner.min.x, inner.max.x), area.min.y, floor + 1);
+    let door_pos = ivec3(rand_range(inner.min.x..=inner.max.x), area.min.y, floor + 1);
     level[door_pos] = Air;
     level[door_pos + IVec3::Z] = Air;
     level[door_pos.add(HDir::YNeg)] = Air;
@@ -26,7 +26,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     let second_floor = floor + 3;
 
     // Roof build now so we know how high the walls have to be
-    let roof_mat = if rand(0.3) { Blackstone } else { Wood(Oak) };
+    let roof_mat = if 0.3 > rand() { Blackstone } else { Wood(Oak) };
     let roof_rec = roof(level, area.grow(1), second_floor + 3, roof_mat);
 
     // Second story
@@ -131,7 +131,7 @@ pub fn lumberjack(level: &mut Level, area: Rect) -> PlaceList {
         }
     };
 
-    let wall_mat = if rand(0.5) { Cobble } else { Wood(Oak) };
+    let wall_mat = if rand() { Cobble } else { Wood(Oak) };
 
     if let Wood(_) = wall_mat {
         for pos in area.corners() {

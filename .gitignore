@@ -5,8 +5,7 @@
 /config_local*.rs
 
 perf.data*
-profile.svg
-profile
+profile*
 debug.png
 heightmap.png
 hydro.png

@@ -71,14 +71,14 @@ impl Biome {
         match self {
             // Mountains => { if rand(0.6) { Oak } else { Spruce } }
             DarkForest => {
-                if rand(0.25) {
+                if 0.25 > rand() {
                     TreeSpecies::Oak
                 } else {
                     TreeSpecies::DarkOak
                 }
             }
             Basic => {
-                if rand(0.15) {
+                if 0.15 > rand() {
                     TreeSpecies::Birch
                 } else {
                     TreeSpecies::Oak

@@ -17,13 +17,13 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     level[pos] = log_block;
 
     pos.x += 1;
-    if rand(0.8) {
+    if 0.8 > rand() {
         if pos.truncate() == base_pos.truncate() {
             pos += rand_2(0.3).extend(0);
         }
         level[pos] = log_block;
 
-        if rand(0.2) {
+        if 0.2 > rand() {
             pos.z += 1;
             level[pos] = log_block;
         }
@@ -40,7 +40,7 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
         let distance_squared = ((leaf_pos - pos).x * (leaf_pos - pos).x
             + (leaf_pos - pos).z * (leaf_pos - pos).z
             + (leaf_pos - pos).y * (leaf_pos - pos).y) as f32;
-        if rand(1.0 - (distance_squared / 3.0)) {
+        if 1.0 - (distance_squared / 3.0) > rand() {
             level[leaf_pos] |= leaf_block;
         }
     }
@@ -64,7 +64,7 @@ pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
 
     level[pos + ivec3(0, 0, log_height + 1)] |= leaf_block;
     level[pos + ivec3(0, 0, log_height + 2)] |= leaf_block;
-    if (log_height == 5) & rand(0.75) | (log_height > 5) {
+    if (log_height == 5) & (0.75 > rand()) | (log_height > 5) {
         level[pos + ivec3(0, 0, log_height + 3)] |= leaf_block;
     }
 
@@ -97,7 +97,7 @@ pub fn grow_trees(
     mut trees: Query<(&Pos, &mut GrowTree)>,
 ) {
     for (pos, mut tree) in &mut trees {
-        if rand_range(0, tick.0 - tree.last_grown) > 100 {
+        if rand_range(0..(tick.0 - tree.last_grown).max(1)) > 100 {
             if tree.size < 4. {
                 tree.build(&mut level, pos.0);
                 tree.size += rand_f32(0.13, 0.25);

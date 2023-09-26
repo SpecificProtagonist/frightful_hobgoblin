@@ -164,7 +164,7 @@ impl Replay {
     }
 
     fn tick(&mut self) {
-        const MAX_COMMANDS_PER_CHUNK: i32 = 20000;
+        const MAX_COMMANDS_PER_CHUNK: i32 = 10000;
         if self.commands_this_chunk < MAX_COMMANDS_PER_CHUNK {
             let commands = std::mem::take(&mut self.commands_this_tick);
             self.commands.push(commands);

@@ -2,16 +2,15 @@
 use config::*;
 use mc_gen::sim::sim;
 use mc_gen::*;
-use rand::rngs::StdRng;
-use rand::{thread_rng, RngCore, SeedableRng};
+use nanorand::*;
 
 fn main() {
     let seed = std::env::args()
         .nth(1)
         .map(|seed| seed.parse().expect("Invalid seed"));
-    let seed = seed.unwrap_or(thread_rng().next_u32() as u16 as u64);
+    let seed = seed.unwrap_or(tls_rng().generate::<u16>() as u64);
     println!("Seed: {seed}");
-    RNG.set(StdRng::seed_from_u64(seed));
+    RNG.set(WyRand::new_seed(seed));
 
     let area = Rect::new_centered(ivec2(AREA[0], AREA[1]), ivec2(AREA[2], AREA[3]));
 

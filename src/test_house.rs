@@ -20,12 +20,12 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     // Roof
     level.fill_at(outer.d2(), outer.max.z, Full(MudBrick));
 
-    let door_pos = ivec2(rand_range(inner.min.x, inner.max.x), outer.min.y);
+    let door_pos = ivec2(rand_range(inner.min.x..=inner.max.x), outer.min.y);
     level[door_pos.extend(inner.min.z)] = Door(Oak, YPos, DoorMeta::empty());
     level[door_pos.extend(inner.min.z + 1)] = Door(Oak, YPos, DoorMeta::TOP);
 
     let mut roof_access = false;
-    if rand(0.7) {
+    if 0.7 > rand() {
         roof_access = true;
         let ladder_pos = *inner
             .d2()
@@ -51,7 +51,7 @@ pub fn house(level: &mut Level, outer: Cuboid) {
         level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
     } else {
         // Flat wooden roof
-        if rand(0.5) {
+        if 0.5 > rand() {
             level.fill_at(
                 inner.d2().grow2(if outer.size().x > outer.size().y {
                     IVec2::X
@@ -61,12 +61,12 @@ pub fn house(level: &mut Level, outer: Cuboid) {
                 outer.max.z + 1,
                 Slab(Wood(Oak), Bottom),
             );
-            if rand(0.5) {
+            if 0.5 > rand() {
                 level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
             }
         } else {
             level.fill_at(inner.d2(), outer.max.z, Slab(Wood(Oak), Bottom));
-            if rand(0.5) {
+            if 0.5 > rand() {
                 level.fill_at(
                     outer.d2().corners(),
                     outer.max.z + 1,
@@ -127,7 +127,7 @@ fn wall_dir(level: &Level, pos: IVec3) -> HDir {
     }
     for dir in HDir::ALL {
         if level[pos.add(dir)].solid() {
-            if rand_range(0, count) == 0 {
+            if rand_range(0..count) == 0 {
                 return dir;
             }
             count -= 1

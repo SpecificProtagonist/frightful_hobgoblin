@@ -23,22 +23,22 @@ pub fn make_town_name() -> String {
 
     // Todo: Experiment with probabilities
     let mut name = String::new();
-    if rand(0.25) {
-        name.extend(uppercase(select(prefixes)));
-        name += select(middle);
+    if 0.25 > rand() {
+        name.extend(uppercase(prefixes.choose()));
+        name += middle.choose();
         if name.ends_with("thorp") {
             name += "e"
         }
-    } else if rand(0.3) {
-        name.extend(uppercase(select(prefixes)));
-        name += select(suffixes);
-    } else if rand(0.5) {
-        name.extend(uppercase(select(middle)));
-        name += select(suffixes);
+    } else if 0.3 > rand() {
+        name.extend(uppercase(prefixes.choose()));
+        name += suffixes.choose();
+    } else if 0.5 > rand() {
+        name.extend(uppercase(middle.choose()));
+        name += suffixes.choose();
     } else {
-        name.extend(uppercase(select(prefixes)));
-        name += select(middle);
-        name += select(suffixes);
+        name.extend(uppercase(prefixes.choose()));
+        name += middle.choose();
+        name += suffixes.choose();
     }
 
     name = name
@@ -46,20 +46,16 @@ pub fn make_town_name() -> String {
         .replace("hh", "h")
         .replace("tt", "t");
 
-    if rand(0.25) {
-        if rand(0.3) {
+    if 0.25 > rand() {
+        if 0.3 > rand() {
             name += "-le-"
         } else {
             name += " ";
         }
-        name.extend(uppercase(select(standalone)));
+        name.extend(uppercase(standalone.choose()));
     }
 
     name
-}
-
-fn select<'a>(list: &'a [&'a str]) -> &'a str {
-    list[rand_range(0, list.len() as i32) as usize]
 }
 
 fn uppercase(word: &'static str) -> impl Iterator<Item = char> {

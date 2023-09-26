@@ -19,7 +19,6 @@ anvil-region = "0.8"
 named-binary-tag = "0.6"
 num-traits = "0.2"
 num-derive = "0.2"
-rand = "0.7.3"
 rayon = "1.4"
 itertools = "0.9"
 bresenham = { path = "bresenham-rs" }
@@ -33,6 +32,7 @@ bevy_math = "0.11"
 bevy_derive = "0.11.0"
 bitflags = "2.3.3"
 enum-iterator = "1.4.1"
+nanorand = "0.7.0"
 
 [patch.crates-io]
 # Fix corruped gzip
