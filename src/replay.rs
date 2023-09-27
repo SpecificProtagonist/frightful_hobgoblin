@@ -264,6 +264,10 @@ impl Replay {
             sim_path.join("setup.mcfunction"),
             "
             scoreboard players set SIM sim_tick 0
+            scoreboard objectives add speed dummy
+            scoreboard players set SIM speed 1
+            scoreboard objectives add warp dummy
+            scoreboard players set SIM warp 0
             gamerule randomTickSpeed 0
             gamerule doMobSpawning false
             gamerule mobGriefing false
@@ -304,11 +308,21 @@ impl Replay {
         .unwrap();
 
         write(
-            sim_path.join("tick.mcfunction"),
+            sim_path.join("sim_tick.mcfunction"),
             "
             function sim:run_current_commands
             execute unless data storage sim_0:data commands[-1][0] run data remove storage sim_0:data commands[-1]
             scoreboard players add SIM sim_tick 1
+            scoreboard players remove SIM warp 1
+            execute if score SIM warp matches 1.. run function sim:sim_tick
+            ",
+        )
+        .unwrap();
+        write(
+            sim_path.join("tick.mcfunction"),
+            "
+            scoreboard players operation SIM warp += SIM speed
+            execute if score SIM warp matches 1.. run function sim:sim_tick
             ",
         )
         .unwrap();
