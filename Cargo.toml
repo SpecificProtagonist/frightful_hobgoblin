@@ -25,14 +25,15 @@ bresenham = { path = "bresenham-rs" }
 hashlink = "0.6"
 image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
 hierarchical_pathfinding = "0.3.6"
-hashbrown = "0.14.0"
 # Turn off multithreading
 bevy_ecs = {version = "0.11", default-features = false}
 bevy_math = "0.11"
-bevy_derive = "0.11.0"
+bevy_derive = "0.11"
+bevy_utils = "0.11"
 bitflags = "2.3.3"
 enum-iterator = "1.4.1"
-nanorand = "0.7.0"
+nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs.git" }
+hashbrown = "0.14.0"
 
 [patch.crates-io]
 # Fix corruped gzip

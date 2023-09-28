@@ -23,7 +23,7 @@ pub fn sim(mut level: Level) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
-    println!("say Center: {:?}", city_center_pos.truncate());
+    println!("Center: {:?}", city_center_pos.truncate());
 
     world.spawn((
         Pos(city_center_pos.as_vec3()),
@@ -104,7 +104,7 @@ pub fn sim(mut level: Level) {
     ));
     world.insert_resource(replay);
     world.insert_resource(level);
-    for tick in 0..30000 {
+    for tick in 0..20000 {
         sched.run(&mut world);
 
         if tick < 20 {
@@ -367,6 +367,7 @@ fn carry(
                 DeliverReady,
             ));
         } else {
+            // TODO: Got a querrydoesnotmatch error?!?
             let mut pile = in_piles.get_mut(task.to).unwrap();
             pile.stock.add(task.stack);
             if pile.priority == Some(task.stack.kind) {

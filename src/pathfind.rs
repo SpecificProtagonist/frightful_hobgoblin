@@ -44,7 +44,7 @@ pub fn pathfind(
             *pos -= IVec3::Z
         }
     }
-    let mut path = HashMap::<IVec3, IVec3>::new();
+    let mut path = HashMap::<IVec3, IVec3>::default();
     let mut queue = BinaryHeap::new();
     queue.push(Node {
         pos: start,

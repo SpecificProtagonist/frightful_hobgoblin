@@ -24,8 +24,9 @@ pub mod test_house;
 
 use std::cell::Cell;
 
+// Replaces SipHash with ahash & disables randomness
+pub use bevy_utils::{StableHashMap as HashMap, StableHashSet as HashSet};
 pub use geometry::*;
-pub use hashbrown::HashMap;
 pub use level::*;
 pub use prefab::PREFABS;
 pub use rand::*;

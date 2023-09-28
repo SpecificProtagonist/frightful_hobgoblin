@@ -151,10 +151,14 @@ impl Replay {
 
     pub fn tp(&mut self, id: Id, pos: Vec3, facing: Vec3) {
         self.commands_this_tick.push(Command::Tp(id, pos, facing));
+        self.commands_this_chunk += 1;
+        self.total_commands += 1;
     }
 
     pub fn tp_carry(&mut self, id: Id, pos: Vec3, dir: f32) {
         self.commands_this_tick.push(Command::TpCarry(id, pos, dir));
+        self.commands_this_chunk += 1;
+        self.total_commands += 1;
     }
 
     pub fn command(&mut self, msg: String) {
@@ -164,7 +168,7 @@ impl Replay {
     }
 
     fn tick(&mut self) {
-        const MAX_COMMANDS_PER_CHUNK: i32 = 10000;
+        const MAX_COMMANDS_PER_CHUNK: i32 = 30000;
         if self.commands_this_chunk < MAX_COMMANDS_PER_CHUNK {
             let commands = std::mem::take(&mut self.commands_this_tick);
             self.commands.push(commands);
@@ -174,7 +178,7 @@ impl Replay {
     }
 
     fn flush_chunk(&mut self) {
-        const INITIAL_CAPACITY: usize = 5000;
+        const INITIAL_CAPACITY: usize = 1000;
         // This needs to be the last commands to get executed this tick
         self.command(format!(
             "data modify storage sim_0:data commands set from storage sim_{}:data commands",
@@ -242,11 +246,6 @@ impl Replay {
 
     pub fn finish(mut self) {
         self.flush_chunk();
-        // Could have used a condvar instead
-        while self.writes_in_flight.load(Ordering::Relaxed) > 0 {
-            std::thread::yield_now()
-        }
-        println!("Total commands: {}", self.total_commands);
 
         let pack_path = self.level_path.join("datapacks/sim/");
         create_dir_all(&pack_path).unwrap();
@@ -326,6 +325,12 @@ impl Replay {
             ",
         )
         .unwrap();
+
+        // Could have used a condvar instead
+        while self.writes_in_flight.load(Ordering::Relaxed) > 0 {
+            std::thread::yield_now()
+        }
+        println!("Total commands: {}", self.total_commands);
     }
 }
 

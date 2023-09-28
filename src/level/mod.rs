@@ -560,7 +560,7 @@ fn save_chunk(
                             // Build the palette first (for length)
                             // Minecraft seems to always have Air as id 0 even if there is none
                             let unknown_blocks = UNKNOWN_BLOCKS.read().unwrap();
-                            let mut palette = HashMap::new();
+                            let mut palette = HashMap::default();
                             block_states.insert_compound_tag_vec(
                                 "palette",
                                 Some(Air)

@@ -1,5 +1,3 @@
-use hashbrown::HashSet;
-
 use crate::*;
 
 pub fn ground(level: &mut Level, area: Rect) {
@@ -22,7 +20,7 @@ pub fn find_trees(
     level: &Level,
     area: impl IntoIterator<Item = IVec2>,
 ) -> Vec<(IVec3, TreeSpecies)> {
-    let mut trees = HashSet::new();
+    let mut trees = HashSet::default();
     for column in area {
         let z = level.height(column) + 1;
         if let Block::Log(species, _) = level[column.extend(z)] {

@@ -640,6 +640,7 @@ dependencies = [
  "bevy_derive",
  "bevy_ecs",
  "bevy_math",
+ "bevy_utils",
  "bitflags 2.3.3",
  "bresenham",
  "copy_dir",
@@ -702,9 +703,8 @@ dependencies = [
 
 [[package]]
 name = "nanorand"
-version = "0.7.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a51313c5820b0b02bd422f4b44776fbf47961755c74ce64afc73bfad10226c3"
+version = "0.8.0"
+source = "git+https://github.com/Absolucy/nanorand-rs.git#e48f4e3c5903d01269a8865ec08b1672d7e3ac81"
 
 [[package]]
 name = "num-derive"

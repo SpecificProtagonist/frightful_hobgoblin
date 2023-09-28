@@ -43,7 +43,7 @@ impl Prefab {
 }
 
 pub static PREFABS: LazyLock<HashMap<String, Prefab>> = LazyLock::new(|| {
-    let mut map = HashMap::new();
+    let mut map = HashMap::default();
     load_folder(&mut map, "prefabs".into(), "");
     load_folder(&mut map, TEMPLATE_PATH.into(), "");
     map
