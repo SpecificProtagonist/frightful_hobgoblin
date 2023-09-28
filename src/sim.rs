@@ -50,18 +50,18 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
-    for x in 0..20 {
-        for y in 0..20 {
-            // let mut tree = [GrowTree::pine, GrowTree::oak, GrowTree::birch].choose()();
-            // tree.size = rand_f32(0.3, 4.);
-            // let pos = level.ground(ivec2(x * 7, y * 7)).as_vec3() + Vec3::Z;
-            // tree.build(&mut level, pos);
-            // let col = ivec2(x * 7 + rand_range(0..5), y * 7 + rand_range(0..5));
-            // if level.water_level(col).is_none() {
-            //     world.spawn((Pos(level.ground(col).as_vec3() + Vec3::Z), GrowTree::pine()));
-            // }
-        }
-    }
+    // for x in 0..20 {
+    //     for y in 0..20 {
+    //         // let mut tree = [GrowTree::pine, GrowTree::oak, GrowTree::birch].choose()();
+    //         // tree.size = rand_f32(0.3, 4.);
+    //         // let pos = level.ground(ivec2(x * 7, y * 7)).as_vec3() + Vec3::Z;
+    //         // tree.build(&mut level, pos);
+    //         let col = ivec2(x * 7 + rand_range(0..5), y * 7 + rand_range(0..5));
+    //         if level.water_level(col).is_none() {
+    //             world.spawn((Pos(level.ground(col).as_vec3() + Vec3::Z), GrowTree::pine()));
+    //         }
+    //     }
+    // }
 
     let mut sched = Schedule::new();
     sched.add_systems(
@@ -122,7 +122,6 @@ pub fn sim(mut level: Level) {
     Id::save(&level.path);
     rayon::spawn(move || level.save_metadata().unwrap());
     replay.finish();
-    // level.save();
 }
 
 #[derive(Resource, Default, Deref, DerefMut)]
@@ -151,7 +150,7 @@ impl ConstructionSite {
     }
 }
 
-#[derive(Component)]
+#[derive(Component, Debug)]
 struct MoveTask {
     goal: IVec3,
     distance: i32,
@@ -164,7 +163,7 @@ impl MoveTask {
 }
 
 /// Path to move along, in reverse order
-#[derive(Component, Deref, DerefMut)]
+#[derive(Component)]
 struct MovePath(VecDeque<IVec3>);
 
 #[derive(Component)]
@@ -353,7 +352,7 @@ fn carry(
             ));
         } else if villager.carry.is_none() {
             let mut out = out_piles.get_mut(task.from).unwrap();
-            // If more goodds have been deposited since the task was set, take them too
+            // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
             let extra = out.available.remove_up_to(Stack {
                 kind: task.stack.kind,
@@ -491,11 +490,11 @@ fn walk(
     for (entity, mut pos, goal, path) in &mut query {
         if let Some(mut path) = path {
             const BLOCKS_PER_TICK: f32 = 0.16;
-            let mut next_node = *path.front().unwrap();
+            let mut next_node = *path.0.front().unwrap();
             let diff = next_node.as_vec3() - pos.0; //.truncate();
             if diff.length() < BLOCKS_PER_TICK {
-                path.pop_front();
-                if let Some(&next) = path.front() {
+                path.0.pop_front();
+                if let Some(&next) = path.0.front() {
                     next_node = next;
                 } else {
                     commands.entity(entity).remove::<(MoveTask, MovePath)>();

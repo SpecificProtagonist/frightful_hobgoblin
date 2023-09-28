@@ -2,7 +2,7 @@
 name = "mc-gen"
 version = "0.1.0"
 authors = ["Vincent Junge <jungevincent@gmail.com>"]
-edition = "2018"
+edition = "2021"
 default-run = "test"
 
 [profile.dev]
@@ -22,9 +22,8 @@ num-derive = "0.2"
 rayon = "1.4"
 itertools = "0.9"
 bresenham = { path = "bresenham-rs" }
-hashlink = "0.6"
-image = { version = "0.23", default-features = false, features = ["png"] } # Used only for debugging
-hierarchical_pathfinding = "0.3.6"
+# Used only for debugging
+image = { version = "0.23", default-features = false, features = ["png"] }
 # Turn off multithreading
 bevy_ecs = {version = "0.11", default-features = false}
 bevy_math = "0.11"
@@ -33,7 +32,6 @@ bevy_utils = "0.11"
 bitflags = "2.3.3"
 enum-iterator = "1.4.1"
 nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs.git" }
-hashbrown = "0.14.0"
 
 [patch.crates-io]
 # Fix corruped gzip

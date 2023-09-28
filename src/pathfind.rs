@@ -36,6 +36,7 @@ pub fn pathfind(
     mut end: IVec3,
     range_to_end: i32,
 ) -> VecDeque<IVec3> {
+    let area = level.area().shrink(2);
     for pos in [&mut end, &mut start] {
         while level[*pos].solid() {
             *pos += IVec3::Z
@@ -54,7 +55,7 @@ pub fn pathfind(
     while let Some(node) = queue.pop() {
         for dir in HDir::ALL {
             let mut new_pos = node.pos.add(dir);
-            if !level.area().contains(new_pos.truncate()) {
+            if !area.contains(new_pos.truncate()) {
                 continue;
             }
             if level[node.pos.add(dir)].solid() {
@@ -111,5 +112,5 @@ pub fn pathfind(
     // Maybe: If a path hasn't been found (search time depends on distance + constant factor),
     // just go to the closest location and pretend that's enough?
     // todo!();
-    vec![start].into()
+    vec![end].into()
 }

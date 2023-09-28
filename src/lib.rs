@@ -41,6 +41,5 @@ const DATA_VERSION: i32 = 3577;
 const LOAD_MARGIN: i32 = 20;
 
 /// The config isn't commited to git because it just contains the paths to the world folders
-pub mod config {
-    include!("../config_local.rs");
-}
+#[path = "../config_local.rs"]
+pub mod config;
