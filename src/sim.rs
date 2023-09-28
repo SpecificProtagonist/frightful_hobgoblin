@@ -230,13 +230,15 @@ fn new_construction_site(
             if let Some(stack) = goods_for_block(set_block.block) {
                 requested.add(stack);
                 if priority.is_none() {
-                    priority = Some(stack.kind);
+                    priority = Some(stack.kind)
                 }
             }
             if let Some(mined) = goods_for_block(set_block.previous) {
-                stock.add(mined);
-                requested.remove(mined);
+                stock.add(mined)
             }
+        }
+        for (good, amount) in &stock.0 {
+            requested.remove(Stack::new(*good, *amount))
         }
         commands.entity(entity).insert(InPile {
             stock,
@@ -366,7 +368,6 @@ fn carry(
                 DeliverReady,
             ));
         } else {
-            // TODO: Got a querrydoesnotmatch error?!?
             let mut pile = in_piles.get_mut(task.to).unwrap();
             pile.stock.add(task.stack);
             if pile.priority == Some(task.stack.kind) {

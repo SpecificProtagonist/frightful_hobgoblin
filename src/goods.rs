@@ -32,6 +32,12 @@ impl Stack {
     }
 }
 
+impl std::fmt::Debug for Stack {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        std::fmt::Display::fmt(self, f)
+    }
+}
+
 impl std::fmt::Display for Stack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{:?}×{}", self.kind, self.amount)
