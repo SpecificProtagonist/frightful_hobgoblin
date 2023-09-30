@@ -157,6 +157,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
     let floor = level.average_height(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
+    // TODO: Clear tree entities
     for (pos, _) in find_trees(level, area.grow(1)) {
         remove_tree(level, pos)
     }

@@ -20,9 +20,6 @@ pub struct Quarry;
 #[derive(Component)]
 pub struct ToBeBuild;
 
-#[derive(Component)]
-pub struct Build;
-
 fn not_blocked<'a>(blocked: impl IntoIterator<Item = &'a Blocked>, area: Rect) -> bool {
     blocked.into_iter().all(|blocker| !blocker.overlapps(area))
 }
@@ -131,7 +128,7 @@ pub fn plan_house(
     ));
 }
 
-pub fn _plan_lumberjack(
+pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
     blocked: Query<&Blocked>,
@@ -225,23 +222,25 @@ pub fn _plan_quarry(
 // Very temporary, just for testing!
 pub fn assign_builds(
     mut commands: Commands,
-    extant_houses: Query<(With<House>, Without<Planned>)>,
-    wip_houses: Query<(With<House>, With<ConstructionSite>)>,
+    construction_sites: Query<With<ConstructionSite>>,
+    houses: Query<(With<House>, Without<Planned>)>,
     planned_houses: Query<(Entity, &Planned), With<House>>,
-    extant_lumberjacks: Query<(With<Lumberjack>, Without<Planned>)>,
+    lumberjacks: Query<(With<Lumberjack>, Without<Planned>)>,
     planned_lumberjacks: Query<(Entity, &Planned), With<Lumberjack>>,
-    extant_quarries: Query<(With<Quarry>, Without<Planned>)>,
+    quarries: Query<(With<Quarry>, Without<Planned>)>,
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
+    if construction_sites.iter().len() > 10 {
+        return;
+    }
     let mut plans = Vec::new();
-    if (extant_houses.iter().len() < 50) & (wip_houses.iter().len() <= 12) {
-        // println!("{} {}", extant_houses.iter().len(), wip_houses.iter().len());
+    if houses.iter().len() < 30 {
         plans.extend(&planned_houses)
     }
-    if extant_lumberjacks.iter().len() < 10 {
+    if lumberjacks.iter().len() < 1 {
         plans.extend(&planned_lumberjacks)
     }
-    if extant_quarries.iter().len() < 10 {
+    if quarries.iter().len() < 8 {
         plans.extend(&planned_quarries)
     }
     if let Some(&(selected, area)) = plans.try_choose() {
@@ -272,14 +271,13 @@ pub fn test_build_house(
 pub fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    mut replay: ResMut<Replay>,
-    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Lumberjack>)>,
+    new: Query<(Entity, &Blocked), (With<ToBeBuild>, With<Lumberjack>)>,
 ) {
     for (entity, area) in &new {
-        for set in house::lumberjack(&mut level, area.0) {
-            replay.block(set.pos, set.block)
-        }
-        commands.entity(entity).remove::<ToBeBuild>().insert(Build);
+        commands
+            .entity(entity)
+            .remove::<ToBeBuild>()
+            .insert(ConstructionSite::new(house::lumberjack(&mut level, area.0)));
     }
 }
 

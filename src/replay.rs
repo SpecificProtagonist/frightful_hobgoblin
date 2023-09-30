@@ -127,7 +127,7 @@ impl Replay {
         };
 
         // Wait for the player to load in
-        for _ in 0..10 {
+        for _ in 0..20 {
             replay.tick();
         }
         replay
@@ -271,6 +271,8 @@ impl Replay {
             gamerule doMobSpawning false
             gamerule mobGriefing false
             gamerule doFireTick false
+
+            # scoreboard objectives setdisplay sidebar sim_tick
             ",
         )
         .unwrap();

@@ -1,4 +1,5 @@
 use crate::{sim::PlaceList, *};
+use bevy_ecs::prelude::*;
 
 // Material for construction
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
@@ -98,7 +99,8 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
     }
 
     match block {
-        Log(..) => Some(Stack::new(Good::Wood, 4.)),
+        // This doesn't follow Minecraft's exact ratios
+        Log(..) => Some(Stack::new(Good::Wood, 2.)),
         Full(mat) => Some(Stack::new(get_blockmaterial(mat), 1.)),
         Stair(mat, ..) => Some(Stack::new(get_blockmaterial(mat), 0.5)),
         Slab(mat, ..) => Some(Stack::new(get_blockmaterial(mat), 0.5)),
@@ -113,10 +115,10 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
     }
 }
 
-#[derive(Default, Debug)]
-pub struct Stockpile(pub HashMap<Good, f32>);
+#[derive(Component, Default, Debug)]
+pub struct Pile(pub HashMap<Good, f32>);
 
-impl Stockpile {
+impl Pile {
     pub fn has(&self, stack: Stack) -> bool {
         self.0
             .get(&stack.kind)

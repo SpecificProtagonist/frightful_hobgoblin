@@ -37,12 +37,14 @@ pub fn pathfind(
     range_to_end: i32,
 ) -> VecDeque<IVec3> {
     let area = level.area().shrink(2);
-    for pos in [&mut end, &mut start] {
-        while level[*pos].solid() {
-            *pos += IVec3::Z
-        }
-        while !level[*pos - IVec3::Z].solid() {
-            *pos -= IVec3::Z
+    if range_to_end == 0 {
+        for pos in [&mut end, &mut start] {
+            while level[*pos].solid() {
+                *pos += IVec3::Z
+            }
+            while !level[*pos - IVec3::Z].solid() {
+                *pos -= IVec3::Z
+            }
         }
     }
     let mut path = HashMap::<IVec3, IVec3>::default();

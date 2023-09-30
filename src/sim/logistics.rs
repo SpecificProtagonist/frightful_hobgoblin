@@ -1,6 +1,6 @@
 use super::*;
 use crate::{
-    goods::{Good, Stockpile},
+    goods::{Good, Pile},
     *,
 };
 
@@ -12,39 +12,40 @@ pub struct MoveTask {
     pub distance: i32,
 }
 
-/// Path to move along, in reverse order
-#[derive(Component)]
-pub struct MovePath(VecDeque<IVec3>);
-
 impl MoveTask {
     pub fn new(goal: IVec3) -> MoveTask {
         Self { goal, distance: 0 }
     }
 }
 
+/// Path to move along, in reverse order
+#[derive(Component)]
+pub struct MovePath(VecDeque<IVec3>);
+
 // Assumes reservations have already been made
 #[derive(Component)]
-pub struct CarryTask {
+pub struct PickupTask {
     pub from: Entity,
-    pub to: Entity,
     pub stack: Stack,
     pub max_stack: f32,
 }
 
+#[derive(Component)]
+pub struct DeliverTask {
+    pub to: Entity,
+}
+
 #[derive(Component, Default, Debug)]
 pub struct InPile {
-    pub stock: Stockpile,
-    pub requested: Stockpile,
+    pub requested: Pile,
     // Gets reset after delivery of priority good
     pub priority: Option<Good>,
 }
 
+// TODO: When adding piles that visualize what is available,
+// this needs a `current` field
 #[derive(Component, Default, Debug)]
-pub struct OutPile {
-    // TODO: When adding piles that visualize what is available,
-    // this also needs a `current` field
-    pub available: Stockpile,
-}
+pub struct OutPile;
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -54,53 +55,69 @@ pub struct PickupReady;
 #[component(storage = "SparseSet")]
 pub struct DeliverReady;
 
-pub fn carry(
+pub fn pickup(
     mut commands: Commands,
     pos: Query<&Pos>,
-    mut out_piles: Query<&mut OutPile>,
-    mut in_piles: Query<&mut InPile>,
-    mut workers: Query<
-        (
-            Entity,
-            &mut Villager,
-            &mut CarryTask,
-            Has<PickupReady>,
-            Has<DeliverReady>,
-        ),
+    mut piles: Query<&mut Pile>,
+    mut pickup: Query<
+        (Entity, &mut Villager, &mut PickupTask, Has<PickupReady>),
         Without<MoveTask>,
     >,
 ) {
-    for (entity, mut villager, mut task, pickup_ready, deliver_ready) in &mut workers {
+    for (entity, mut villager, mut task, pickup_ready) in &mut pickup {
         if !pickup_ready {
             commands.entity(entity).insert((
                 MoveTask::new(pos.get(task.from).unwrap().block()),
                 PickupReady,
             ));
         } else if villager.carry.is_none() {
-            let mut out = out_piles.get_mut(task.from).unwrap();
+            let mut pile = piles.get_mut(task.from).unwrap();
             // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
-            let extra = out.available.remove_up_to(Stack {
+            let extra = pile.remove_up_to(Stack {
                 kind: task.stack.kind,
                 amount: missing,
             });
             task.stack.amount += extra.amount;
             villager.carry = Some(task.stack);
-        } else if !deliver_ready {
+            commands
+                .entity(entity)
+                .remove::<(PickupTask, PickupReady)>();
+        }
+    }
+}
+
+pub fn deliver(
+    mut commands: Commands,
+    pos: Query<&Pos>,
+    mut piles: Query<(&mut Pile, Option<&mut InPile>)>,
+    mut deliver: Query<
+        (Entity, &mut Villager, &DeliverTask, Has<DeliverReady>),
+        (Without<MoveTask>, Without<PickupTask>),
+    >,
+) {
+    for (entity, mut villager, task, deliver_ready) in &mut deliver {
+        let Some(stack) = villager.carry else {
+            commands.entity(entity).remove::<DeliverTask>();
+            return;
+        };
+        if !deliver_ready {
             commands.entity(entity).insert((
                 MoveTask::new(pos.get(task.to).unwrap().block()),
                 DeliverReady,
             ));
         } else {
-            let mut pile = in_piles.get_mut(task.to).unwrap();
-            pile.stock.add(task.stack);
-            if pile.priority == Some(task.stack.kind) {
-                pile.priority = None
+            let (mut pile, in_pile) = piles.get_mut(task.to).unwrap();
+            pile.add(stack);
+            if let Some(mut in_pile) = in_pile {
+                if in_pile.priority == Some(stack.kind) {
+                    in_pile.priority = None
+                }
             }
             villager.carry = None;
             commands
                 .entity(entity)
-                .remove::<(CarryTask, PickupReady, DeliverReady)>();
+                .remove::<(DeliverTask, DeliverReady)>();
         }
     }
 }

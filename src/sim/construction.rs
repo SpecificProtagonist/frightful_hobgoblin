@@ -8,6 +8,9 @@ pub struct BuildTask {
 }
 
 #[derive(Component)]
+pub struct Built;
+
+#[derive(Component, Debug)]
 pub struct ConstructionSite {
     pub todo: PlaceList,
     pub has_builder: bool,
@@ -30,8 +33,8 @@ pub fn new_construction_site(
     new: Query<(Entity, &ConstructionSite), Added<ConstructionSite>>,
 ) {
     for (entity, site) in &new {
-        let mut stock = Stockpile::default();
-        let mut requested = Stockpile::default();
+        let mut stock = Pile::default();
+        let mut requested = Pile::default();
         let mut priority = None;
         for set_block in &site.todo {
             if let Some(stack) = goods_for_block(set_block.block) {
@@ -47,11 +50,13 @@ pub fn new_construction_site(
         for (good, amount) in &stock.0 {
             requested.remove(Stack::new(*good, *amount))
         }
-        commands.entity(entity).insert(InPile {
+        commands.entity(entity).insert((
             stock,
-            requested,
-            priority,
-        });
+            InPile {
+                requested,
+                priority,
+            },
+        ));
     }
 }
 
@@ -59,14 +64,14 @@ pub fn build(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     mut builders: Query<(Entity, &BuildTask), (With<Villager>, Without<MoveTask>)>,
-    mut buildings: Query<(Entity, &mut ConstructionSite, &mut InPile)>,
+    mut buildings: Query<(Entity, &mut ConstructionSite, &mut Pile)>,
 ) {
     for (builder, build_task) in &mut builders {
         let Ok((entity, mut building, mut pile)) = buildings.get_mut(build_task.building) else {
             continue;
         };
         if let Some(set) = building.todo.get(0).copied() {
-            if let Some(block) = pile.stock.build(set.block) {
+            if let Some(block) = pile.build(set.block) {
                 replay.block(set.pos, block);
                 replay.dust(set.pos);
                 building.todo.pop_front();
@@ -81,23 +86,21 @@ pub fn build(
             commands
                 .entity(entity)
                 .remove::<(InPile, ConstructionSite)>()
-                .insert(OutPile {
-                    available: std::mem::take(&mut pile.stock),
-                });
+                .insert((Built, OutPile));
         }
     }
 }
 
 pub fn check_construction_site_readiness(
-    mut query: Query<(&mut ConstructionSite, &mut InPile), Changed<InPile>>,
+    mut query: Query<(&mut ConstructionSite, &Pile, &mut InPile), Changed<Pile>>,
 ) {
-    for (mut site, mut pile) in &mut query {
+    for (mut site, pile, mut in_pile) in &mut query {
         if !site.has_materials {
             if let Some(needed) = goods_for_block(site.todo[0].block) {
-                if pile.stock.has(needed) {
-                    site.has_materials = true
-                } else if pile.priority.is_none() {
-                    pile.priority = Some(needed.kind);
+                if pile.has(needed) {
+                    site.has_materials = true;
+                } else if in_pile.priority.is_none() {
+                    in_pile.priority = Some(needed.kind);
                 }
             } else {
                 site.has_materials = true
