@@ -346,12 +346,14 @@ pub fn tick_replay(
         replay.block(set.pos, set.block);
     }
     for (id, pos, vill) in &new_vills {
+        let biome = level.biome(pos.block().truncate());
         replay.command(format!(
-            "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1}}",
+            "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
             pos.x,
             pos.z,
             pos.y,
-            id.snbt()
+            id.snbt(),
+            biome.villager_type()
         ));
         replay.command(format!(
             // TODO: Use block display

@@ -1,11 +1,11 @@
 use crate::*;
 
-struct View<'a> {
+struct _View<'a> {
     level: &'a mut Level,
     rotation: i32,
     offset: IVec3,
 }
 
-impl<'a> View<'a> {
+impl<'a> _View<'a> {
     // TODO
 }

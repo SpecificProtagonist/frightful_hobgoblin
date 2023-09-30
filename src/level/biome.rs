@@ -84,6 +84,13 @@ impl Biome {
                     TreeSpecies::Oak
                 }
             }
+            BirchForest => {
+                if 0.15 > rand() {
+                    TreeSpecies::Oak
+                } else {
+                    TreeSpecies::Birch
+                }
+            }
             other => other.default_tree_species(),
         }
     }
