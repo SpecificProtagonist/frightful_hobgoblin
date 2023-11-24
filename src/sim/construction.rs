@@ -86,7 +86,12 @@ pub fn build(
             commands
                 .entity(entity)
                 .remove::<(InPile, ConstructionSite)>()
-                .insert((Built, OutPile));
+                .insert((
+                    Built,
+                    OutPile {
+                        available: pile.clone(),
+                    },
+                ));
         }
     }
 }

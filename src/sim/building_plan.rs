@@ -20,11 +20,11 @@ pub struct Quarry;
 #[derive(Component)]
 pub struct ToBeBuild;
 
-fn not_blocked<'a>(blocked: impl IntoIterator<Item = &'a Blocked>, area: Rect) -> bool {
+pub fn not_blocked<'a>(blocked: impl IntoIterator<Item = &'a Blocked>, area: Rect) -> bool {
     blocked.into_iter().all(|blocker| !blocker.overlapps(area))
 }
 
-fn unevenness(level: &Level, area: Rect) -> f32 {
+pub fn unevenness(level: &Level, area: Rect) -> f32 {
     let avg_height = level.average_height(area);
     area.into_iter()
         .map(|pos| (level.height(pos) as f32 - avg_height).abs().powf(2.))
@@ -32,7 +32,7 @@ fn unevenness(level: &Level, area: Rect) -> f32 {
         / area.total() as f32
 }
 
-fn wateryness(level: &Level, area: Rect) -> f32 {
+pub fn wateryness(level: &Level, area: Rect) -> f32 {
     area.into_iter()
         .filter(|pos| level.water_level(*pos).is_some())
         .count() as f32

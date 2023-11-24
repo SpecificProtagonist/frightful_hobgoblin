@@ -1,4 +1,5 @@
 use crate::{sim::PlaceList, *};
+use bevy_derive::Deref;
 use bevy_ecs::prelude::*;
 
 // Material for construction
@@ -115,7 +116,7 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
     }
 }
 
-#[derive(Component, Default, Debug)]
+#[derive(Component, Default, Debug, Clone, Deref)]
 pub struct Pile(pub HashMap<Good, f32>);
 
 impl Pile {

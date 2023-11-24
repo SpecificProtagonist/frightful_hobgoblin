@@ -1,5 +1,6 @@
 use std::{ops::Add, str::FromStr};
 
+use bevy_math::Vec2Swizzles;
 pub use bevy_math::{ivec2, ivec3, vec2, vec3, IVec2, IVec3, Vec2, Vec3};
 use itertools::Itertools;
 use num_derive::FromPrimitive;
@@ -93,6 +94,10 @@ impl Rect {
         }
     }
 
+    pub fn transposed(self) -> Self {
+        Self::new_centered(self.center(), self.size().yx())
+    }
+
     pub fn border(self) -> impl Iterator<Item = IVec2> {
         (self.min.x..=self.max.x)
             .map(move |x| ivec2(x, self.min.y))
@@ -164,6 +169,38 @@ pub struct Polyline(pub Vec<IVec2>);
 // Note: only valid with multiple points
 pub struct Polygon(pub Vec<IVec2>);
 // Todo: areas with shared borders/corners
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+#[repr(u8)]
+pub enum HAxis {
+    X,
+    Y,
+}
+
+impl HAxis {
+    pub fn rotated(self) -> Self {
+        match self {
+            Self::X => Self::Y,
+            Self::Y => Self::X,
+        }
+    }
+
+    pub fn pos(self) -> IVec2 {
+        match self {
+            Self::X => ivec2(1, 0),
+            Self::Y => ivec2(0, 1),
+        }
+    }
+}
+
+impl From<HAxis> for Axis {
+    fn from(value: HAxis) -> Self {
+        match value {
+            HAxis::X => Axis::X,
+            HAxis::Y => Axis::Y,
+        }
+    }
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, FromPrimitive, Hash)]
 #[repr(u8)]

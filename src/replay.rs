@@ -1,3 +1,4 @@
+use crate::sim::lumberjack::Lumberworker;
 use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
@@ -53,7 +54,6 @@ impl Default for Id {
 
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 
-// In the future, this could have playback speed / reverse playback, controlled via a book
 #[derive(Resource)]
 pub struct Replay {
     level_path: PathBuf,
@@ -263,14 +263,17 @@ impl Replay {
             sim_path.join("setup.mcfunction"),
             "
             scoreboard players set SIM sim_tick 0
+            # How many sim ticks to replay per game tick (0 to stop)
             scoreboard objectives add speed dummy
             scoreboard players set SIM speed 1
+            # Set to X to warp X sim ticks ahead
             scoreboard objectives add warp dummy
             scoreboard players set SIM warp 0
             gamerule randomTickSpeed 0
             gamerule doMobSpawning false
             gamerule mobGriefing false
             gamerule doFireTick false
+            gamerule doTileDrops false
 
             # scoreboard objectives setdisplay sidebar sim_tick
             ",
@@ -342,11 +345,15 @@ pub fn tick_replay(
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
     mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&Villager>), Changed<Pos>>,
+    jobless: Query<&Id, With<Jobless>>,
+    lumberjacks: Query<&Id, With<Lumberworker>>,
 ) {
     let replay = replay.deref_mut();
+    // Blocks
     for set in level.pop_recording(default()) {
         replay.block(set.pos, set.block);
     }
+    // New villagers
     for (id, pos, vill) in &new_vills {
         let biome = level.biome(pos.block().truncate());
         replay.command(format!(
@@ -366,6 +373,7 @@ pub fn tick_replay(
             vill.carry_id.snbt(),
         ));
     }
+    // Movement
     for (id, pos, mut prev, vill) in &mut moved {
         let delta = pos.0 - prev.0;
         let facing = pos.0 + delta;
@@ -375,6 +383,7 @@ pub fn tick_replay(
         }
         prev.0 = pos.0;
     }
+    // Carrying
     for vill in &changed_vills {
         if let Some(stack) = vill.carry {
             replay.command(format!(
@@ -392,6 +401,17 @@ pub fn tick_replay(
                 vill.carry_id,
             ));
         }
+    }
+    // Professions
+    for id in &jobless {
+        replay.command(format!(
+            "data modify entity {id} VillagerDate.profession set value none",
+        ));
+    }
+    for id in &lumberjacks {
+        replay.command(format!(
+            "data modify entity {id} VillagerDate.profession set value nitwit",
+        ));
     }
     replay.tick();
 }

@@ -66,6 +66,7 @@ pub enum Block {
     Door(TreeSpecies, HDir, DoorMeta),
     Bell(HDir, BellAttachment),
     Repeater(HDir, u8),
+    Rail(HAxis),
     Barrier,
     Bedrock,
     Other(u16),
@@ -611,6 +612,17 @@ impl Block {
                     ("facing".into(), dir.to_str().into()),
                 ],
             ),
+            Rail(dir) => Blockstate(
+                "rail".into(),
+                vec![(
+                    "shape".into(),
+                    match dir {
+                        HAxis::X => "north_south",
+                        HAxis::Y => "east_west",
+                    }
+                    .into(),
+                )],
+            ),
             Barrier => "barrier".into(),
             Other(index) => unknown.states[*index as usize].clone(), // Unneccesary clone?
         }
@@ -942,6 +954,8 @@ impl Block {
                 | Trapdoor(..)
                 | Door(..)
                 | WallBanner(..)
+                | Repeater(..)
+                | Rail(..)
         )
     }
 

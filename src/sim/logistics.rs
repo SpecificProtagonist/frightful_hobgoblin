@@ -37,15 +37,17 @@ pub struct DeliverTask {
 
 #[derive(Component, Default, Debug)]
 pub struct InPile {
+    /// Goods requested that are not covered by current stock or incomming orders
     pub requested: Pile,
-    // Gets reset after delivery of priority good
+    /// Gets reset after delivery of priority good
     pub priority: Option<Good>,
 }
 
-// TODO: When adding piles that visualize what is available,
-// this needs a `current` field
 #[derive(Component, Default, Debug)]
-pub struct OutPile;
+pub struct OutPile {
+    /// Goods available, not including goods present but promised for another delivery
+    pub available: Pile,
+}
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -58,7 +60,7 @@ pub struct DeliverReady;
 pub fn pickup(
     mut commands: Commands,
     pos: Query<&Pos>,
-    mut piles: Query<&mut Pile>,
+    mut out_piles: Query<(&mut Pile, &mut OutPile)>,
     mut pickup: Query<
         (Entity, &mut Villager, &mut PickupTask, Has<PickupReady>),
         Without<MoveTask>,
@@ -71,14 +73,15 @@ pub fn pickup(
                 PickupReady,
             ));
         } else if villager.carry.is_none() {
-            let mut pile = piles.get_mut(task.from).unwrap();
+            let (mut pile, mut out_pile) = out_piles.get_mut(task.from).unwrap();
             // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
-            let extra = pile.remove_up_to(Stack {
+            let extra = out_pile.available.remove_up_to(Stack {
                 kind: task.stack.kind,
                 amount: missing,
             });
             task.stack.amount += extra.amount;
+            pile.remove(task.stack);
             villager.carry = Some(task.stack);
             commands
                 .entity(entity)
@@ -90,7 +93,7 @@ pub fn pickup(
 pub fn deliver(
     mut commands: Commands,
     pos: Query<&Pos>,
-    mut piles: Query<(&mut Pile, Option<&mut InPile>)>,
+    mut piles: Query<(&mut Pile, Option<&mut InPile>, Option<&mut OutPile>)>,
     mut deliver: Query<
         (Entity, &mut Villager, &DeliverTask, Has<DeliverReady>),
         (Without<MoveTask>, Without<PickupTask>),
@@ -107,13 +110,17 @@ pub fn deliver(
                 DeliverReady,
             ));
         } else {
-            let (mut pile, in_pile) = piles.get_mut(task.to).unwrap();
+            let (mut pile, in_pile, out_pile) = piles.get_mut(task.to).unwrap();
             pile.add(stack);
+
             if let Some(mut in_pile) = in_pile {
                 if in_pile.priority == Some(stack.kind) {
                     in_pile.priority = None
                 }
             }
+            if let Some(mut out_pile) = out_pile {
+                out_pile.available.add(stack)
+            };
             villager.carry = None;
             commands
                 .entity(entity)
