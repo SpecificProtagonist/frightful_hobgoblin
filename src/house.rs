@@ -106,7 +106,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     rec
 }
 
-pub fn lumberjack(level: &mut Level, area: Rect) -> PlaceList {
+pub fn shack(level: &mut Level, area: Rect) -> PlaceList {
     let (floor, mut rec) = foundation(level, area);
 
     // Roof build now so we know how high the walls have to be

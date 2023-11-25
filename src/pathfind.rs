@@ -8,8 +8,10 @@ use crate::*;
 #[derive(Eq, PartialEq)]
 struct Node {
     pos: IVec3,
-    dist: u32,
-    with_heuristic: u32,
+    cost: u32,
+    cost_with_heuristic: u32,
+    /// Allow but disincentivice steep paths
+    stair_cooldown: i8,
 }
 
 impl std::fmt::Debug for Node {
@@ -20,7 +22,7 @@ impl std::fmt::Debug for Node {
 
 impl Ord for Node {
     fn cmp(&self, other: &Self) -> Ordering {
-        other.with_heuristic.cmp(&self.with_heuristic)
+        other.cost_with_heuristic.cmp(&self.cost_with_heuristic)
     }
 }
 
@@ -29,6 +31,9 @@ impl PartialOrd for Node {
         Some(self.cmp(other))
     }
 }
+
+const BASE_COST_PER_BLOCK: u32 = 3;
+const STAIR_COOLDOWN: i8 = 7;
 
 pub fn pathfind(
     level: &Level,
@@ -51,54 +56,75 @@ pub fn pathfind(
     let mut queue = BinaryHeap::new();
     queue.push(Node {
         pos: start,
-        dist: 0,
-        with_heuristic: 0,
+        cost: 0,
+        cost_with_heuristic: 0,
+        stair_cooldown: 0,
     });
     while let Some(node) = queue.pop() {
+        // TODO: Ladders
         for dir in HDir::ALL {
             let mut new_pos = node.pos.add(dir);
+            // Only consider valid, novel paths
             if !area.contains(new_pos.truncate()) {
                 continue;
             }
-            if level[node.pos.add(dir)].solid() {
-                new_pos += IVec3::Z;
+            let stairs_taken = if level[node.pos.add(dir)].solid() {
                 if level[node.pos + IVec3::Z].solid() {
                     continue;
                 }
+                new_pos += IVec3::Z;
+                true
             } else if !level[node.pos.add(dir) - IVec3::Z].solid() {
                 if level[node.pos + IVec3::Z].solid() {
                     continue;
                 }
                 new_pos -= IVec3::Z;
-            }
+                true
+            } else {
+                false
+            };
             if !level[new_pos - IVec3::Z].solid()
                 | level[new_pos].solid()
                 | level[new_pos + IVec3::Z].solid()
             {
                 continue;
             }
-
             if path.contains_key(&new_pos) {
                 continue;
             }
+
+            // Ok, new path to explore
             path.insert(new_pos, node.pos);
 
             let heuristic = (new_pos.x - end.x).abs()
                 + (new_pos.y - end.y).abs()
                 + ((new_pos.z - end.z) * (new_pos.z - node.pos.z)).clamp(0, 1);
+            let new_cost = node.cost
+                + BASE_COST_PER_BLOCK
+                + if stairs_taken {
+                    node.stair_cooldown as u32
+                } else {
+                    0
+                };
             queue.push(Node {
                 pos: new_pos,
-                dist: node.dist + 1,
-                with_heuristic: node.dist + 1 + heuristic as u32,
+                cost: new_cost,
+                cost_with_heuristic: new_cost + heuristic as u32 * BASE_COST_PER_BLOCK,
+                stair_cooldown: if stairs_taken {
+                    STAIR_COOLDOWN
+                } else {
+                    (node.stair_cooldown - 1).max(0)
+                },
             });
 
             // TMP
             let tmp_early_break = path.len() > 20000;
 
+            // Arrived at target
             if (heuristic <= range_to_end) | tmp_early_break {
-                let mut steps = VecDeque::with_capacity((node.dist + 1) as usize);
-                steps.push_front(end);
-                let mut prev = end;
+                let mut steps = VecDeque::with_capacity((node.cost + 1) as usize);
+                steps.push_front(new_pos);
+                let mut prev = new_pos;
                 while let Some(&next) = path.get(&prev) {
                     steps.push_front(next);
                     if next == start {

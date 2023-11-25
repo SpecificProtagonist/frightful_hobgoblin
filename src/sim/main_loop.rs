@@ -87,7 +87,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 2 {
+        if tick < 50 {
             world.spawn((
                 Id::default(),
                 Villager::default(),

@@ -2,6 +2,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
+// TODO: instead store
 #[derive(Component, Deref, DerefMut)]
 pub struct Blocked(pub Rect);
 
@@ -277,7 +278,7 @@ pub fn test_build_lumberjack(
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::lumberjack(&mut level, area.0)));
+            .insert(ConstructionSite::new(house::shack(&mut level, area.0)));
     }
 }
 
