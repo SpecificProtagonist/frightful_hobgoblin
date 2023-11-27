@@ -185,6 +185,7 @@ impl HAxis {
         }
     }
 
+    // Positive direction
     pub fn pos(self) -> IVec2 {
         match self {
             Self::X => ivec2(1, 0),
@@ -363,7 +364,7 @@ pub trait Vec3Ext {
 
 impl Vec3Ext for Vec3 {
     fn block(self) -> IVec3 {
-        self.floor().as_ivec3()
+        (self + Vec3::splat(0.5)).floor().as_ivec3()
     }
 }
 

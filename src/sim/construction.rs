@@ -47,7 +47,7 @@ pub fn new_construction_site(
                 stock.add(mined)
             }
         }
-        for (good, amount) in &stock.0 {
+        for (good, amount) in &stock.goods {
             requested.remove(Stack::new(*good, *amount))
         }
         commands.entity(entity).insert((

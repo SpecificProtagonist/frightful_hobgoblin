@@ -3,6 +3,12 @@ use bevy_ecs::prelude::*;
 use sim::*;
 
 #[derive(Component)]
+pub struct Lumberjack;
+
+#[derive(Component)]
+pub struct TreeIsNearLumberCamp;
+
+#[derive(Component)]
 pub struct Lumberworker {
     workplace: Entity,
     ready_to_work: bool,
@@ -16,15 +22,15 @@ pub struct LumberPile {
 }
 
 impl LumberPile {
-    fn max(&self) -> i32 {
-        self.length
+    fn max(&self) -> f32 {
+        (self.length
             * 4
             * match self.width {
                 3 => 7,
                 4 => 10,
                 5 => 13,
                 _ => unreachable!(),
-            }
+            }) as f32
     }
 }
 
@@ -85,7 +91,7 @@ pub fn work(
         (Without<ChopTask>, Without<DeliverTask>, Without<MoveTask>),
     >,
     mut trees: Query<(Entity, &Pos, &mut Tree)>,
-    lumber_piles: Query<(Entity, &Pos), With<LumberPile>>,
+    piles: Query<(Entity, &Pos, &Pile, &LumberPile)>,
 ) {
     for (entity, villager, mut lumberworker) in &mut workers {
         let worker_pos = pos.get(entity).unwrap();
@@ -101,18 +107,25 @@ pub fn work(
             commands.entity(entity).insert(ChopTask::new(tree));
             tree_meta.to_be_chopped = true;
             lumberworker.ready_to_work = false;
-        } else if villager.carry.is_none() {
+        } else if let Some(stack) = villager.carry {
+            // Drop off lumber
+            // TODO: This allows overly full piles due to multiple simultaneous deliveries. Fix this by introducing storage piles.
+            if let Some((to, _, _, _)) = piles
+                .iter()
+                .filter(|(_, _, current, lumber_pile)| {
+                    current.get(&Good::Wood).copied().unwrap_or_default() + stack.amount
+                        <= lumber_pile.max()
+                })
+                .min_by_key(|(_, pos, _, _)| pos.distance(worker_pos.0) as i32)
+            {
+                commands.entity(entity).insert(DeliverTask { to });
+            }
+        } else {
             // Return home
             commands.entity(entity).insert(MoveTask::new(
                 pos.get(lumberworker.workplace).unwrap().block(),
             ));
             lumberworker.ready_to_work = true;
-        } else if let Some((to, _)) = lumber_piles
-            .iter()
-            .min_by_key(|(_, pile)| pile.distance(worker_pos.0) as i32)
-        {
-            // Drop off lumber
-            commands.entity(entity).insert(DeliverTask { to });
         }
     }
 }
@@ -186,7 +199,7 @@ pub fn make_lumber_piles(
                 },
             )
         };
-        let (pos, axis) = optimize(
+        let (pos, params) = optimize(
             (lumberjack.truncate().block(), params),
             |(mut pos, mut params), temperature| {
                 if 0.2 > rand() {
@@ -218,11 +231,15 @@ pub fn make_lumber_piles(
             100,
         );
 
+        let z = level.average_height(area(pos, params).border()) + 1.;
         commands.spawn((
-            Pos(level.ground(pos).as_vec3() + Vec3::Z),
+            Pos(pos.as_vec2().extend(z)),
             params,
-            Pile::default(),
-            Blocked(area(pos, axis)),
+            Pile {
+                goods: default(),
+                interact_distance: params.width,
+            },
+            Blocked(area(pos, params)),
         ));
 
         // TODO: Clear trees here
@@ -279,10 +296,10 @@ pub fn update_lumber_pile_visuals(
             }
         }
         for along in [1 - lumberpile.length / 2, (lumberpile.length + 1) / 2 - 1] {
-            for side in [-1, 1, 0] {
+            for side in -(lumberpile.width - 1) / 2..=lumberpile.width / 2 {
                 let mut pos = pos.block()
                     + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
-                        .extend(0);
+                        .extend(1);
                 if !level[pos - IVec3::Z].solid() {
                     continue;
                 }

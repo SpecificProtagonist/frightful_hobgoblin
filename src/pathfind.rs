@@ -52,6 +52,9 @@ pub fn pathfind(
             }
         }
     }
+    let mut closest_pos = start;
+    let mut closest_heuristic = i32::MAX;
+    // Can we use a vec instead? That means not checking if a position was already checked though
     let mut path = HashMap::<IVec3, IVec3>::default();
     let mut queue = BinaryHeap::new();
     queue.push(Node {
@@ -68,13 +71,16 @@ pub fn pathfind(
             if !area.contains(new_pos.truncate()) {
                 continue;
             }
-            let stairs_taken = if level[node.pos.add(dir)].solid() {
+            if level[new_pos - IVec3::Z].cannot_walk_over() {
+                continue;
+            }
+            let stairs_taken = if level[new_pos].solid() {
                 if level[node.pos + IVec3::Z].solid() {
                     continue;
                 }
                 new_pos += IVec3::Z;
                 true
-            } else if !level[node.pos.add(dir) - IVec3::Z].solid() {
+            } else if !level[new_pos - IVec3::Z].solid() {
                 if level[node.pos + IVec3::Z].solid() {
                     continue;
                 }
@@ -96,9 +102,8 @@ pub fn pathfind(
             // Ok, new path to explore
             path.insert(new_pos, node.pos);
 
-            let heuristic = (new_pos.x - end.x).abs()
-                + (new_pos.y - end.y).abs()
-                + ((new_pos.z - end.z) * (new_pos.z - node.pos.z)).clamp(0, 1);
+            let horizontal_diff = (new_pos.x - end.x).abs() + (new_pos.y - end.y).abs();
+            let heuristic = horizontal_diff.max((new_pos.z - end.z).abs());
             let new_cost = node.cost
                 + BASE_COST_PER_BLOCK
                 + if stairs_taken {
@@ -117,28 +122,31 @@ pub fn pathfind(
                 },
             });
 
-            // TMP
-            let tmp_early_break = path.len() > 20000;
+            if heuristic < closest_heuristic {
+                closest_heuristic = heuristic;
+                closest_pos = new_pos;
+            }
+
+            // Can be reduced for performance
+            //
+            let exploration_limit_reached = path.len() > 8000;
 
             // Arrived at target
-            if (heuristic <= range_to_end) | tmp_early_break {
-                let mut steps = VecDeque::with_capacity((node.cost + 1) as usize);
-                steps.push_front(new_pos);
-                let mut prev = new_pos;
-                while let Some(&next) = path.get(&prev) {
-                    steps.push_front(next);
-                    if next == start {
-                        break;
-                    }
-                    prev = next;
-                }
-                return steps;
+            if (heuristic <= range_to_end) | exploration_limit_reached {
+                break;
             }
         }
     }
 
-    // Maybe: If a path hasn't been found (search time depends on distance + constant factor),
-    // just go to the closest location and pretend that's enough?
-    // todo!();
-    vec![end].into()
+    let mut steps = VecDeque::with_capacity(100);
+    steps.push_front(closest_pos);
+    let mut prev = closest_pos;
+    while let Some(&next) = path.get(&prev) {
+        steps.push_front(next);
+        if next == start {
+            break;
+        }
+        prev = next;
+    }
+    steps
 }

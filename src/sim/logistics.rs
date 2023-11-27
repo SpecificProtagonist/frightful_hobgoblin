@@ -35,6 +35,7 @@ pub struct DeliverTask {
     pub to: Entity,
 }
 
+// TODO: Storage piles, which don't request resources but allow storing resources that need to be relocated, e.g. lumber piles, piles from deconstruction or from relocating other storage piles.
 #[derive(Component, Default, Debug)]
 pub struct InPile {
     /// Goods requested that are not covered by current stock or incomming orders
@@ -69,7 +70,10 @@ pub fn pickup(
     for (entity, mut villager, mut task, pickup_ready) in &mut pickup {
         if !pickup_ready {
             commands.entity(entity).insert((
-                MoveTask::new(pos.get(task.from).unwrap().block()),
+                MoveTask {
+                    goal: pos.get(task.from).unwrap().block(),
+                    distance: out_piles.get(task.from).unwrap().0.interact_distance,
+                },
                 PickupReady,
             ));
         } else if villager.carry.is_none() {
@@ -106,7 +110,10 @@ pub fn deliver(
         };
         if !deliver_ready {
             commands.entity(entity).insert((
-                MoveTask::new(pos.get(task.to).unwrap().block()),
+                MoveTask {
+                    goal: pos.get(task.to).unwrap().block(),
+                    distance: piles.get(task.to).unwrap().0.interact_distance,
+                },
                 DeliverReady,
             ));
         } else {
@@ -139,7 +146,7 @@ pub fn walk(
         if let Some(mut path) = path {
             const BLOCKS_PER_TICK: f32 = 0.16;
             let mut next_node = *path.0.front().unwrap();
-            let diff = next_node.as_vec3() - pos.0; //.truncate();
+            let diff = (next_node.as_vec3() - pos.0).truncate();
             if diff.length() < BLOCKS_PER_TICK {
                 path.0.pop_front();
                 if let Some(&next) = path.0.front() {
@@ -148,10 +155,9 @@ pub fn walk(
                     commands.entity(entity).remove::<(MoveTask, MovePath)>();
                 }
             }
-            let diff = next_node.as_vec3() - pos.0; //.truncate();
-            pos.0 += diff.normalize_or_zero() * BLOCKS_PER_TICK;
-            //.extend(0.);
-            // set_walk_height(&level, &mut pos);
+            let diff = (next_node.as_vec3() - pos.0).truncate();
+            pos.0 += (diff.normalize_or_zero() * BLOCKS_PER_TICK).extend(0.);
+            set_walk_height(&level, &mut pos);
         } else {
             let path = pathfind(&level, pos.block(), goal.goal, goal.distance);
             commands.entity(entity).insert(MovePath(path));
@@ -159,25 +165,25 @@ pub fn walk(
     }
 }
 
-// fn set_walk_height(level: &Level, pos: &mut Vec3) {
-//     let size = 0.35;
-//     let mut height = 0f32;
-//     for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
-//         let mut block_pos = (*pos + off.extend(0.) * size).block();
-//         if !level[block_pos].solid() {
-//             block_pos.z -= 1
-//         }
-//         if level[block_pos].solid() {
-//             block_pos.z += 1
-//         }
-//         height = height.max(
-//             block_pos.z as f32
-//                 - match level[block_pos - ivec3(0, 0, 1)] {
-//                     Slab(_, Bottom) => 0.5,
-//                     // In theory also do stairs here
-//                     _ => 0.,
-//                 },
-//         );
-//     }
-//     pos.z = height;
-// }
+fn set_walk_height(level: &Level, pos: &mut Vec3) {
+    let size = 0.35;
+    let mut height = 0f32;
+    for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
+        let mut block_pos = (*pos + off.extend(0.) * size).block();
+        if !level[block_pos - IVec3::Z].solid() {
+            block_pos.z -= 1
+        }
+        if level[block_pos].solid() {
+            block_pos.z += 1
+        }
+        height = height.max(
+            block_pos.z as f32
+                - match level[block_pos - ivec3(0, 0, 1)] {
+                    Slab(_, Bottom) => 0.5,
+                    // TODO: Stairs
+                    _ => 0.,
+                },
+        );
+    }
+    pos.z = height;
+}

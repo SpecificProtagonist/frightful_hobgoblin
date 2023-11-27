@@ -1,5 +1,5 @@
 use crate::{sim::PlaceList, *};
-use bevy_derive::Deref;
+use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 
 // Material for construction
@@ -116,32 +116,35 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
     }
 }
 
-#[derive(Component, Default, Debug, Clone, Deref)]
-pub struct Pile(pub HashMap<Good, f32>);
+#[derive(Component, Debug, Clone, Deref, DerefMut)]
+pub struct Pile {
+    #[deref]
+    pub goods: HashMap<Good, f32>,
+    pub interact_distance: i32,
+}
 
 impl Pile {
     pub fn has(&self, stack: Stack) -> bool {
-        self.0
-            .get(&stack.kind)
+        self.get(&stack.kind)
             .map(|&a| a >= stack.amount)
             .unwrap_or(false)
     }
 
     pub fn add(&mut self, stack: Stack) {
-        *self.0.entry(stack.kind).or_default() += stack.amount;
+        *self.entry(stack.kind).or_default() += stack.amount;
     }
 
     pub fn remove(&mut self, stack: Stack) {
-        if let Some(entry) = self.0.get_mut(&stack.kind) {
+        if let Some(entry) = self.get_mut(&stack.kind) {
             *entry -= stack.amount;
             if *entry <= 0. {
-                self.0.remove(&stack.kind);
+                self.goods.remove(&stack.kind);
             }
         }
     }
 
     pub fn remove_up_to(&mut self, mut stack: Stack) -> Stack {
-        let available = self.0.entry(stack.kind).or_default();
+        let available = self.entry(stack.kind).or_default();
         stack.amount = stack.amount.min(*available);
         *available -= stack.amount;
         stack
@@ -151,12 +154,21 @@ impl Pile {
         let Some(needed) = goods_for_block(block) else {
             return Some(block);
         };
-        let stored = self.0.entry(needed.kind).or_default();
+        let stored = self.entry(needed.kind).or_default();
         if *stored >= needed.amount {
             *stored -= needed.amount;
             Some(block)
         } else {
             None
+        }
+    }
+}
+
+impl Default for Pile {
+    fn default() -> Self {
+        Self {
+            goods: default(),
+            interact_distance: 1,
         }
     }
 }

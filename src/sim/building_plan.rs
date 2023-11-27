@@ -2,6 +2,8 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
+use super::lumberjack::TreeIsNearLumberCamp;
+
 // TODO: instead store
 #[derive(Component, Deref, DerefMut)]
 pub struct Blocked(pub Rect);
@@ -11,9 +13,6 @@ pub struct Planned(Rect);
 
 #[derive(Component)]
 pub struct House;
-
-#[derive(Component)]
-pub struct Lumberjack;
 
 #[derive(Component)]
 pub struct Quarry;
@@ -135,14 +134,14 @@ pub fn plan_lumberjack(
     blocked: Query<&Blocked>,
     planned: Query<(With<Lumberjack>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
-    trees: Query<&Pos, With<Tree>>,
+    trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
 ) {
     if !planned.is_empty() {
         return;
     }
     let center = center.single().truncate();
 
-    let start = Rect::new_centered(center.block(), ivec2(rand_range(5..=7), rand_range(5..=11)));
+    let start = Rect::new_centered(center.block(), ivec2(rand_range(4..=6), rand_range(5..=8)));
     let area = optimize(
         start,
         |area, temperature| {
@@ -160,7 +159,9 @@ pub fn plan_lumberjack(
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
             let tree_access = trees
                 .iter()
-                .map(|p| -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.)))
+                .map(|(_, p)| {
+                    -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.))
+                })
                 .sum::<f32>();
             wateryness(&level, *area) * 20.
                 + unevenness(&level, *area) * 1.
@@ -171,6 +172,12 @@ pub fn plan_lumberjack(
     );
     if area == start {
         return;
+    }
+
+    for (tree, pos) in &trees {
+        if pos.truncate().distance(area.center_vec2()) < 20. {
+            commands.entity(tree).insert(TreeIsNearLumberCamp);
+        }
     }
 
     commands.spawn((
@@ -238,7 +245,7 @@ pub fn assign_builds(
     if houses.iter().len() < 30 {
         plans.extend(&planned_houses)
     }
-    if lumberjacks.iter().len() < 1 {
+    if lumberjacks.iter().len() < 20 {
         plans.extend(&planned_lumberjacks)
     }
     if quarries.iter().len() < 8 {

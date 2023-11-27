@@ -20,6 +20,7 @@ use crate::{pathfind::pathfind, remove_foliage::find_trees, replay::*};
 use building_plan::*;
 use construction::*;
 use logistics::*;
+use lumberjack::Lumberjack;
 
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
@@ -110,12 +111,12 @@ fn assign_work(
             .filter_map(|(out_entity, out_pos, out_pile)| {
                 let mut best_score = f32::INFINITY;
                 let mut task = None;
-                for (good, &amount) in &out_pile.available.0 {
+                for (good, &amount) in &out_pile.available.goods {
                     if amount == 0. {
                         continue;
                     }
                     for (in_entity, in_pos, in_pile) in &mut in_piles {
-                        if let Some(&requested) = in_pile.requested.0.get(good)
+                        if let Some(&requested) = in_pile.requested.get(good)
                             && requested > 0.
                         {
                             if let Some(priority) = in_pile.priority {

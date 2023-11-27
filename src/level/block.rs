@@ -981,6 +981,10 @@ impl Block {
         )
     }
 
+    pub fn cannot_walk_over(&self) -> bool {
+        matches!(self, Water | Lava | GroundPlant(Cactus))
+    }
+
     pub fn rotated(self, turns: i32) -> Self {
         match self {
             Log(species, LogType::Normal(Axis::X)) => Log(species, LogType::Normal(Axis::Y)),
