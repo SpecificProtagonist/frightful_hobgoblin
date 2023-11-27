@@ -8,9 +8,24 @@ pub struct Lumberworker {
     ready_to_work: bool,
 }
 
-#[derive(Component)]
+#[derive(Component, Eq, PartialEq, Copy, Clone)]
 pub struct LumberPile {
     axis: HAxis,
+    width: i32,
+    length: i32,
+}
+
+impl LumberPile {
+    fn max(&self) -> i32 {
+        self.length
+            * 4
+            * match self.width {
+                3 => 7,
+                4 => 10,
+                5 => 13,
+                _ => unreachable!(),
+            }
+    }
 }
 
 // This is a separate component to allow giving this task to other villagers too
@@ -157,21 +172,28 @@ pub fn make_lumber_piles(
     for lumberjack in &new_lumberjacks {
         let center = center.single().truncate();
 
-        let axis = if 0.5 > rand() { HAxis::X } else { HAxis::Y };
-        let area = |pos, axis| {
+        let params = LumberPile {
+            axis: if 0.5 > rand() { HAxis::X } else { HAxis::Y },
+            width: 3,
+            length: 5,
+        };
+        let area = |pos, params: LumberPile| {
             Rect::new_centered(
                 pos,
-                match axis {
-                    HAxis::X => ivec2(5, 3),
-                    HAxis::Y => ivec2(3, 5),
+                match params.axis {
+                    HAxis::X => ivec2(params.length, params.width),
+                    HAxis::Y => ivec2(params.width, params.length),
                 },
             )
         };
         let (pos, axis) = optimize(
-            (lumberjack.truncate().block(), axis),
-            |(mut pos, mut axis), temperature| {
+            (lumberjack.truncate().block(), params),
+            |(mut pos, mut params), temperature| {
                 if 0.2 > rand() {
-                    axis = axis.rotated()
+                    params.axis = params.axis.rotated()
+                } else if 0.3 > rand() {
+                    params.width = rand_range(3..=5);
+                    params.length = rand_range(5..=6);
                 } else {
                     let max_move = (20. * temperature) as i32;
                     pos += ivec2(
@@ -179,27 +201,31 @@ pub fn make_lumber_piles(
                         rand_range(-max_move..=max_move),
                     );
                 }
-                let area = area(pos, axis);
+                let area = area(pos, params);
                 (level.area().contains(pos)
                     & not_blocked(&blocked, area)
                     & (wateryness(&level, area) == 0.))
-                    .then_some((pos, axis))
+                    .then_some((pos, params))
             },
-            |(pos, axis)| {
+            |(pos, params)| {
                 let center_distance = center.distance(pos.as_vec2()) / 70.;
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = lumberjack.truncate().distance(pos.as_vec2()) / 20.;
-                center_distance + worker_distance + unevenness(&level, area(*pos, *axis)) * 1.
+                let size_bonus = (params.width + params.length) as f32 * 4.;
+                center_distance + worker_distance + unevenness(&level, area(*pos, *params)) * 1.
+                    - size_bonus
             },
             100,
         );
 
         commands.spawn((
             Pos(level.ground(pos).as_vec3() + Vec3::Z),
-            LumberPile { axis },
+            params,
             Pile::default(),
             Blocked(area(pos, axis)),
         ));
+
+        // TODO: Clear trees here
     }
 }
 
@@ -209,13 +235,40 @@ pub fn update_lumber_pile_visuals(
 ) {
     for (pos, lumberpile, pile) in &query {
         let amount = pile.get(&Good::Wood).copied().unwrap_or_default();
-        let logs = (amount / 20.).round() as usize;
-        // TODO: variable maximum size dependant on terrain
-        for (i, (side, z)) in [(0, 0), (-1, 0), (1, 0), (0, 1), (1, 1), (-1, 1), (0, 2)]
-            .into_iter()
-            .enumerate()
-        {
-            for along in -2..=2 {
+        let logs = (amount / (4. * lumberpile.length as f32)).round() as usize;
+        let log_positions: &[(i32, i32)] = match lumberpile.width {
+            3 => &[(0, 0), (-1, 0), (1, 0), (0, 1), (1, 1), (-1, 1), (0, 2)],
+            4 => &[
+                (0, 0),
+                (-1, 0),
+                (1, 0),
+                (2, 0),
+                (1, 1),
+                (0, 1),
+                (-1, 1),
+                (0, 2),
+                (2, 1),
+                (1, 2),
+            ],
+            5 => &[
+                (0, 0),
+                (-1, 0),
+                (-2, 0),
+                (1, 0),
+                (2, 0),
+                (1, 1),
+                (0, 1),
+                (-1, 1),
+                (0, 2),
+                (2, 1),
+                (1, 2),
+                (-2, 1),
+                (-1, 2),
+            ],
+            _ => unreachable!(),
+        };
+        for (i, (side, z)) in log_positions.iter().copied().enumerate() {
+            for along in -lumberpile.length / 2..=(lumberpile.length + 1) / 2 {
                 level[pos.block()
                     + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
                         .extend(z)] = if i < logs {
@@ -225,7 +278,7 @@ pub fn update_lumber_pile_visuals(
                 }
             }
         }
-        for along in [-1, 1] {
+        for along in [1 - lumberpile.length / 2, (lumberpile.length + 1) / 2 - 1] {
             for side in [-1, 1, 0] {
                 let mut pos = pos.block()
                     + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
