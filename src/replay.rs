@@ -4,8 +4,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use nbt::{CompoundTag, Tag};
 
-use std::f32::consts::PI;
-use std::fmt::Display;
+use std::fmt::{Display, Write};
 use std::fs::{create_dir_all, read, write};
 use std::ops::DerefMut;
 use std::path::{Path, PathBuf};
@@ -65,6 +64,7 @@ pub struct Replay {
     commands_this_chunk: i32,
     total_commands: u64,
     writes_in_flight: Arc<AtomicU32>,
+    carry_ids: Vec<(Id, Id)>,
 }
 
 // Used to offload encoding to gzipped nbt to worker threads
@@ -73,7 +73,6 @@ enum Command {
     Block(IVec3, Block),
     Dust(IVec3),
     Tp(Id, Vec3, Vec3),
-    TpCarry(Id, Vec3, f32),
 }
 
 impl Command {
@@ -102,14 +101,6 @@ impl Command {
                 facing.z,
                 facing.y + 0.5
             ),
-            Command::TpCarry(id, pos, dir) => format!(
-                "tp {} {:.2} {:.2} {:.2} {:.0} 0",
-                id,
-                pos.x + 0.5,
-                pos.z + 0.8,
-                pos.y + 0.5,
-                dir,
-            ),
         }
     }
 }
@@ -124,6 +115,7 @@ impl Replay {
             commands_this_chunk: 0,
             total_commands: 0,
             writes_in_flight: default(),
+            carry_ids: default(),
         };
 
         // Wait for the player to load in
@@ -151,12 +143,6 @@ impl Replay {
 
     pub fn tp(&mut self, id: Id, pos: Vec3, facing: Vec3) {
         self.commands_this_tick.push(Command::Tp(id, pos, facing));
-        self.commands_this_chunk += 1;
-        self.total_commands += 1;
-    }
-
-    pub fn tp_carry(&mut self, id: Id, pos: Vec3, dir: f32) {
-        self.commands_this_tick.push(Command::TpCarry(id, pos, dir));
         self.commands_this_chunk += 1;
         self.total_commands += 1;
     }
@@ -322,13 +308,18 @@ impl Replay {
             ",
         )
         .unwrap();
-        write(
-            sim_path.join("tick.mcfunction"),
-            "
+        write(sim_path.join("tick.mcfunction"), {
+            let mut tick = "
             scoreboard players operation SIM warp += SIM speed
             execute if score SIM warp matches 1.. run function sim:sim_tick
-            ",
-        )
+            "
+            .to_owned();
+            for (vill, carry) in self.carry_ids {
+                writeln!(tick, "tp {carry} {vill}").unwrap();
+            }
+            writeln!(tick, "execute as @e[tag=carry] at @s run tp ~ ~0.8 ~").unwrap();
+            tick
+        })
         .unwrap();
 
         // Could have used a condvar instead
@@ -344,7 +335,7 @@ pub fn tick_replay(
     mut replay: ResMut<Replay>,
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
-    mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&Villager>), Changed<Pos>>,
+    mut moved: Query<(&Id, &Pos, &mut PrevPos), Changed<Pos>>,
     jobless: Query<&Id, With<Jobless>>,
     lumberjacks: Query<&Id, With<Lumberworker>>,
 ) {
@@ -365,22 +356,20 @@ pub fn tick_replay(
             biome.villager_type()
         ));
         replay.command(format!(
-            // TODO: Use block display
-            "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1}}",
+            // TODO: Use block display?
+            "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1, Tags:[\"carry\"]}}",
             pos.x,
             pos.z + 0.8,
             pos.y,
             vill.carry_id.snbt(),
         ));
+        replay.carry_ids.push((*id, vill.carry_id));
     }
     // Movement
-    for (id, pos, mut prev, vill) in &mut moved {
+    for (id, pos, mut prev) in &mut moved {
         let delta = pos.0 - prev.0;
         let facing = pos.0 + delta;
         replay.tp(*id, pos.0, facing);
-        if let Some(vill) = vill {
-            replay.tp_carry(vill.carry_id, pos.0, delta.y.atan2(delta.x) / PI * 180.);
-        }
         prev.0 = pos.0;
     }
     // Carrying
