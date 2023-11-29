@@ -25,16 +25,19 @@ impl Prefab {
     pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir, wood: TreeSpecies) {
         let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
         for (offset, block) in self.blocks.iter() {
-            level[pos + offset.rotated(rotation)] = block.rotated(rotation).swap_wood_type(wood);
+            level(
+                pos + offset.rotated(rotation),
+                block.rotated(rotation).swap_wood_type(wood),
+            );
         }
     }
 
-    pub fn build_clipped(&self, world: &mut Level, pos: IVec3, facing: HDir, area: Rect) {
+    pub fn build_clipped(&self, level: &mut Level, pos: IVec3, facing: HDir, area: Rect) {
         let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
             if area.contains(pos.truncate()) {
-                world[pos] = block.rotated(rotation);
+                level(pos, block.rotated(rotation));
             }
         }
     }

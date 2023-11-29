@@ -45,7 +45,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
         } else {
             Slab(mat, Bottom)
         };
-        level[pos.extend(z_block as i32)] |= block;
+        level(pos, z_block as i32, |b| b | block);
     }
 
     for pos in area {
@@ -55,7 +55,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
             if (level[(pos + dir).extend(z_block)] == Stair(mat, dir.rotated(1), Bottom))
                 & (level[(pos + dir.rotated(1)).extend(z_block)] == Stair(mat, dir, Bottom))
             {
-                level[pos.extend(z_block)] = Stair(mat, dir, Bottom)
+                level(pos, z_block, Stair(mat, dir, Bottom))
             }
 
             // Fill holes in steep roofs
@@ -72,7 +72,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
                 upper += 1;
             }
             for z in lower..upper {
-                level[pos.extend(z)] = if level[pos.extend(z - 1)].solid()
+                let block = if level[pos.extend(z - 1)].solid()
                     || (matches!(level[pos.extend(z)], Full(..) | Stair(..)))
                 {
                     Full(mat)
@@ -81,6 +81,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
                 } else {
                     Stair(mat, dir, Top)
                 };
+                level(pos, z, block);
             }
         }
     }

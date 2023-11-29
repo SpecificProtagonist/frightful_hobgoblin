@@ -18,10 +18,10 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     }
 
     let door_pos = ivec3(rand_range(inner.min.x..=inner.max.x), area.min.y, floor + 1);
-    level[door_pos] = Air;
-    level[door_pos + IVec3::Z] = Air;
-    level[door_pos.add(HDir::YNeg)] = Air;
-    level[door_pos.add(HDir::YNeg) + IVec3::Z] = Air;
+    level(door_pos, Air);
+    level(door_pos + IVec3::Z, Air);
+    level(door_pos.add(HDir::YNeg), Air);
+    level(door_pos.add(HDir::YNeg) + IVec3::Z, Air);
 
     let second_floor = floor + 3;
 
@@ -33,12 +33,18 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
 
     for y in [area.min.y, area.max.y] {
         for x in inner.min.x..=inner.max.x {
-            level[ivec3(x, y, second_floor)] = Log(Oak, LogType::Normal(Axis::X))
+            level(
+                ivec3(x, y, second_floor),
+                Log(Oak, LogType::Normal(Axis::X)),
+            )
         }
     }
     for x in [area.min.x, area.max.x] {
         for y in inner.min.y..=inner.max.y {
-            level[ivec3(x, y, second_floor)] = Log(Oak, LogType::Normal(Axis::Y))
+            level(
+                ivec3(x, y, second_floor),
+                Log(Oak, LogType::Normal(Axis::Y)),
+            )
         }
     }
 
@@ -57,7 +63,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
                     roof_fixup.push(pos);
                     return;
                 }
-                _ => level[pos] = block,
+                _ => level(pos, block),
             }
         }
     };
@@ -82,7 +88,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
             match level[pos] {
-                MangroveRoots => level[pos] = MuddyMangroveRoots,
+                MangroveRoots => level(pos, MuddyMangroveRoots),
                 _ => continue 'outer,
             }
         }
@@ -96,7 +102,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
             match level[pos] {
-                MuddyMangroveRoots => level[pos] = MushroomStem,
+                MuddyMangroveRoots => level(pos, MushroomStem),
                 _ => continue 'outer,
             }
         }
@@ -126,7 +132,7 @@ pub fn shack(level: &mut Level, area: Rect) -> PlaceList {
                     roof_fixup.push(pos);
                     return;
                 }
-                _ => level[pos] = block,
+                _ => level(pos, block),
             }
         }
     };
@@ -167,7 +173,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
     }
     for col in area {
         for z in (level.height(col) + 1..=floor).rev() {
-            level[col.extend(z)] = Air
+            level(col, z, Air)
         }
     }
     let mut rec: PlaceList = level.pop_recording(cursor).collect();
@@ -179,7 +185,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
             if level[pos].solid() & !level[pos].soil() {
                 break;
             }
-            level[pos] = Full(Cobble);
+            level(pos, Full(Cobble));
             if NEIGHBORS_2D.iter().all(|dir| level[pos.add(*dir)].solid()) {
                 break;
             }
@@ -190,7 +196,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
         for z in (level.height(col) - 1).min(floor)..=floor {
             let pos = col.extend(z);
             if (!level[pos].solid()) | (level[pos].soil()) {
-                level[pos] = PackedMud
+                level(pos, PackedMud)
             }
         }
     }

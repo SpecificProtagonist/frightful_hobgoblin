@@ -36,6 +36,7 @@ pub struct DeliverTask {
 }
 
 // TODO: Storage piles, which don't request resources but allow storing resources that need to be relocated, e.g. lumber piles, piles from deconstruction or from relocating other storage piles.
+/// Pile that actively requests goods.
 #[derive(Component, Default, Debug)]
 pub struct InPile {
     /// Goods requested that are not covered by current stock or incomming orders
@@ -44,6 +45,7 @@ pub struct InPile {
     pub priority: Option<Good>,
 }
 
+/// Pile that makes goods available.
 #[derive(Component, Default, Debug)]
 pub struct OutPile {
     /// Goods available, not including goods present but promised for another delivery

@@ -8,10 +8,13 @@ pub fn ground(level: &mut Level, area: Rect) {
             level.height(column)
         };
         for z in base_height + 1..=base_height + 2 {
-            let block = &mut level[column.extend(z)];
-            if matches!(block, GroundPlant(..)) {
-                *block = Block::Air
-            }
+            level(column, z, |block| {
+                if matches!(block, GroundPlant(..)) {
+                    Block::Air
+                } else {
+                    block
+                }
+            })
         }
     }
 }
@@ -55,7 +58,7 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
     // Store distance from log, 0 means log
     let mut blocks = vec![(pos, 0)];
     while let Some((pos, distance)) = blocks.pop() {
-        level[pos] = Air;
+        level(pos, Air);
         for off_x in -1..=1 {
             for off_y in -1..=1 {
                 for off_z in -1..=1 {

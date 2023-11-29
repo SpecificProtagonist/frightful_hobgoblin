@@ -21,8 +21,8 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     level.fill_at(outer.d2(), outer.max.z, Full(MudBrick));
 
     let door_pos = ivec2(rand_range(inner.min.x..=inner.max.x), outer.min.y);
-    level[door_pos.extend(inner.min.z)] = Door(Oak, YPos, DoorMeta::empty());
-    level[door_pos.extend(inner.min.z + 1)] = Door(Oak, YPos, DoorMeta::TOP);
+    level(door_pos, inner.min.z, Door(Oak, YPos, DoorMeta::empty()));
+    level(door_pos, inner.min.z + 1, Door(Oak, YPos, DoorMeta::TOP));
 
     let mut roof_access = false;
     if 0.7 > rand() {
@@ -40,12 +40,18 @@ pub fn house(level: &mut Level, outer: Cuboid) {
         // Crenellation
         for (i, x) in (inner.min.x..=inner.max.x).enumerate() {
             for y in [outer.min.y, outer.max.y] {
-                level[ivec3(x, y, outer.max.z + 1)] = crenel(inner.size().x, i as i32);
+                level(
+                    ivec3(x, y, outer.max.z + 1),
+                    crenel(inner.size().x, i as i32),
+                );
             }
         }
         for (i, y) in (inner.min.y..=inner.max.y).enumerate() {
             for x in [outer.min.x, outer.max.x] {
-                level[ivec3(x, y, outer.max.z + 1)] = crenel(inner.size().y, i as i32).rotated(1);
+                level(
+                    ivec3(x, y, outer.max.z + 1),
+                    crenel(inner.size().y, i as i32).rotated(1),
+                );
             }
         }
         level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
@@ -111,7 +117,7 @@ fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
         } else {
             Log(Birch, LogType::Stripped(Axis::Z))
         };
-        level[column.extend(z)] = block;
+        level(column, z, block);
     }
 }
 

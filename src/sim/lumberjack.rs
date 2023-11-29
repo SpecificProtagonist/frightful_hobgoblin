@@ -286,13 +286,16 @@ pub fn update_lumber_pile_visuals(
         };
         for (i, (side, z)) in log_positions.iter().copied().enumerate() {
             for along in -lumberpile.length / 2..=(lumberpile.length + 1) / 2 {
-                level[pos.block()
-                    + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
-                        .extend(z)] = if i < logs {
-                    Log(Spruce, LogType::Normal(lumberpile.axis.into()))
-                } else {
-                    Air
-                }
+                level(
+                    pos.block()
+                        + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
+                            .extend(z),
+                    if i < logs {
+                        Log(Spruce, LogType::Normal(lumberpile.axis.into()))
+                    } else {
+                        Air
+                    },
+                )
             }
         }
         for along in [1 - lumberpile.length / 2, (lumberpile.length + 1) / 2 - 1] {
@@ -306,11 +309,14 @@ pub fn update_lumber_pile_visuals(
                 while level[pos].solid() {
                     pos.z += 1
                 }
-                level[pos] = if logs == 0 {
-                    Air
-                } else {
-                    Rail(lumberpile.axis)
-                }
+                level(
+                    pos,
+                    if logs == 0 {
+                        Air
+                    } else {
+                        Rail(lumberpile.axis)
+                    },
+                )
             }
         }
     }

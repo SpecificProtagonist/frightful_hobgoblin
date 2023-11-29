@@ -28,7 +28,7 @@ pub fn sim(mut level: Level) {
 
     for pos in city_center {
         let pos = level.ground(pos);
-        level[pos] = Wool(Magenta)
+        level(pos, Wool(Magenta))
     }
 
     // Find trees

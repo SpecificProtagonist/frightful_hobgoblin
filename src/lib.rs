@@ -1,6 +1,9 @@
 #![feature(option_get_or_insert_default)]
 #![feature(lazy_cell)]
 #![feature(let_chains)]
+// Feeling cute, might delete later
+#![feature(unboxed_closures)]
+#![feature(fn_traits)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;

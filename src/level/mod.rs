@@ -1,5 +1,6 @@
 mod biome;
 mod block;
+mod index_call;
 mod view;
 
 use anvil_region::{
@@ -12,7 +13,7 @@ use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
 use std::{
-    ops::{Index, IndexMut, Range, RangeInclusive, Shr},
+    ops::{Range, RangeInclusive, Shr},
     path::PathBuf,
 };
 
@@ -34,7 +35,7 @@ pub struct Level {
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
     dirty_chunks: Vec<bool>,
-    setblock_recording: Vec<RecordSetBlock>,
+    setblock_recording: Vec<SetBlock>,
 }
 
 impl Level {
@@ -250,40 +251,19 @@ impl Level {
         &mut self,
         cursor: RecordingCursor,
     ) -> impl Iterator<Item = SetBlock> + '_ {
-        // Intermediate storage because of borrow conflict
-        let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
-        rec.into_iter().filter_map(move |setblock| {
-            let current = self[setblock.pos];
-            (current != setblock.previous).then_some(SetBlock {
-                pos: setblock.pos,
-                block: current,
-                previous: setblock.previous,
-            })
-        })
+        self.setblock_recording.drain(cursor.0..)
     }
 
     pub fn get_recording(
         &mut self,
         cursor: RecordingCursor,
     ) -> impl Iterator<Item = SetBlock> + '_ {
-        // Intermediate storage because of borrow conflict
-        let rec = self.setblock_recording[cursor.0..]
-            .iter()
-            .copied()
-            .collect_vec();
-        rec.into_iter().filter_map(move |setblock| {
-            let current = self[setblock.pos];
-            (current != setblock.previous).then_some(SetBlock {
-                pos: setblock.pos,
-                block: current,
-                previous: setblock.previous,
-            })
-        })
+        self.setblock_recording[cursor.0..].iter().copied()
     }
 
     pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, block: Block) {
         for pos in iter {
-            self[pos] = block;
+            self(pos, block);
         }
     }
 
@@ -295,7 +275,7 @@ impl Level {
     ) {
         for pos in iter {
             for z in z.start()..=z.end() {
-                self[pos.extend(z)] = block;
+                self(pos.extend(z), block);
             }
         }
     }
@@ -349,48 +329,6 @@ impl RangeOrSingle for i32 {
 
     fn end(&self) -> i32 {
         *self
-    }
-}
-
-impl Index<IVec3> for Level {
-    type Output = Block;
-
-    // TODO: On out of bounds, print warning (only once) and return dummy
-    fn index(&self, pos: IVec3) -> &Self::Output {
-        if let Some(section) = &self.sections[self.section_index(pos)] {
-            &section.blocks[Self::block_in_section_index(pos)]
-        } else {
-            &Block::Air
-        }
-    }
-}
-
-impl IndexMut<IVec3> for Level {
-    fn index_mut(&mut self, pos: IVec3) -> &mut Self::Output {
-        let chunk_index = self.chunk_index(pos.into());
-        self.dirty_chunks[chunk_index] = true;
-        let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_default();
-        let block = &mut section.blocks[Self::block_in_section_index(pos)];
-        self.setblock_recording.push(RecordSetBlock {
-            pos,
-            previous: *block,
-        });
-        block
-    }
-}
-
-impl Index<Vec3> for Level {
-    type Output = Block;
-
-    fn index(&self, pos: Vec3) -> &Self::Output {
-        &self[pos.block()]
-    }
-}
-
-impl IndexMut<Vec3> for Level {
-    fn index_mut(&mut self, pos: Vec3) -> &mut Self::Output {
-        &mut self[pos.block()]
     }
 }
 
@@ -641,17 +579,10 @@ impl Default for Section {
     }
 }
 
-#[derive(Copy, Clone)]
-struct RecordSetBlock {
-    pos: IVec3,
-    previous: Block,
-}
-
 #[derive(Copy, Clone, Debug)]
 pub struct SetBlock {
     pub pos: IVec3,
     pub block: Block,
-    // TODO: This isn't accurate when the same block if overwritten multiple times (probably doesn't matter though)
     pub previous: Block,
 }
 

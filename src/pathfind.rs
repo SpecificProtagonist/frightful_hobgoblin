@@ -35,6 +35,7 @@ impl PartialOrd for Node {
 const BASE_COST_PER_BLOCK: u32 = 3;
 const STAIR_COOLDOWN: i8 = 7;
 
+// TODO: Make walking on paths faster; make stairs reduce stair cost
 pub fn pathfind(
     level: &Level,
     mut start: IVec3,

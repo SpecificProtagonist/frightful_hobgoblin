@@ -298,7 +298,7 @@ pub fn test_build_quarry(
     for (entity, area) in &new {
         for pos in area.0 {
             let pos = level.ground(pos);
-            level[pos] = Wool(Black)
+            level(pos, Wool(Black))
         }
         commands.entity(entity).remove::<ToBeBuild>().insert(Quarry);
     }

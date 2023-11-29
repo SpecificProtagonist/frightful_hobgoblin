@@ -11,37 +11,37 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     let leaf_block = Leaves(species, None);
 
     let base_pos = base_pos + ivec3(0, 0, 1);
-    level[base_pos] = log_block;
+    level(base_pos, log_block);
 
     let mut pos = base_pos + ivec3(0, 0, 1) + rand_2(0.2).extend(0);
-    level[pos] = log_block;
+    level(pos, log_block);
 
     pos.x += 1;
     if 0.8 > rand() {
         if pos.truncate() == base_pos.truncate() {
             pos += rand_2(0.3).extend(0);
         }
-        level[pos] = log_block;
+        level(pos, log_block);
 
         if 0.2 > rand() {
             pos.z += 1;
-            level[pos] = log_block;
+            level(pos, log_block);
         }
     }
 
-    level[pos + ivec3(1, 0, 0)] |= leaf_block;
-    level[pos + ivec3(-1, 0, 0)] |= leaf_block;
-    level[pos + ivec3(0, 1, 0)] |= leaf_block;
-    level[pos + ivec3(0, -1, 0)] |= leaf_block;
-    level[pos + ivec3(0, 0, 1)] |= leaf_block;
-    level[pos + ivec3(0, 0, -1)] |= leaf_block;
+    level(pos + ivec3(1, 0, 0), |b| b | leaf_block);
+    level(pos + ivec3(-1, 0, 0), |b| b | leaf_block);
+    level(pos + ivec3(0, 1, 0), |b| b | leaf_block);
+    level(pos + ivec3(0, -1, 0), |b| b | leaf_block);
+    level(pos + ivec3(0, 0, 1), |b| b | leaf_block);
+    level(pos + ivec3(0, 0, -1), |b| b | leaf_block);
 
     for leaf_pos in Cuboid::new(pos - IVec3::splat(2), pos + IVec3::splat(2)) {
         let distance_squared = ((leaf_pos - pos).x * (leaf_pos - pos).x
             + (leaf_pos - pos).z * (leaf_pos - pos).z
             + (leaf_pos - pos).y * (leaf_pos - pos).y) as f32;
         if 1.0 - (distance_squared / 3.0) > rand() {
-            level[leaf_pos] |= leaf_block;
+            level(leaf_pos, |b| b | leaf_block);
         }
     }
 }
@@ -53,24 +53,24 @@ pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
     let log_height = 5 + rand_1(0.5) + rand_1(0.5);
 
     for z in 1..=log_height {
-        level[pos + ivec3(0, 0, z)] = log_block;
+        level(pos + IVec3::Z * z, log_block);
     }
 
     for off in &[ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1)] {
         for z in 3..=log_height + 1 {
-            level[pos + ivec3(off.x, off.y, z)] = leaf_block;
+            level(pos + ivec3(off.x, off.y, z), leaf_block);
         }
     }
 
-    level[pos + ivec3(0, 0, log_height + 1)] |= leaf_block;
-    level[pos + ivec3(0, 0, log_height + 2)] |= leaf_block;
+    level(pos + IVec3::Z * (log_height + 1), |b| b | leaf_block);
+    level(pos + IVec3::Z * (log_height + 2), |b| b | leaf_block);
     if (log_height == 5) & (0.75 > rand()) | (log_height > 5) {
-        level[pos + ivec3(0, 0, log_height + 3)] |= leaf_block;
+        level(pos + IVec3::Z * (log_height + 3), |b| b | leaf_block);
     }
 
     for off in &[ivec2(1, 1), ivec2(-1, 1), ivec2(1, -1), ivec2(-1, -1)] {
         for z in 4 + rand_1(0.5)..=log_height - 1 + rand_1(0.5) {
-            level[pos + ivec3(off.x, off.y, z)] |= leaf_block;
+            level(pos + ivec3(off.x, off.y, z), |b| b | leaf_block);
         }
     }
 }
@@ -183,12 +183,12 @@ impl GrowTree {
 
     pub fn build(&mut self, level: &mut Level, pos: Vec3) {
         if self.size < 0.25 {
-            level[pos.block()] = GroundPlant(Sapling(self.params.species));
+            level(pos, GroundPlant(Sapling(self.params.species)));
             return;
         }
         for (pos, block) in self.blocks.drain(..) {
             if level[pos] == block {
-                level[pos] = Air
+                level(pos, Air)
             }
         }
         let cursor = level.recording_cursor();
@@ -208,7 +208,7 @@ impl GrowTree {
                     let mut diff = block_pos.as_vec3() - (start + extent);
                     diff.z /= params.leaf_z_factor;
                     if diff.length() < i as f32 - rand_f32(0.8, 2.) {
-                        level[block_pos] |= Leaves(params.species, None);
+                        level(block_pos, |b| b | Leaves(params.species, None));
                     }
                 }
                 return;
@@ -220,9 +220,9 @@ impl GrowTree {
             for step in 0..=steps {
                 let block_pos = (start + extent / steps as f32 * step as f32).block();
                 if fence {
-                    level[block_pos] |= Fence(Wood(params.species));
+                    level(block_pos, |b| b | Fence(Wood(params.species)));
                 } else {
-                    level[block_pos] = Log(params.species, LogType::FullBark);
+                    level(block_pos, Log(params.species, LogType::FullBark));
                 }
             }
             for child in &branch.children {
