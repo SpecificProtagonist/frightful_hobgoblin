@@ -875,6 +875,7 @@ impl Block {
                 "blue_wall_banner" => wall_banner(Red, props),
                 "green_wall_banner" => wall_banner(Red, props),
                 "yellow_wall_banner" => wall_banner(Red, props),
+                "ladder" => Ladder(HDir::from_str(props.get_str("facing").unwrap()).unwrap()),
                 _ => return None,
             })
         }
@@ -941,7 +942,7 @@ impl Block {
         nbt
     }
 
-    pub fn solid(&self) -> bool {
+    pub fn solid(self) -> bool {
         // Todo: expand this
         !matches!(
             self,
@@ -961,7 +962,11 @@ impl Block {
         )
     }
 
-    pub fn soil(&self) -> bool {
+    pub fn walkable(self) -> bool {
+        self.solid() | matches!(self, Ladder(..))
+    }
+
+    pub fn soil(self) -> bool {
         matches!(
             self,
             Dirt | Grass
@@ -976,15 +981,19 @@ impl Block {
         )
     }
 
-    pub fn dirtsoil(&self) -> bool {
+    pub fn dirtsoil(self) -> bool {
         matches!(
             self,
             Dirt | Grass | Gravel | Farmland | Path | Podzol | CoarseDirt | SoulSand | PackedMud
         )
     }
 
-    pub fn cannot_walk_over(&self) -> bool {
+    pub fn no_pathing(self) -> bool {
         matches!(self, Water | Lava | GroundPlant(Cactus))
+    }
+
+    pub fn climbable(self) -> bool {
+        matches!(self, Ladder(..))
     }
 
     pub fn rotated(self, turns: i32) -> Self {

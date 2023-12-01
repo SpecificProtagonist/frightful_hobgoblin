@@ -353,7 +353,7 @@ fn load_chunk(
     let version = nbt.get_i32("DataVersion").unwrap();
     if !(3465..=DATA_VERSION).contains(&version) {
         eprintln!(
-            "Using version {}; only 1.20.1 is currently tested.",
+            "Using version {}; only 1.20.2 is currently tested.",
             version
         );
     }

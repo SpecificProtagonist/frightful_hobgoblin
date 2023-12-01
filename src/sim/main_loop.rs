@@ -59,7 +59,7 @@ pub fn sim(mut level: Level) {
             (quarry::make_stone_piles, quarry::update_stone_pile_visuals),
             // plan_house,
             // plan_lumberjack,
-            plan_quarry,
+            // plan_quarry,
             |mut commands: Commands, query: Query<Entity, (With<StonePile>, Without<InPile>)>| {
                 for e in &query {
                     commands.entity(e).insert(InPile {
@@ -98,7 +98,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 40 {
+        if tick < 1 {
             world.spawn((
                 Id::default(),
                 Villager::default(),

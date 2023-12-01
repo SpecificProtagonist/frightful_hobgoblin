@@ -20,7 +20,10 @@ impl MoveTask {
 
 /// Path to move along, in reverse order
 #[derive(Component)]
-pub struct MovePath(VecDeque<IVec3>);
+pub struct MovePath {
+    steps: VecDeque<IVec3>,
+    vertical: bool,
+}
 
 // Assumes reservations have already been made
 #[derive(Component)]
@@ -147,22 +150,48 @@ pub fn walk(
     for (entity, mut pos, goal, path) in &mut query {
         if let Some(mut path) = path {
             const BLOCKS_PER_TICK: f32 = 0.16;
-            let mut next_node = *path.0.front().unwrap();
+            const CLIMB_PER_TICK: f32 = 0.09;
+            let mut next_node = *path.steps.front().unwrap();
             let diff = (next_node.as_vec3() - pos.0).truncate();
-            if diff.length() < BLOCKS_PER_TICK {
-                path.0.pop_front();
-                if let Some(&next) = path.0.front() {
-                    next_node = next;
+            if path.vertical {
+                // Climbing
+                if if next_node.z as f32 > pos.0.z {
+                    pos.0.z += CLIMB_PER_TICK;
+                    pos.0.z > next_node.z as f32
                 } else {
-                    commands.entity(entity).remove::<(MoveTask, MovePath)>();
+                    pos.0.z -= CLIMB_PER_TICK;
+                    pos.0.z < next_node.z as f32
+                } {
+                    path.steps.pop_front();
+                    if let Some(&next) = path.steps.front() {
+                        path.vertical = (next - next_node).truncate() == IVec2::ZERO;
+                    } else {
+                        commands.entity(entity).remove::<(MoveTask, MovePath)>();
+                    }
+                }
+            } else {
+                // Not climbing, but possibly going up stairs
+                if diff.length() < BLOCKS_PER_TICK {
+                    path.steps.pop_front();
+                    if let Some(&next) = path.steps.front() {
+                        path.vertical = (next - next_node).truncate() == IVec2::ZERO;
+                        next_node = next;
+                    } else {
+                        commands.entity(entity).remove::<(MoveTask, MovePath)>();
+                    }
+                }
+                if !path.vertical {
+                    let diff = (next_node.as_vec3() - pos.0).truncate();
+                    pos.0 += (diff.normalize_or_zero() * BLOCKS_PER_TICK).extend(0.);
+                    set_walk_height(&level, &mut pos);
                 }
             }
-            let diff = (next_node.as_vec3() - pos.0).truncate();
-            pos.0 += (diff.normalize_or_zero() * BLOCKS_PER_TICK).extend(0.);
-            set_walk_height(&level, &mut pos);
         } else {
             let path = pathfind(&level, pos.block(), goal.goal, goal.distance);
-            commands.entity(entity).insert(MovePath(path));
+            commands.entity(entity).insert(MovePath {
+                steps: path.path,
+                vertical: false,
+            });
         }
     }
 }

@@ -91,6 +91,7 @@ impl Command {
                 "particle campfire_cosy_smoke {} {} {} 1.3 1.3 1.3 0.006 10",
                 pos.x, pos.z, pos.y
             ),
+            // TODO: how to do facing when climbing a ladder?
             Command::Tp(id, pos, facing) => format!(
                 "tp {} {:.2} {:.2} {:.2} facing {:.2} {:.2} {:.2}",
                 id,
