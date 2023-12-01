@@ -262,6 +262,7 @@ pub use Half::*;
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BlockMaterial {
     Stone,
+    SmoothStone,
     Granite,
     PolishedGranite,
     Diorite,
@@ -294,6 +295,7 @@ impl BlockMaterial {
     pub fn to_str(self) -> &'static str {
         match self {
             Stone => "stone",
+            SmoothStone => "smooth_stone",
             Diorite => "diorite",
             PolishedDiorite => "polished_diorite",
             Granite => "granite",

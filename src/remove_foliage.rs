@@ -26,22 +26,22 @@ pub fn find_trees(
     let mut trees = HashSet::default();
     for column in area {
         let z = level.height(column) + 1;
-        if let Block::Log(species, _) = level[column.extend(z)] {
+        if let Block::Log(species, _) = level(column.extend(z)) {
             // Check whether this is a tree instead of part of a man-made structure
             let mut pos = column.extend(z);
-            while let Block::Log(..) = level[pos] {
+            while let Block::Log(..) = level(pos) {
                 pos += IVec3::Z;
             }
-            if !matches!(level[pos], Leaves(..)) {
+            if !matches!(level(pos), Leaves(..)) {
                 continue;
             }
             // Find origin
             // TODO: find connected blocks to make this work for all kinds of trees
             let mut pos = column.extend(z);
-            if let Block::Log(..) = level[pos - IVec3::X] {
+            if let Block::Log(..) = level(pos - IVec3::X) {
                 pos -= IVec3::X
             }
-            if let Block::Log(..) = level[pos - IVec3::Y] {
+            if let Block::Log(..) = level(pos - IVec3::Y) {
                 pos -= IVec3::Y
             }
             trees.insert((pos, species));
@@ -51,7 +51,7 @@ pub fn find_trees(
 }
 
 pub fn remove_tree(level: &mut Level, pos: IVec3) {
-    let Log(species, ..) = level[pos] else {
+    let Log(species, ..) = level(pos) else {
         println!("Tried to remove tree at {pos:?} but not found");
         return;
     };
@@ -64,7 +64,7 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
                 for off_z in -1..=1 {
                     let off = ivec3(off_x, off_y, off_z);
                     let pos = pos + off;
-                    match level[pos] {
+                    match level(pos) {
                         Log(s, ..) if (s == species) & (distance <= 1) => blocks.push((pos, 0)),
                         // Checking species can leave leaves behind when trees intersect
                         // Also, azalea

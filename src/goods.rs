@@ -81,6 +81,7 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
             | Granite
             | Diorite
             | Andesite
+            | SmoothStone
             | PolishedGranite
             | PolishedDiorite
             | PolishedAndesite
@@ -119,11 +120,32 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
 #[derive(Component, Debug, Clone, Deref, DerefMut)]
 pub struct Pile {
     #[deref]
-    pub goods: HashMap<Good, f32>,
+    pub goods: Goods,
     pub interact_distance: i32,
 }
 
 impl Pile {
+    pub fn new(goods: Goods) -> Self {
+        Self {
+            goods,
+            interact_distance: 1,
+        }
+    }
+}
+
+impl Default for Pile {
+    fn default() -> Self {
+        Self {
+            goods: default(),
+            interact_distance: 1,
+        }
+    }
+}
+
+#[derive(Component, Debug, Clone, Default, Deref, DerefMut)]
+pub struct Goods(HashMap<Good, f32>);
+
+impl Goods {
     pub fn has(&self, stack: Stack) -> bool {
         self.get(&stack.kind)
             .map(|&a| a >= stack.amount)
@@ -138,7 +160,7 @@ impl Pile {
         if let Some(entry) = self.get_mut(&stack.kind) {
             *entry -= stack.amount;
             if *entry <= 0. {
-                self.goods.remove(&stack.kind);
+                self.0.remove(&stack.kind);
             }
         }
     }
@@ -160,15 +182,6 @@ impl Pile {
             Some(block)
         } else {
             None
-        }
-    }
-}
-
-impl Default for Pile {
-    fn default() -> Self {
-        Self {
-            goods: default(),
-            interact_distance: 1,
         }
     }
 }

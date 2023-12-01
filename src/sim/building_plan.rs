@@ -2,7 +2,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
-use super::lumberjack::TreeIsNearLumberCamp;
+use super::{lumberjack::TreeIsNearLumberCamp, quarry::Quarry};
 
 // TODO: instead store
 #[derive(Component, Deref, DerefMut)]
@@ -13,9 +13,6 @@ pub struct Planned(Rect);
 
 #[derive(Component)]
 pub struct House;
-
-#[derive(Component)]
-pub struct Quarry;
 
 #[derive(Component)]
 pub struct ToBeBuild;
@@ -48,7 +45,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
-            level.area().subrect(new).then_some(new)
+            level.area().has_subrect(new).then_some(new)
         },
         |area| {
             let distance = area
@@ -82,7 +79,7 @@ pub fn remove_outdated(
     }
 }
 
-pub fn plan_house(
+pub fn _plan_house(
     mut commands: Commands,
     level: Res<Level>,
     blocked: Query<&Blocked>,
@@ -109,7 +106,7 @@ pub fn plan_house(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },
         |area| {
             let distance = center.distance(area.center().as_vec2()) / 50.;
@@ -128,7 +125,7 @@ pub fn plan_house(
     ));
 }
 
-pub fn plan_lumberjack(
+pub fn _plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
     blocked: Query<&Blocked>,
@@ -153,7 +150,7 @@ pub fn plan_lumberjack(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
@@ -187,7 +184,7 @@ pub fn plan_lumberjack(
     ));
 }
 
-pub fn _plan_quarry(
+pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
     blocked: Query<&Blocked>,
@@ -208,7 +205,7 @@ pub fn _plan_quarry(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
-            (level.area().subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
@@ -300,6 +297,6 @@ pub fn test_build_quarry(
             let pos = level.ground(pos);
             level(pos, Wool(Black))
         }
-        commands.entity(entity).remove::<ToBeBuild>().insert(Quarry);
+        commands.entity(entity).remove::<ToBeBuild>().insert(Built);
     }
 }

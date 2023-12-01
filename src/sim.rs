@@ -6,6 +6,7 @@ mod construction;
 mod logistics;
 pub mod lumberjack;
 mod main_loop;
+pub mod quarry;
 
 pub use main_loop::sim;
 
@@ -111,7 +112,7 @@ fn assign_work(
             .filter_map(|(out_entity, out_pos, out_pile)| {
                 let mut best_score = f32::INFINITY;
                 let mut task = None;
-                for (good, &amount) in &out_pile.available.goods {
+                for (good, &amount) in out_pile.available.iter() {
                     if amount == 0. {
                         continue;
                     }

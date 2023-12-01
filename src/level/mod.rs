@@ -56,10 +56,8 @@ impl Level {
         };
         let chunk_provider = FolderRegionProvider::new(&region_path);
         // TODO: use area just as a settlement area but try to load a wider margin around it (need to detect if chunks are present)
-        let chunk_min: ChunkIndex =
-            (area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
-        let chunk_max: ChunkIndex =
-            (area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN)).into();
+        let chunk_min = ChunkIndex::from(area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
+        let chunk_max = ChunkIndex::from(area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
 
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;

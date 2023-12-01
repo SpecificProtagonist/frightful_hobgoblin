@@ -55,7 +55,7 @@ impl Rect {
             & (self.max.y >= other.min.y)
     }
 
-    pub fn subrect(self, subrect: Rect) -> bool {
+    pub fn has_subrect(self, subrect: Rect) -> bool {
         (self.min.x <= subrect.min.x)
             & (self.min.y <= subrect.min.y)
             & (self.max.x >= subrect.max.x)
@@ -159,7 +159,7 @@ impl IntoIterator for Rect {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Eq, PartialEq)]
 pub struct Cuboid {
     pub min: IVec3,
     pub max: IVec3,

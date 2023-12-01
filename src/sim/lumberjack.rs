@@ -1,5 +1,4 @@
 use crate::*;
-use bevy_ecs::prelude::*;
 use sim::*;
 
 #[derive(Component)]
@@ -303,10 +302,10 @@ pub fn update_lumber_pile_visuals(
                 let mut pos = pos.block()
                     + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
                         .extend(1);
-                if !level[pos - IVec3::Z].solid() {
+                if !level(pos - IVec3::Z).solid() {
                     continue;
                 }
-                while level[pos].solid() {
+                while level(pos).solid() {
                     pos.z += 1
                 }
                 level(

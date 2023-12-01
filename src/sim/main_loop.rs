@@ -1,4 +1,4 @@
-use super::*;
+use super::{quarry::StonePile, *};
 
 pub fn sim(mut level: Level) {
     Id::load(&level.path);
@@ -10,7 +10,7 @@ pub fn sim(mut level: Level) {
     let city_center_pos = level.ground(city_center.center());
 
     let starting_resources = {
-        let mut stock = Pile::default();
+        let mut stock = Goods::default();
         stock.add(Stack::new(Good::Stone, 99999999.));
         stock.add(Stack::new(Good::Wood, 99999999.));
         stock.add(Stack::new(Good::Soil, 99999999.));
@@ -23,7 +23,7 @@ pub fn sim(mut level: Level) {
         OutPile {
             available: starting_resources.clone(),
         },
-        starting_resources,
+        Pile::new(starting_resources),
     ));
 
     for pos in city_center {
@@ -56,16 +56,27 @@ pub fn sim(mut level: Level) {
                 lumberjack::make_lumber_piles,
                 lumberjack::update_lumber_pile_visuals,
             ),
+            (quarry::make_stone_piles, quarry::update_stone_pile_visuals),
             // plan_house,
-            plan_lumberjack,
-            // plan_quarry,
+            // plan_lumberjack,
+            plan_quarry,
+            |mut commands: Commands, query: Query<Entity, (With<StonePile>, Without<InPile>)>| {
+                for e in &query {
+                    commands.entity(e).insert(InPile {
+                        requested: {
+                            let mut stock = Goods::default();
+                            stock.add(Stack::new(Good::Stone, 30.));
+                            stock
+                        },
+                        priority: None,
+                    });
+                }
+            },
             apply_deferred,
             assign_builds,
             apply_deferred,
             new_construction_site,
-            test_build_house,
-            test_build_lumberjack,
-            test_build_quarry,
+            (test_build_house, test_build_lumberjack, test_build_quarry),
             apply_deferred,
             tick_replay,
             remove_outdated,

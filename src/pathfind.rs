@@ -45,10 +45,10 @@ pub fn pathfind(
     let area = level.area().shrink(2);
     if range_to_end == 0 {
         for pos in [&mut end, &mut start] {
-            while level[*pos].solid() {
+            while level(*pos).solid() {
                 *pos += IVec3::Z
             }
-            while !level[*pos - IVec3::Z].solid() {
+            while !level(*pos - IVec3::Z).solid() {
                 *pos -= IVec3::Z
             }
         }
@@ -72,17 +72,17 @@ pub fn pathfind(
             if !area.contains(new_pos.truncate()) {
                 continue;
             }
-            if level[new_pos - IVec3::Z].cannot_walk_over() {
+            if level(new_pos - IVec3::Z).cannot_walk_over() {
                 continue;
             }
-            let stairs_taken = if level[new_pos].solid() {
-                if level[node.pos + IVec3::Z].solid() {
+            let stairs_taken = if level(new_pos).solid() {
+                if level(node.pos + IVec3::Z).solid() {
                     continue;
                 }
                 new_pos += IVec3::Z;
                 true
-            } else if !level[new_pos - IVec3::Z].solid() {
-                if level[node.pos + IVec3::Z].solid() {
+            } else if !level(new_pos - IVec3::Z).solid() {
+                if level(node.pos + IVec3::Z).solid() {
                     continue;
                 }
                 new_pos -= IVec3::Z;
@@ -90,9 +90,9 @@ pub fn pathfind(
             } else {
                 false
             };
-            if !level[new_pos - IVec3::Z].solid()
-                | level[new_pos].solid()
-                | level[new_pos + IVec3::Z].solid()
+            if !level(new_pos - IVec3::Z).solid()
+                | level(new_pos).solid()
+                | level(new_pos + IVec3::Z).solid()
             {
                 continue;
             }

@@ -40,7 +40,7 @@ pub struct DeliverTask {
 #[derive(Component, Default, Debug)]
 pub struct InPile {
     /// Goods requested that are not covered by current stock or incomming orders
-    pub requested: Pile,
+    pub requested: Goods,
     /// Gets reset after delivery of priority good
     pub priority: Option<Good>,
 }
@@ -49,7 +49,7 @@ pub struct InPile {
 #[derive(Component, Default, Debug)]
 pub struct OutPile {
     /// Goods available, not including goods present but promised for another delivery
-    pub available: Pile,
+    pub available: Goods,
 }
 
 #[derive(Component)]
@@ -172,15 +172,15 @@ fn set_walk_height(level: &Level, pos: &mut Vec3) {
     let mut height = 0f32;
     for off in [vec2(1., 1.), vec2(-1., 1.), vec2(1., -1.), vec2(-1., -1.)] {
         let mut block_pos = (*pos + off.extend(0.) * size).block();
-        if !level[block_pos - IVec3::Z].solid() {
+        if !level(block_pos - IVec3::Z).solid() {
             block_pos.z -= 1
         }
-        if level[block_pos].solid() {
+        if level(block_pos).solid() {
             block_pos.z += 1
         }
         height = height.max(
             block_pos.z as f32
-                - match level[block_pos - ivec3(0, 0, 1)] {
+                - match level(block_pos - ivec3(0, 0, 1)) {
                     Slab(_, Bottom) => 0.5,
                     // TODO: Stairs
                     _ => 0.,

@@ -187,7 +187,7 @@ impl GrowTree {
             return;
         }
         for (pos, block) in self.blocks.drain(..) {
-            if level[pos] == block {
+            if level(pos) == block {
                 level(pos, Air)
             }
         }

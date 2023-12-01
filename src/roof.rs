@@ -52,15 +52,15 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
         let z_block = shape(pos.as_vec2()).round() as i32;
         for dir in HDir::ALL {
             // Fix-up outer corners
-            if (level[(pos + dir).extend(z_block)] == Stair(mat, dir.rotated(1), Bottom))
-                & (level[(pos + dir.rotated(1)).extend(z_block)] == Stair(mat, dir, Bottom))
+            if (level((pos + dir).extend(z_block)) == Stair(mat, dir.rotated(1), Bottom))
+                & (level((pos + dir.rotated(1)).extend(z_block)) == Stair(mat, dir, Bottom))
             {
                 level(pos, z_block, Stair(mat, dir, Bottom))
             }
 
             // Fill holes in steep roofs
             let mut lower = shape(pos.as_vec2() + IVec2::from(dir).as_vec2()).round() as i32;
-            let adjacent = level[(pos + dir).extend(lower)];
+            let adjacent = level((pos + dir).extend(lower));
             if matches!(adjacent, Slab(_, Top) | Full(..) | Stair(_, _, Top))
                 | matches!(adjacent, Stair(_, d, Bottom) if d==dir.rotated(2))
                 | !area.contains(pos + dir)
@@ -68,15 +68,15 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
                 lower += 1;
             }
             let mut upper = z_block;
-            if matches!(level[pos.extend(upper)], Slab(_, Top) | Stair(_, _, Top)) {
+            if matches!(level(pos.extend(upper)), Slab(_, Top) | Stair(_, _, Top)) {
                 upper += 1;
             }
             for z in lower..upper {
-                let block = if level[pos.extend(z - 1)].solid()
-                    || (matches!(level[pos.extend(z)], Full(..) | Stair(..)))
+                let block = if level(pos.extend(z - 1)).solid()
+                    || (matches!(level(pos.extend(z)), Full(..) | Stair(..)))
                 {
                     Full(mat)
-                } else if matches!(level[(pos + dir).extend(z)], Slab(..)) {
+                } else if matches!(level((pos + dir).extend(z)), Slab(..)) {
                     Slab(mat, Top)
                 } else {
                     Stair(mat, dir, Top)

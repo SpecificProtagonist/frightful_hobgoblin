@@ -124,7 +124,7 @@ fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
 fn wall_dir(level: &Level, pos: IVec3) -> HDir {
     let mut count = 0;
     for dir in HDir::ALL {
-        if level[pos.add(dir)].solid() {
+        if level(pos.add(dir)).solid() {
             count += 1
         }
     }
@@ -132,7 +132,7 @@ fn wall_dir(level: &Level, pos: IVec3) -> HDir {
         return *HDir::ALL.choose();
     }
     for dir in HDir::ALL {
-        if level[pos.add(dir)].solid() {
+        if level(pos.add(dir)).solid() {
             if rand_range(0..count) == 0 {
                 return dir;
             }

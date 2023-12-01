@@ -56,7 +56,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
         for z in second_floor.. {
             let pos = col.extend(z);
-            match level[pos] {
+            match level(pos) {
                 Log(..) => (),
                 Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
                 Slab(..) | Stair(..) => {
@@ -87,7 +87,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     'outer: for pos in area.border() {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
-            match level[pos] {
+            match level(pos) {
                 MangroveRoots => level(pos, MuddyMangroveRoots),
                 _ => continue 'outer,
             }
@@ -101,7 +101,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     'outer: for pos in area.border() {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
-            match level[pos] {
+            match level(pos) {
                 MuddyMangroveRoots => level(pos, MushroomStem),
                 _ => continue 'outer,
             }
@@ -125,7 +125,7 @@ pub fn shack(level: &mut Level, area: Rect) -> PlaceList {
     let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
         for z in floor + 1.. {
             let pos = col.extend(z);
-            match level[pos] {
+            match level(pos) {
                 Log(..) => (),
                 Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
                 Slab(..) | Stair(..) => {
@@ -182,11 +182,11 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
         // TODO: if ground is too far down, try to make supports against the nearest wall instead
         let mut pos = col.extend(floor);
         loop {
-            if level[pos].solid() & !level[pos].soil() {
+            if level(pos).solid() & !level(pos).soil() {
                 break;
             }
             level(pos, Full(Cobble));
-            if NEIGHBORS_2D.iter().all(|dir| level[pos.add(*dir)].solid()) {
+            if NEIGHBORS_2D.iter().all(|dir| level(pos.add(*dir)).solid()) {
                 break;
             }
             pos -= IVec3::Z;
@@ -195,7 +195,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
     for col in area.shrink(1) {
         for z in (level.height(col) - 1).min(floor)..=floor {
             let pos = col.extend(z);
-            if (!level[pos].solid()) | (level[pos].soil()) {
+            if (!level(pos).solid()) | (level(pos).soil()) {
                 level(pos, PackedMud)
             }
         }

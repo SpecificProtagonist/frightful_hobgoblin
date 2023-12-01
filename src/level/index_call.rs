@@ -1,9 +1,34 @@
 //! This is not a good idea, not at all! I could just have a method. But I'm not here
 //! to make sensible engineering choices, I'm purely here to have fun mwahaha
 
-use std::ops::Index;
-
 use crate::*;
+
+impl FnOnce<(IVec3,)> for Level {
+    type Output = Block;
+
+    extern "rust-call" fn call_once(self, pos: (IVec3,)) -> Self::Output {
+        self.call(pos)
+    }
+}
+impl FnMut<(IVec3,)> for Level {
+    extern "rust-call" fn call_mut(&mut self, pos: (IVec3,)) -> Self::Output {
+        self.call(pos)
+    }
+}
+
+impl Fn<(IVec3,)> for Level {
+    extern "rust-call" fn call(&self, (pos,): (IVec3,)) -> Self::Output {
+        let section_index = self.section_index(pos);
+        match &self.sections.get(section_index) {
+            Some(Some(section)) => section.blocks[Self::block_in_section_index(pos)],
+            Some(None) => Air,
+            None => {
+                eprintln!("Out of bounds access at {pos}");
+                Barrier
+            }
+        }
+    }
+}
 
 impl FnOnce<(IVec3, Block)> for Level {
     type Output = ();
@@ -93,26 +118,5 @@ impl<F: FnOnce(Block) -> Block> FnOnce<(IVec2, i32, F)> for Level {
 impl<F: FnOnce(Block) -> Block> FnMut<(IVec2, i32, F)> for Level {
     extern "rust-call" fn call_mut(&mut self, (column, z, fun): (IVec2, i32, F)) {
         self(column.extend(z), fun)
-    }
-}
-
-impl Index<IVec3> for Level {
-    type Output = Block;
-
-    // TODO: On out of bounds, print warning (only once) and return dummy
-    fn index(&self, pos: IVec3) -> &Self::Output {
-        if let Some(section) = &self.sections[self.section_index(pos)] {
-            &section.blocks[Self::block_in_section_index(pos)]
-        } else {
-            &Block::Air
-        }
-    }
-}
-
-impl Index<Vec3> for Level {
-    type Output = Block;
-
-    fn index(&self, pos: Vec3) -> &Self::Output {
-        &self[pos.block()]
     }
 }

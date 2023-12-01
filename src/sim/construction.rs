@@ -34,7 +34,7 @@ pub fn new_construction_site(
 ) {
     for (entity, site) in &new {
         let mut stock = Pile::default();
-        let mut requested = Pile::default();
+        let mut requested = Goods::default();
         let mut priority = None;
         for set_block in &site.todo {
             if let Some(stack) = goods_for_block(set_block.block) {
@@ -47,7 +47,7 @@ pub fn new_construction_site(
                 stock.add(mined)
             }
         }
-        for (good, amount) in &stock.goods {
+        for (good, amount) in stock.goods.iter() {
             requested.remove(Stack::new(*good, *amount))
         }
         commands.entity(entity).insert((
@@ -89,7 +89,7 @@ pub fn build(
                 .insert((
                     Built,
                     OutPile {
-                        available: pile.clone(),
+                        available: pile.goods.clone(),
                     },
                 ));
         }
