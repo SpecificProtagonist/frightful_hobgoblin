@@ -42,7 +42,7 @@ pub struct PathSearch {
     pub cost: u32,
 }
 
-// Tpub ODO: Make walking on paths faster; make stairs reduce stair cost
+// TODO: Make walking on paths faster; make stairs reduce stair cost
 pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i32) -> PathSearch {
     let area = level.area().shrink(2);
     if range_to_end == 0 {

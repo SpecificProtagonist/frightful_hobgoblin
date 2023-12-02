@@ -1,3 +1,5 @@
+use bevy_ecs::schedule::ScheduleLabel;
+
 use super::{quarry::StonePile, *};
 
 pub fn sim(mut level: Level) {
@@ -16,9 +18,9 @@ pub fn sim(mut level: Level) {
         stock.add(Stack::new(Good::Soil, 99999999.));
         stock
     };
+    level.set_blocked(city_center);
     world.spawn((
         Pos(city_center_pos.as_vec3()),
-        Blocked(city_center),
         CityCenter,
         OutPile {
             available: starting_resources.clone(),
@@ -36,7 +38,9 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
-    let mut sched = Schedule::new();
+    #[derive(ScheduleLabel, Clone, Hash, Eq, PartialEq, Debug)]
+    struct MainLoop;
+    let mut sched = Schedule::new(MainLoop);
     sched.add_systems(
         (
             grow_trees,
@@ -79,7 +83,7 @@ pub fn sim(mut level: Level) {
             (test_build_house, test_build_lumberjack, test_build_quarry),
             apply_deferred,
             tick_replay,
-            remove_outdated,
+            // remove_outdated,
             |mut tick: ResMut<Tick>| tick.0 += 1,
             |world: &mut World| world.clear_trackers(),
         )
@@ -98,7 +102,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 1 {
+        if tick < 5 {
             world.spawn((
                 Id::default(),
                 Villager::default(),

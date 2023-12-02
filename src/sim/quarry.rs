@@ -2,7 +2,9 @@ use crate::*;
 use sim::*;
 
 #[derive(Component)]
-pub struct Quarry;
+pub struct Quarry {
+    pub area: Rect,
+}
 
 #[derive(Component)]
 pub struct StonePile {
@@ -11,8 +13,7 @@ pub struct StonePile {
 
 pub fn make_stone_piles(
     mut commands: Commands,
-    level: ResMut<Level>,
-    blocked: Query<&Blocked>,
+    mut level: ResMut<Level>,
     new_quarries: Query<&Pos, (With<Quarry>, Added<Built>)>,
 ) {
     for quarry in &new_quarries {
@@ -36,7 +37,7 @@ pub fn make_stone_piles(
                     ))
                 };
                 (level.area().has_subrect(area)
-                    & not_blocked(&blocked, area)
+                    & level.unblocked(area)
                     & (wateryness(&level, area) == 0.))
                     .then_some(area)
             },
@@ -50,6 +51,7 @@ pub fn make_stone_piles(
         );
 
         let z = level.average_height(area.border()) as i32 + 1;
+        level.set_blocked(area);
         commands.spawn((
             Pos(area.center_vec2().extend(z as f32)),
             StonePile {
@@ -59,7 +61,6 @@ pub fn make_stone_piles(
                 goods: default(),
                 interact_distance: area.size().x.max(area.size().y),
             },
-            Blocked(area),
         ));
 
         // TODO: Clear trees here

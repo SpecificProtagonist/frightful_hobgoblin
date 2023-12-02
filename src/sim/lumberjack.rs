@@ -2,7 +2,9 @@ use crate::*;
 use sim::*;
 
 #[derive(Component)]
-pub struct Lumberjack;
+pub struct Lumberjack {
+    pub area: Rect,
+}
 
 #[derive(Component)]
 pub struct TreeIsNearLumberCamp;
@@ -176,8 +178,7 @@ pub fn chop(
 
 pub fn make_lumber_piles(
     mut commands: Commands,
-    level: Res<Level>,
-    blocked: Query<&Blocked>,
+    mut level: ResMut<Level>,
     center: Query<&Pos, With<CityCenter>>,
     new_lumberjacks: Query<&Pos, (With<Lumberjack>, Added<Built>)>,
 ) {
@@ -215,7 +216,7 @@ pub fn make_lumber_piles(
                 }
                 let area = area(pos, params);
                 (level.area().contains(pos)
-                    & not_blocked(&blocked, area)
+                    & level.unblocked(area)
                     & (wateryness(&level, area) == 0.))
                     .then_some((pos, params))
             },
@@ -231,6 +232,7 @@ pub fn make_lumber_piles(
         );
 
         let z = level.average_height(area(pos, params).border()) + 1.;
+        level.set_blocked(area(pos, params));
         commands.spawn((
             Pos(pos.as_vec2().extend(z)),
             params,
@@ -238,7 +240,6 @@ pub fn make_lumber_piles(
                 goods: default(),
                 interact_distance: params.width,
             },
-            Blocked(area(pos, params)),
         ));
 
         // TODO: Clear trees here

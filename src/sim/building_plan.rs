@@ -4,22 +4,20 @@ use sim::*;
 
 use super::{lumberjack::TreeIsNearLumberCamp, quarry::Quarry};
 
-// TODO: instead store
-#[derive(Component, Deref, DerefMut)]
-pub struct Blocked(pub Rect);
+// // TODO: instead store
+// #[derive(Component, Deref, DerefMut)]
+// pub struct Blocked(pub Rect);
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Planned(Rect);
 
 #[derive(Component)]
-pub struct House;
+pub struct House {
+    area: Rect,
+}
 
 #[derive(Component)]
 pub struct ToBeBuild;
-
-pub fn not_blocked<'a>(blocked: impl IntoIterator<Item = &'a Blocked>, area: Rect) -> bool {
-    blocked.into_iter().all(|blocker| !blocker.overlapps(area))
-}
 
 pub fn unevenness(level: &Level, area: Rect) -> f32 {
     let avg_height = level.average_height(area);
@@ -61,28 +59,27 @@ pub fn choose_starting_area(level: &Level) -> Rect {
 }
 
 // Note this would require apply_defered after each placement
-pub fn remove_outdated(
-    mut commands: Commands,
-    planned: Query<(Entity, &Planned)>,
-    blocked: Query<&Blocked>,
-    mut new: RemovedComponents<Planned>,
-) {
-    for entity in new.iter() {
-        let Ok(blocked) = blocked.get(entity) else {
-            continue;
-        };
-        for (planned, area) in &planned {
-            if area.overlapps(blocked.0) {
-                commands.entity(planned).despawn();
-            }
-        }
-    }
-}
+// pub fn remove_outdated(
+//     mut commands: Commands,
+//     level: Res<Level>,
+//     planned: Query<(Entity, &Planned)>,
+//     mut new: RemovedComponents<Planned>,
+// ) {
+//     for entity in new.read() {
+//         let Ok(blocked) = blocked.get(entity) else {
+//             continue;
+//         };
+//         for (planned, area) in &planned {
+//             if area.overlapps(blocked.0) {
+//                 commands.entity(planned).despawn();
+//             }
+//         }
+//     }
+// }
 
 pub fn _plan_house(
     mut commands: Commands,
     level: Res<Level>,
-    blocked: Query<&Blocked>,
     planned: Query<(With<House>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
 ) {
@@ -106,7 +103,7 @@ pub fn _plan_house(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
         },
         |area| {
             let distance = center.distance(area.center().as_vec2()) / 50.;
@@ -121,14 +118,13 @@ pub fn _plan_house(
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
         Planned(area),
-        House,
+        House { area },
     ));
 }
 
 pub fn _plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
-    blocked: Query<&Blocked>,
     planned: Query<(With<Lumberjack>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
     trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
@@ -150,7 +146,7 @@ pub fn _plan_lumberjack(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
@@ -180,14 +176,13 @@ pub fn _plan_lumberjack(
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
         Planned(area),
-        Lumberjack,
+        Lumberjack { area },
     ));
 }
 
 pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
-    blocked: Query<&Blocked>,
     planned: Query<(With<Quarry>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
 ) {
@@ -205,7 +200,7 @@ pub fn plan_quarry(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
-            (level.area().has_subrect(new) & not_blocked(&blocked, new)).then_some(new)
+            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
@@ -220,13 +215,14 @@ pub fn plan_quarry(
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
         Planned(area),
-        Quarry,
+        Quarry { area },
     ));
 }
 
 // Very temporary, just for testing!
 pub fn assign_builds(
     mut commands: Commands,
+    mut level: ResMut<Level>,
     construction_sites: Query<With<ConstructionSite>>,
     houses: Query<(With<House>, Without<Planned>)>,
     planned_houses: Query<(Entity, &Planned), With<House>>,
@@ -249,10 +245,11 @@ pub fn assign_builds(
         plans.extend(&planned_quarries)
     }
     if let Some(&(selected, area)) = plans.try_choose() {
+        level.set_blocked(area.0);
         commands
             .entity(selected)
             .remove::<Planned>()
-            .insert((Blocked(area.0), ToBeBuild));
+            .insert(ToBeBuild);
     }
 }
 
@@ -261,14 +258,14 @@ pub fn test_build_house(
     mut replay: ResMut<Replay>,
     mut commands: Commands,
     mut level: ResMut<Level>,
-    new: Query<(Entity, &Blocked), (With<ToBeBuild>, With<House>)>,
+    new: Query<(Entity, &House), With<ToBeBuild>>,
 ) {
-    for (entity, area) in &new {
-        replay.dbg(&format!("building house at {:?}", area.center()));
+    for (entity, house) in &new {
+        replay.dbg(&format!("building house at {:?}", house.area.center()));
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::house(&mut level, area.0)));
+            .insert(ConstructionSite::new(house::house(&mut level, house.area)));
     }
 }
 
@@ -276,13 +273,16 @@ pub fn test_build_house(
 pub fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    new: Query<(Entity, &Blocked), (With<ToBeBuild>, With<Lumberjack>)>,
+    new: Query<(Entity, &Lumberjack), With<ToBeBuild>>,
 ) {
-    for (entity, area) in &new {
+    for (entity, lumberjack) in &new {
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::shack(&mut level, area.0)));
+            .insert(ConstructionSite::new(house::shack(
+                &mut level,
+                lumberjack.area,
+            )));
     }
 }
 
@@ -290,10 +290,10 @@ pub fn test_build_lumberjack(
 pub fn test_build_quarry(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    new: Query<(Entity, &Blocked), (Added<ToBeBuild>, With<Quarry>)>,
+    new: Query<(Entity, &Quarry), Added<ToBeBuild>>,
 ) {
-    for (entity, area) in &new {
-        for pos in area.0 {
+    for (entity, quarry) in &new {
+        for pos in quarry.area {
             let pos = level.ground(pos);
             level(pos, Wool(Black))
         }

@@ -34,6 +34,8 @@ pub struct Level {
     biome: Vec<Biome>,
     heightmap: Vec<i32>,
     watermap: Vec<Option<i32>>,
+    // This might store a Option<Entity> later
+    blocked: Vec<bool>,
     dirty_chunks: Vec<bool>,
     setblock_recording: Vec<SetBlock>,
 }
@@ -96,6 +98,7 @@ impl Level {
             biome,
             heightmap,
             watermap,
+            blocked: vec![false; chunk_count * 16 * 16],
             dirty_chunks: vec![false; chunk_count],
             setblock_recording: default(),
         }
@@ -239,6 +242,25 @@ impl Level {
     pub fn water_level_mut(&mut self, column: IVec2) -> &mut Option<i32> {
         let index = self.column_index(column);
         &mut self.watermap[index]
+    }
+
+    pub fn blocked(&self, column: IVec2) -> bool {
+        self.blocked[self.column_index(column)]
+    }
+
+    pub fn blocked_mut(&mut self, column: IVec2) -> &mut bool {
+        let index = self.column_index(column);
+        &mut self.blocked[index]
+    }
+
+    pub fn unblocked(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
+        area.into_iter().all(|column| !self.blocked(column))
+    }
+
+    pub fn set_blocked(&mut self, area: impl IntoIterator<Item = IVec2>) {
+        for column in area {
+            *self.blocked_mut(column) = true
+        }
     }
 
     pub fn recording_cursor(&self) -> RecordingCursor {

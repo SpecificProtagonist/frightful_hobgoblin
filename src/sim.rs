@@ -25,7 +25,6 @@ use lumberjack::Lumberjack;
 
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
-use bevy_ecs::query::Has;
 use bevy_math::Vec2Swizzles;
 
 #[derive(Resource, Default, Deref, DerefMut)]
