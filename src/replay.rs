@@ -27,6 +27,7 @@ impl Id {
     }
 }
 
+// This is only correct after Replay has been constructed
 impl Default for Id {
     fn default() -> Self {
         Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))

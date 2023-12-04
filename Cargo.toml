@@ -8,6 +8,9 @@ default-run = "test"
 [profile.dev]
 opt-level = 1
 
+[profile.dev.package."*"]
+opt-level = 3
+
 # For profiling
 [profile.release]
 debug = true

@@ -45,11 +45,13 @@ impl FnMut<(IVec3, Block)> for Level {
         let index = self.section_index(pos);
         let section = self.sections[index].get_or_insert_default();
         let previous = &mut section.blocks[Self::block_in_section_index(pos)];
-        self.setblock_recording.push(SetBlock {
-            pos,
-            previous: *previous,
-            block,
-        });
+        if *previous != block {
+            self.setblock_recording.push(SetBlock {
+                pos,
+                previous: *previous,
+                block,
+            });
+        }
         *previous = block;
     }
 }
@@ -70,11 +72,13 @@ impl<F: FnOnce(Block) -> Block> FnMut<(IVec3, F)> for Level {
         let section = self.sections[index].get_or_insert_default();
         let previous = &mut section.blocks[Self::block_in_section_index(pos)];
         let block = fun(*previous);
-        self.setblock_recording.push(SetBlock {
-            pos,
-            previous: *previous,
-            block,
-        });
+        if *previous != block {
+            self.setblock_recording.push(SetBlock {
+                pos,
+                previous: *previous,
+                block,
+            });
+        }
         *previous = block;
     }
 }
