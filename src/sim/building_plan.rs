@@ -46,6 +46,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
             level.area().has_subrect(new).then_some(new)
         },
         |area| {
+            // TODO: Take biomes into account
             let distance = area
                 .center()
                 .as_vec2()
@@ -77,7 +78,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
 //     }
 // }
 
-pub fn _plan_house(
+pub fn plan_house(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(With<House>, With<Planned>)>,
@@ -87,6 +88,7 @@ pub fn _plan_house(
         return;
     }
 
+    // TODO: On a large map, allow for multiple town centers
     let center = center.single().truncate();
     let start = Rect::new_centered(
         center.block(),
@@ -103,9 +105,10 @@ pub fn _plan_house(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
+            level.unblocked(new).then_some(new)
         },
         |area| {
+            // TODO: try to minimize the amount of trees in the footprint
             let distance = center.distance(area.center().as_vec2()) / 50.;
             wateryness(&level, *area) * 20. + unevenness(&level, *area) + distance.powf(2.)
         },
@@ -122,7 +125,7 @@ pub fn _plan_house(
     ));
 }
 
-pub fn _plan_lumberjack(
+pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(With<Lumberjack>, With<Planned>)>,
@@ -146,7 +149,7 @@ pub fn _plan_lumberjack(
             if 0.2 > rand() {
                 new = Rect::new_centered(new.center(), new.size().yx())
             }
-            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
+            level.unblocked(new).then_some(new)
         },
         |area| {
             let center_distance = center.distance(area.center().as_vec2()) / 50.;

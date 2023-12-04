@@ -254,7 +254,8 @@ impl Level {
     }
 
     pub fn unblocked(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
-        area.into_iter().all(|column| !self.blocked(column))
+        area.into_iter()
+            .all(|column| self.area().contains(column) && !self.blocked(column))
     }
 
     pub fn set_blocked(&mut self, area: impl IntoIterator<Item = IVec2>) {
