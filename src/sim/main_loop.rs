@@ -3,7 +3,7 @@ use bevy_ecs::schedule::ScheduleLabel;
 use super::{quarry::StonePile, *};
 
 pub fn sim(mut level: Level) {
-    Id::load(&level.path);
+    let mut replay = Replay::new(&level);
 
     let mut world = World::new();
     world.init_resource::<Tick>();
@@ -61,8 +61,8 @@ pub fn sim(mut level: Level) {
                 lumberjack::update_lumber_pile_visuals,
             ),
             (quarry::make_stone_piles, quarry::update_stone_pile_visuals),
-            // plan_house,
-            // plan_lumberjack,
+            plan_house,
+            plan_lumberjack,
             // plan_quarry,
             |mut commands: Commands, query: Query<Entity, (With<StonePile>, Without<InPile>)>| {
                 for e in &query {
@@ -90,7 +90,6 @@ pub fn sim(mut level: Level) {
             .chain(),
     );
 
-    let mut replay = Replay::new(level.path.clone());
     replay.command(format!(
         "tp @p {} {} {}",
         city_center_pos.x,
@@ -102,7 +101,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 5 {
+        if tick < 10 {
             world.spawn((
                 Id::default(),
                 Villager::default(),
@@ -115,7 +114,6 @@ pub fn sim(mut level: Level) {
 
     let level = world.remove_resource::<Level>().unwrap();
     let replay = world.remove_resource::<Replay>().unwrap();
-    Id::save(&level.path);
     rayon::spawn(move || level.save_metadata().unwrap());
     replay.finish();
 }

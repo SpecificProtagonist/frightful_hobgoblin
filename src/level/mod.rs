@@ -143,6 +143,7 @@ impl Level {
         let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
 
         let name: &mut String = data.get_mut("LevelName").expect("Corrupt level.dat");
+        // TODO: adjust if multiple invocations ("[2 settlements generated]")
         name.push_str(" [generated]");
 
         data.insert(
