@@ -634,8 +634,8 @@ impl Block {
                 vec![(
                     "facing".into(),
                     match axis {
-                        HAxis::X => "east",
-                        HAxis::Y => "south",
+                        HAxis::X => "south",
+                        HAxis::Y => "east",
                     }
                     .into(),
                 )],

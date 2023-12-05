@@ -51,6 +51,9 @@ pub struct Villager {
     pub carry_id: Id,
 }
 
+#[derive(Component, Default)]
+pub struct InBoat(pub Id);
+
 /// Doesn't have a specialized job, but can carry and build.
 #[derive(Component)]
 pub struct Jobless;

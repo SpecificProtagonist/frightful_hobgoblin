@@ -465,6 +465,7 @@ fn load_chunk(
 
     // Build water- & heightmap
     // There are build in heightmaps, but they don't ignore logs nor do they work on custom-made maps
+    // TODO: Ignore (packed)ice
     for x in 0..16 {
         for z in 0..16 {
             'column: for section_index in (-4..20).rev() {

@@ -1,6 +1,7 @@
 use super::*;
 use crate::{
     goods::{Good, Pile},
+    pathfind::PathingNode,
     *,
 };
 
@@ -21,7 +22,7 @@ impl MoveTask {
 /// Path to move along, in reverse order
 #[derive(Component)]
 pub struct MovePath {
-    steps: VecDeque<IVec3>,
+    steps: VecDeque<PathingNode>,
     vertical: bool,
 }
 
@@ -144,46 +145,84 @@ pub fn deliver(
 // TODO: Smooth this out
 pub fn walk(
     mut commands: Commands,
+    mut replay: ResMut<Replay>,
     level: Res<Level>,
-    mut query: Query<(Entity, &mut Pos, &MoveTask, Option<&mut MovePath>), With<Villager>>,
+    mut query: Query<
+        (
+            Entity,
+            &Id,
+            &mut Pos,
+            &MoveTask,
+            Option<&InBoat>,
+            Option<&mut MovePath>,
+        ),
+        With<Villager>,
+    >,
 ) {
-    for (entity, mut pos, goal, path) in &mut query {
+    for (entity, id, mut pos, goal, in_boat, path) in &mut query {
         if let Some(mut path) = path {
-            const BLOCKS_PER_TICK: f32 = 0.16;
+            const WALK_PER_TICK: f32 = 0.16;
+            const BOATING_PER_TICK: f32 = 0.2;
             const CLIMB_PER_TICK: f32 = 0.09;
             let mut next_node = *path.steps.front().unwrap();
-            let diff = (next_node.as_vec3() - pos.0).truncate();
+            let diff = (next_node.pos.as_vec3() - pos.0).truncate();
             if path.vertical {
                 // Climbing
-                if if next_node.z as f32 > pos.0.z {
+                if if next_node.pos.z as f32 > pos.0.z {
                     pos.0.z += CLIMB_PER_TICK;
-                    pos.0.z > next_node.z as f32
+                    pos.0.z > next_node.pos.z as f32
                 } else {
                     pos.0.z -= CLIMB_PER_TICK;
-                    pos.0.z < next_node.z as f32
+                    pos.0.z < next_node.pos.z as f32
                 } {
                     path.steps.pop_front();
                     if let Some(&next) = path.steps.front() {
-                        path.vertical = (next - next_node).truncate() == IVec2::ZERO;
+                        path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
                     } else {
                         commands.entity(entity).remove::<(MoveTask, MovePath)>();
                     }
                 }
             } else {
+                let speed;
+                if next_node.boat {
+                    speed = BOATING_PER_TICK;
+                    if in_boat.is_none() {
+                        let boat_id = Id::default();
+                        commands.entity(entity).insert(InBoat(boat_id));
+                        let biome = level.biome(pos.block().truncate());
+                        replay.command(format!(
+                            "summon boat {} {} {} {{{}, Invulnerable:1, Type:\"{}\"}}",
+                            pos.x,
+                            pos.z,
+                            pos.y,
+                            boat_id.snbt(),
+                            biome.default_tree_species().to_str()
+                        ));
+                        replay.command(format!("ride {id} mount {boat_id}"));
+                    }
+                } else {
+                    speed = WALK_PER_TICK;
+                    if let Some(boat_id) = in_boat {
+                        commands.entity(entity).remove::<InBoat>();
+                        replay.command(format!("kill {}", boat_id.0));
+                    }
+                }
                 // Not climbing, but possibly going up stairs
-                if diff.length() < BLOCKS_PER_TICK {
+                if diff.length() < speed {
                     path.steps.pop_front();
                     if let Some(&next) = path.steps.front() {
-                        path.vertical = (next - next_node).truncate() == IVec2::ZERO;
+                        path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
                         next_node = next;
                     } else {
                         commands.entity(entity).remove::<(MoveTask, MovePath)>();
                     }
                 }
                 if !path.vertical {
-                    let diff = (next_node.as_vec3() - pos.0).truncate();
-                    pos.0 += (diff.normalize_or_zero() * BLOCKS_PER_TICK).extend(0.);
-                    set_walk_height(&level, &mut pos);
+                    let diff = (next_node.pos.as_vec3() - pos.0).truncate();
+                    pos.0 += (diff.normalize_or_zero() * speed).extend(0.);
+                    if !next_node.boat {
+                        set_walk_height(&level, &mut pos);
+                    }
                 }
             }
         } else {

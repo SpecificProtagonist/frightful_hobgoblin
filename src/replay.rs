@@ -23,7 +23,7 @@ impl Display for Id {
 
 // Maybe just use normal random uuids? Small numbers make it easier to debug though.
 impl Id {
-    fn snbt(&self) -> String {
+    pub fn snbt(&self) -> String {
         format!("UUID:[I;0,0,0,{}]", self.0)
     }
 }
@@ -368,7 +368,7 @@ pub fn tick_replay(
     mut replay: ResMut<Replay>,
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
-    mut moved: Query<(&Id, &Pos, &mut PrevPos), Changed<Pos>>,
+    mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&InBoat>), Changed<Pos>>,
     jobless: Query<&Id, Added<Jobless>>,
     lumberjacks: Query<&Id, Added<Lumberworker>>,
     masons: Query<&Id, Added<Mason>>,
@@ -400,10 +400,16 @@ pub fn tick_replay(
         replay.carry_ids.push((*id, vill.carry_id));
     }
     // Movement
-    for (id, pos, mut prev) in &mut moved {
+    for (id, pos, mut prev, in_boat) in &mut moved {
         let delta = pos.0 - prev.0;
         let facing = pos.0 + delta;
-        replay.tp(*id, pos.0, facing);
+        if let Some(in_boat) = in_boat {
+            let off = vec3(0., 0., -0.48);
+            // Unfortunately the boat lags behind (visually only?)
+            replay.tp(in_boat.0, pos.0 + off, facing + off);
+        } else {
+            replay.tp(*id, pos.0, facing);
+        }
         prev.0 = pos.0;
     }
     // Carrying

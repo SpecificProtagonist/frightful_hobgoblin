@@ -221,6 +221,7 @@ pub fn plan_quarry(
             let avg_start_height = level.average_height(quarry.area);
             let quarried_height = level.average_height(quarry.probing_area()) - avg_start_height;
             // TODO: Pit quarries
+            // TODO: check how much stone is available instead of checking height differences
             if quarried_height < 5. {
                 return None;
             }

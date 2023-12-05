@@ -57,24 +57,12 @@ pub fn make_quarry(level: &mut Level, quarry: Quarry) -> PlaceList {
 
     let cursor = level.recording_cursor();
     remove_trees(level, quarry.area.grow(1));
-    level.fill_at(quarry.area, floor - 4..floor - 1, |b: Block| {
-        if b.soil() | !b.solid() {
-            PackedMud
-        } else {
-            Air
-        }
-    });
-    level.fill_at(
-        quarry.area,
-        floor,
-        |b: Block| {
-            if b.soil() {
-                PackedMud
-            } else {
-                Air
-            }
-        },
-    );
+    for column in quarry.area {
+        let mut pos = level.ground(column);
+        pos.z = pos.z.min(floor);
+        *level.height_mut(column) = pos.z;
+        level(pos, PackedMud)
+    }
     level.fill_at(quarry.area, floor + 1..floor + 5, Air);
 
     let pos = level.ground(quarry.area.center() + ivec2(rand_range(-2..=2), rand_range(-2..=2)))
