@@ -1,14 +1,90 @@
 use crate::*;
 use sim::*;
 
-#[derive(Component)]
+#[derive(Component, Eq, PartialEq, Copy, Clone)]
 pub struct Quarry {
     pub area: Rect,
+    // TODO: better shapes / not just in a compas direction
+    pub dir: HDir,
+}
+
+impl Quarry {
+    /// Area used to determine suitability for quarrying
+    pub fn probing_area(&self) -> Rect {
+        Rect::new_centered(
+            self.area.center() + IVec2::from(self.dir) * 9,
+            IVec2::splat(11),
+        )
+    }
+}
+
+#[derive(Component)]
+pub struct Mason {
+    workplace: Entity,
+    ready_to_work: bool,
 }
 
 #[derive(Component)]
 pub struct StonePile {
     volume: Cuboid,
+}
+
+pub fn assign_worker(
+    mut commands: Commands,
+    mut replay: ResMut<Replay>,
+    available: Query<(Entity, &Pos), With<Jobless>>,
+    new: Query<(Entity, &Pos), (With<Lumberjack>, Added<Built>)>,
+) {
+    let assigned = Vec::new();
+    for (workplace, pos) in &new {
+        let Some((worker, _)) = available
+            .iter()
+            .filter(|(e, _)| !assigned.contains(e))
+            .min_by_key(|(_, p)| p.distance_squared(pos.0) as i32)
+        else {
+            return;
+        };
+        replay.dbg("assign lumberjack");
+        commands.entity(worker).remove::<Jobless>().insert(Mason {
+            workplace,
+            ready_to_work: true,
+        });
+    }
+}
+
+pub fn make_quarry(level: &mut Level, quarry: Quarry) -> PlaceList {
+    let floor = level.average_height(quarry.area.border()).round() as i32;
+
+    let cursor = level.recording_cursor();
+    remove_trees(level, quarry.area.grow(1));
+    level.fill_at(quarry.area, floor - 4..floor - 1, |b: Block| {
+        if b.soil() | !b.solid() {
+            PackedMud
+        } else {
+            Air
+        }
+    });
+    level.fill_at(
+        quarry.area,
+        floor,
+        |b: Block| {
+            if b.soil() {
+                PackedMud
+            } else {
+                Air
+            }
+        },
+    );
+    level.fill_at(quarry.area, floor + 1..floor + 5, Air);
+
+    let pos = level.ground(quarry.area.center() + ivec2(rand_range(-2..=2), rand_range(-2..=2)))
+        + IVec3::Z;
+    level(pos, CraftingTable);
+    let pos = level.ground(quarry.area.center() + ivec2(rand_range(-2..=2), rand_range(-2..=2)))
+        + IVec3::Z;
+    level(pos, Stonecutter(HAxis::X));
+
+    level.pop_recording(cursor).collect()
 }
 
 pub fn make_stone_piles(
@@ -36,19 +112,18 @@ pub fn make_stone_piles(
                         rand_range(-max_move..=max_move),
                     ))
                 };
-                (level.area().has_subrect(area)
-                    & level.unblocked(area)
-                    & (wateryness(&level, area) == 0.))
-                    .then_some(area)
-            },
-            |area| {
+                if !level.unblocked(area) | (wateryness(&level, area) > 0.) {
+                    return None;
+                }
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = quarry.truncate().distance(area.center_vec2()) / 20.;
                 let size_bonus = area.total() as f32 * 4.;
-                worker_distance + unevenness(&level, *area) * 1. - size_bonus
+                let score = worker_distance + unevenness(&level, area) * 1. - size_bonus;
+                Some((area, score))
             },
             100,
-        );
+        )
+        .unwrap();
 
         let z = level.average_height(area.border()) as i32 + 1;
         level.set_blocked(area);

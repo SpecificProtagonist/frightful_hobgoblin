@@ -37,25 +37,29 @@ pub fn wateryness(level: &Level, area: Rect) -> f32 {
 pub fn choose_starting_area(level: &Level) -> Rect {
     optimize(
         Rect::new_centered(level.area().center(), IVec2::splat(44)),
-        |area, temperature| {
+        |mut area, temperature| {
             let max_move = (100. * temperature) as i32;
-            let new = area.offset(ivec2(
+            area = area.offset(ivec2(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
-            level.area().has_subrect(new).then_some(new)
-        },
-        |area| {
+
+            if !level.area().has_subrect(area) {
+                return None;
+            }
             // TODO: Take biomes into account
             let distance = area
                 .center()
                 .as_vec2()
                 .distance(level.area().center().as_vec2())
                 / (level.area().size().as_vec2().min_element() - 40.);
-            wateryness(level, *area) * 20. + unevenness(level, *area) + distance.powf(2.) / 2.
+            let score =
+                wateryness(level, area) * 20. + unevenness(level, area) + distance.powf(2.) / 2.;
+            Some((area, score))
         },
         300,
     )
+    .unwrap()
     .shrink(10)
 }
 
@@ -90,33 +94,34 @@ pub fn plan_house(
 
     // TODO: On a large map, allow for multiple town centers
     let center = center.single().truncate();
-    let start = Rect::new_centered(
-        center.block(),
-        ivec2(rand_range(7..=11), rand_range(7..=15)),
-    );
-    let area = optimize(
-        start,
-        |area, temperature| {
+    let Some(area) = optimize(
+        Rect::new_centered(
+            center.block(),
+            ivec2(rand_range(7..=11), rand_range(7..=15)),
+        ),
+        |mut area, temperature| {
             let max_move = (60. * temperature) as i32;
-            let mut new = area.offset(ivec2(
+            area = area.offset(ivec2(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
             if 0.2 > rand() {
-                new = Rect::new_centered(new.center(), new.size().yx())
+                area = Rect::new_centered(area.center(), area.size().yx())
             }
-            level.unblocked(new).then_some(new)
-        },
-        |area| {
-            // TODO: try to minimize the amount of trees in the footprint
+
+            if !level.unblocked(area) {
+                return None;
+            }
             let distance = center.distance(area.center().as_vec2()) / 50.;
-            wateryness(&level, *area) * 20. + unevenness(&level, *area) + distance.powf(2.)
+            // TODO: try to minimize the amount of trees in the footprint
+            let score =
+                wateryness(&level, area) * 20. + unevenness(&level, area) + distance.powf(2.);
+            Some((area, score))
         },
         200,
-    );
-    if area == start {
+    ) else {
         return;
-    }
+    };
 
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
@@ -137,21 +142,21 @@ pub fn plan_lumberjack(
     }
     let center = center.single().truncate();
 
-    let start = Rect::new_centered(center.block(), ivec2(rand_range(4..=6), rand_range(5..=8)));
-    let area = optimize(
-        start,
-        |area, temperature| {
+    let Some(area) = optimize(
+        Rect::new_centered(center.block(), ivec2(rand_range(4..=6), rand_range(5..=8))),
+        |mut area, temperature| {
             let max_move = (60. * temperature) as i32;
-            let mut new = area.offset(ivec2(
+            area = area.offset(ivec2(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
             if 0.2 > rand() {
-                new = Rect::new_centered(new.center(), new.size().yx())
+                area = Rect::new_centered(area.center(), area.size().yx())
             }
-            level.unblocked(new).then_some(new)
-        },
-        |area| {
+
+            if !level.unblocked(area) {
+                return None;
+            }
             let center_distance = center.distance(area.center().as_vec2()) / 50.;
             let tree_access = trees
                 .iter()
@@ -159,16 +164,16 @@ pub fn plan_lumberjack(
                     -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.))
                 })
                 .sum::<f32>();
-            wateryness(&level, *area) * 20.
-                + unevenness(&level, *area) * 1.
+            let score = wateryness(&level, area) * 20.
+                + unevenness(&level, area) * 1.
                 + center_distance * 1.
-                + tree_access * 5.
+                + tree_access * 5.;
+            Some((area, score))
         },
         200,
-    );
-    if area == start {
+    ) else {
         return;
-    }
+    };
 
     for (tree, pos) in &trees {
         if pos.truncate().distance(area.center_vec2()) < 20. {
@@ -194,31 +199,46 @@ pub fn plan_quarry(
     }
     let center = center.single().truncate();
 
-    let start = Rect::new_centered(level.area().center(), IVec2::splat(9));
-    let area = optimize(
-        start,
-        |area, temperature| {
+    let Some(quarry) = optimize(
+        Quarry {
+            area: Rect::new_centered(level.area().center(), IVec2::splat(7)),
+            dir: *HDir::ALL.choose(),
+        },
+        |mut quarry, temperature| {
             let max_move = (60. * temperature) as i32;
-            let new = area.offset(ivec2(
+            quarry.area = quarry.area.offset(ivec2(
                 rand_range(-max_move..=max_move),
                 rand_range(-max_move..=max_move),
             ));
-            (level.area().has_subrect(new) & level.unblocked(new)).then_some(new)
-        },
-        |area| {
-            let center_distance = center.distance(area.center().as_vec2()) / 50.;
-            wateryness(&level, *area) * 20. + unevenness(&level, *area) * -3. + center_distance * 1.
+            if 0.3 < rand() {
+                quarry.dir = *HDir::ALL.choose();
+            }
+
+            if !level.unblocked(quarry.area) | !level.unblocked(quarry.probing_area()) {
+                return None;
+            }
+            let center_distance = (center.distance(quarry.area.center().as_vec2())).max(80.) / 50.;
+            let avg_start_height = level.average_height(quarry.area);
+            let quarried_height = level.average_height(quarry.probing_area()) - avg_start_height;
+            // TODO: Pit quarries
+            if quarried_height < 5. {
+                return None;
+            }
+            let score = wateryness(&level, quarry.area) * 20.
+                + unevenness(&level, quarry.area) * 1.5
+                - quarried_height * 1.
+                + center_distance * 1.;
+            Some((quarry, score))
         },
         200,
-    );
-    if area == start {
+    ) else {
         return;
-    }
+    };
 
     commands.spawn((
-        Pos(level.ground(area.center()).as_vec3()),
-        Planned(area),
-        Quarry { area },
+        Pos(level.ground(quarry.area.center()).as_vec3()),
+        Planned(quarry.area),
+        quarry,
     ));
 }
 
@@ -244,7 +264,7 @@ pub fn assign_builds(
     if lumberjacks.iter().len() < 20 {
         plans.extend(&planned_lumberjacks)
     }
-    if quarries.iter().len() < 8 {
+    if quarries.iter().len() < 10 {
         plans.extend(&planned_quarries)
     }
     if let Some(&(selected, area)) = plans.try_choose() {
@@ -300,6 +320,16 @@ pub fn test_build_quarry(
             let pos = level.ground(pos);
             level(pos, Wool(Black))
         }
-        commands.entity(entity).remove::<ToBeBuild>().insert(Built);
+        for pos in quarry.probing_area() {
+            *level.blocked_mut(pos) = true;
+            let pos = level.ground(pos);
+            level(pos, Wool(Red))
+        }
+        commands
+            .entity(entity)
+            .remove::<ToBeBuild>()
+            .insert(ConstructionSite::new(quarry::make_quarry(
+                &mut level, *quarry,
+            )));
     }
 }

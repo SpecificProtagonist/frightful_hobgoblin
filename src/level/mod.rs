@@ -283,9 +283,9 @@ impl Level {
         self.setblock_recording[cursor.0..].iter().copied()
     }
 
-    pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, block: Block) {
+    pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, mut block: impl BlockOrFn) {
         for pos in iter {
-            self(pos, block);
+            self(pos, |b| block.get(b));
         }
     }
 
@@ -293,11 +293,11 @@ impl Level {
         &mut self,
         iter: impl IntoIterator<Item = IVec2>,
         z: impl RangeOrSingle,
-        block: Block,
+        mut block: impl BlockOrFn,
     ) {
         for pos in iter {
             for z in z.start()..=z.end() {
-                self(pos.extend(z), block);
+                self(pos.extend(z), |b| block.get(b));
             }
         }
     }
@@ -351,6 +351,22 @@ impl RangeOrSingle for i32 {
 
     fn end(&self) -> i32 {
         *self
+    }
+}
+
+pub trait BlockOrFn {
+    fn get(&mut self, present: Block) -> Block;
+}
+
+impl BlockOrFn for Block {
+    fn get(&mut self, _: Block) -> Block {
+        *self
+    }
+}
+
+impl<F: FnMut(Block) -> Block> BlockOrFn for F {
+    fn get(&mut self, present: Block) -> Block {
+        self(present)
     }
 }
 

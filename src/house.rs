@@ -1,9 +1,4 @@
-use crate::{
-    remove_foliage::{find_trees, remove_tree},
-    roof::roof,
-    sim::PlaceList,
-    *,
-};
+use crate::{remove_foliage::remove_trees, roof::roof, sim::PlaceList, *};
 
 pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     let inner = area.shrink(1);
@@ -163,10 +158,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
     let floor = level.average_height(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
-    // TODO: Clear tree entities
-    for (pos, _) in find_trees(level, area.grow(1)) {
-        remove_tree(level, pos)
-    }
+    remove_trees(level, area.grow(1));
 
     for z in (floor + 1..floor + 10).rev() {
         level.fill_at(area, z, Air)

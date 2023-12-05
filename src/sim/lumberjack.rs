@@ -215,21 +215,21 @@ pub fn make_lumber_piles(
                     );
                 }
                 let area = area(pos, params);
-                (level.area().contains(pos)
-                    & level.unblocked(area)
-                    & (wateryness(&level, area) == 0.))
-                    .then_some((pos, params))
-            },
-            |(pos, params)| {
+
+                if !level.unblocked(area) | (wateryness(&level, area) > 0.) {
+                    return None;
+                }
                 let center_distance = center.distance(pos.as_vec2()) / 70.;
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = lumberjack.truncate().distance(pos.as_vec2()) / 20.;
                 let size_bonus = (params.width + params.length) as f32 * 4.;
-                center_distance + worker_distance + unevenness(&level, area(*pos, *params)) * 1.
-                    - size_bonus
+                let score =
+                    center_distance + worker_distance + unevenness(&level, area) * 1. - size_bonus;
+                Some(((pos, params), score))
             },
             100,
-        );
+        )
+        .unwrap();
 
         let z = level.average_height(area(pos, params).border()) + 1.;
         level.set_blocked(area(pos, params));

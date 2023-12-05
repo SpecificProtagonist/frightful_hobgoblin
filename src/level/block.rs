@@ -69,6 +69,8 @@ pub enum Block {
     Rail(HAxis),
     Barrier,
     Bedrock,
+    CraftingTable,
+    Stonecutter(HAxis),
     Other(u16),
 }
 
@@ -626,6 +628,18 @@ impl Block {
                 )],
             ),
             Barrier => "barrier".into(),
+            CraftingTable => "crafting_table".into(),
+            Stonecutter(axis) => Blockstate(
+                "stonecutter".into(),
+                vec![(
+                    "facing".into(),
+                    match axis {
+                        HAxis::X => "east",
+                        HAxis::Y => "south",
+                    }
+                    .into(),
+                )],
+            ),
             Other(index) => unknown.states[*index as usize].clone(), // Unneccesary clone?
         }
     }

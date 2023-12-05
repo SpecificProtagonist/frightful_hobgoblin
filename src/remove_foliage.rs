@@ -50,6 +50,7 @@ pub fn find_trees(
     trees.into_iter().collect()
 }
 
+// TODO: Remove any tree entities
 pub fn remove_tree(level: &mut Level, pos: IVec3) {
     let Log(species, ..) = level(pos) else {
         println!("Tried to remove tree at {pos:?} but not found");
@@ -78,6 +79,12 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
                 }
             }
         }
+    }
+}
+
+pub fn remove_trees(level: &mut Level, area: impl IntoIterator<Item = IVec2>) {
+    for (pos, _) in find_trees(level, area) {
+        remove_tree(level, pos)
     }
 }
 

@@ -17,7 +17,7 @@ use crate::make_trees::grow_trees;
 use crate::optimize::optimize;
 use crate::remove_foliage::remove_tree;
 use crate::*;
-use crate::{pathfind::pathfind, remove_foliage::find_trees, replay::*};
+use crate::{pathfind::pathfind, remove_foliage::remove_trees, replay::*};
 use building_plan::*;
 use construction::*;
 use logistics::*;

@@ -1,6 +1,8 @@
 use bevy_ecs::schedule::ScheduleLabel;
 
-use super::{quarry::StonePile, *};
+use crate::remove_foliage::find_trees;
+
+use super::*;
 
 pub fn sim(mut level: Level) {
     let mut replay = Replay::new(&level);
@@ -60,22 +62,14 @@ pub fn sim(mut level: Level) {
                 lumberjack::make_lumber_piles,
                 lumberjack::update_lumber_pile_visuals,
             ),
-            (quarry::make_stone_piles, quarry::update_stone_pile_visuals),
-            plan_house,
-            plan_lumberjack,
-            // plan_quarry,
-            |mut commands: Commands, query: Query<Entity, (With<StonePile>, Without<InPile>)>| {
-                for e in &query {
-                    commands.entity(e).insert(InPile {
-                        requested: {
-                            let mut stock = Goods::default();
-                            stock.add(Stack::new(Good::Stone, 30.));
-                            stock
-                        },
-                        priority: None,
-                    });
-                }
-            },
+            (
+                quarry::assign_worker,
+                quarry::make_stone_piles,
+                quarry::update_stone_pile_visuals,
+            ),
+            // plan_house,
+            // plan_lumberjack,
+            plan_quarry,
             apply_deferred,
             assign_builds,
             apply_deferred,

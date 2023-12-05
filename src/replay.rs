@@ -1,4 +1,5 @@
 use crate::sim::lumberjack::Lumberworker;
+use crate::sim::quarry::Mason;
 use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
@@ -368,8 +369,9 @@ pub fn tick_replay(
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
     mut moved: Query<(&Id, &Pos, &mut PrevPos), Changed<Pos>>,
-    jobless: Query<&Id, With<Jobless>>,
-    lumberjacks: Query<&Id, With<Lumberworker>>,
+    jobless: Query<&Id, Added<Jobless>>,
+    lumberjacks: Query<&Id, Added<Lumberworker>>,
+    masons: Query<&Id, Added<Mason>>,
 ) {
     let replay = replay.deref_mut();
     // Blocks
@@ -434,5 +436,11 @@ pub fn tick_replay(
             "data modify entity {id} VillagerDate.profession set value nitwit",
         ));
     }
+    for id in &masons {
+        replay.command(format!(
+            "data modify entity {id} VillagerDate.profession set value mason",
+        ));
+    }
+
     replay.tick();
 }
