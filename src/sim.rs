@@ -1,7 +1,7 @@
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
 
-mod building_plan;
+pub mod building_plan;
 mod construction;
 mod logistics;
 pub mod lumberjack;

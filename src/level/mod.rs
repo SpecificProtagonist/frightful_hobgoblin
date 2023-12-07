@@ -1,7 +1,7 @@
 mod biome;
 mod block;
+mod column_map;
 mod index_call;
-mod view;
 
 use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
@@ -20,6 +20,7 @@ use std::{
 use crate::{default, geometry::*, HashMap, DATA_VERSION};
 pub use biome::*;
 pub use block::*;
+pub use column_map::ColumnMap;
 
 #[derive(Resource)]
 pub struct Level {
@@ -31,11 +32,13 @@ pub struct Level {
     /// Sections in Z->X->Y order
     sections: Vec<Option<Box<Section>>>,
     /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
-    biome: Vec<Biome>,
-    heightmap: Vec<i32>,
-    watermap: Vec<Option<i32>>,
+    pub biome: ColumnMap<Biome>,
+    pub height: ColumnMap<i32>,
+    pub water: ColumnMap<Option<i32>>,
     // This might store a Option<Entity> later
-    blocked: Vec<bool>,
+    pub blocked: ColumnMap<bool>,
+    // Pathfinding cost from center (may not be up to date)
+    pub reachability: ColumnMap<u32>,
     dirty_chunks: Vec<bool>,
     setblock_recording: Vec<SetBlock>,
 }
@@ -65,9 +68,9 @@ impl Level {
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
         let mut sections = vec![None; chunk_count * 24];
-        let mut biome = vec![Biome::Basic; chunk_count * 4 * 4];
-        let mut heightmap = vec![0; chunk_count * 16 * 16];
-        let mut watermap = vec![None; chunk_count * 16 * 16];
+        let mut biome = ColumnMap::new(chunk_min, chunk_max, 4, Biome::Basic);
+        let mut height = ColumnMap::new(chunk_min, chunk_max, 1, 0);
+        let mut water = ColumnMap::new(chunk_min, chunk_max, 1, None);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
@@ -75,9 +78,9 @@ impl Level {
             .collect_vec()
             .par_iter()
             .zip(sections.par_chunks_exact_mut(24))
-            .zip(biome.par_chunks_exact_mut(4 * 4))
-            .zip(heightmap.par_chunks_exact_mut(16 * 16))
-            .zip(watermap.par_chunks_exact_mut(16 * 16))
+            .zip(biome.data.par_chunks_exact_mut(4 * 4))
+            .zip(height.data.par_chunks_exact_mut(16 * 16))
+            .zip(water.data.par_chunks_exact_mut(16 * 16))
             .for_each(|((((index, sections), biome), heightmap), watermap)| {
                 load_chunk(
                     &chunk_provider,
@@ -96,15 +99,19 @@ impl Level {
             chunk_max,
             sections,
             biome,
-            heightmap,
-            watermap,
-            blocked: vec![false; chunk_count * 16 * 16],
+            height,
+            water,
+            blocked: ColumnMap::new(chunk_min, chunk_max, 1, false),
+            reachability: ColumnMap::new(chunk_min, chunk_max, 1, 0),
             dirty_chunks: vec![false; chunk_count],
             setblock_recording: default(),
         }
     }
 
-    pub fn save(&self) {
+    /// Saves the world to disk. This is suitable only for debug visualizations:
+    /// Some blocks may be changes/information is discarded even though it's not touched,
+    /// blockstates ignore neighboring blocks.
+    pub fn debug_save(&self) {
         // Write chunks
         let mut region_path = self.path.clone();
         region_path.push("region");
@@ -168,10 +175,8 @@ impl Level {
         Ok(())
     }
 
-    fn biome_index(&self, column: IVec2) -> usize {
-        self.chunk_index(column.into()) * 4 * 4
-            + column.y.rem_euclid(16) as usize / 4 * 4
-            + column.x.rem_euclid(16) as usize / 4
+    pub fn column_map<T: Copy>(&self, resolution: i32, default: T) -> ColumnMap<T> {
+        ColumnMap::new(self.chunk_min, self.chunk_max, resolution, default)
     }
 
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
@@ -190,11 +195,6 @@ impl Level {
 
     fn section_index(&self, pos: IVec3) -> usize {
         self.chunk_index(pos.into()) * 24 + (pos.z / 16 + 4) as usize
-    }
-
-    fn column_index(&self, column: IVec2) -> usize {
-        self.chunk_index(column.into()) * 16 * 16
-            + (column.x.rem_euclid(16) + column.y.rem_euclid(16) * 16) as usize
     }
 
     fn block_in_section_index(pos: IVec3) -> usize {
@@ -223,45 +223,14 @@ impl Level {
         .shrink(crate::LOAD_MARGIN)
     }
 
-    pub fn biome(&self, column: IVec2) -> Biome {
-        self.biome[self.biome_index(column)]
-    }
-
-    pub fn height(&self, column: IVec2) -> i32 {
-        self.heightmap[self.column_index(column)]
-    }
-
-    pub fn height_mut(&mut self, column: IVec2) -> &mut i32 {
-        let index = self.column_index(column);
-        &mut self.heightmap[index]
-    }
-
-    pub fn water_level(&self, column: IVec2) -> Option<i32> {
-        self.watermap[self.column_index(column)]
-    }
-
-    pub fn water_level_mut(&mut self, column: IVec2) -> &mut Option<i32> {
-        let index = self.column_index(column);
-        &mut self.watermap[index]
-    }
-
-    pub fn blocked(&self, column: IVec2) -> bool {
-        self.blocked[self.column_index(column)]
-    }
-
-    pub fn blocked_mut(&mut self, column: IVec2) -> &mut bool {
-        let index = self.column_index(column);
-        &mut self.blocked[index]
-    }
-
     pub fn unblocked(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
         area.into_iter()
-            .all(|column| self.area().contains(column) && !self.blocked(column))
+            .all(|column| self.area().contains(column) && !(self.blocked)(column))
     }
 
     pub fn set_blocked(&mut self, area: impl IntoIterator<Item = IVec2>) {
         for column in area {
-            *self.blocked_mut(column) = true
+            (self.blocked)(column, true);
         }
     }
 
@@ -303,7 +272,7 @@ impl Level {
     }
 
     pub fn ground(&self, col: IVec2) -> IVec3 {
-        col.extend(self.height(col))
+        col.extend((self.height)(col))
     }
 
     pub fn average_height(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
@@ -312,7 +281,7 @@ impl Level {
             .into_iter()
             .map(|p| {
                 count += 1;
-                self.height(p) as f32
+                (self.height)(p) as f32
             })
             .sum();
         total / count as f32

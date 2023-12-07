@@ -2,10 +2,10 @@ use crate::*;
 
 pub fn ground(level: &mut Level, area: Rect) {
     for column in area {
-        let base_height = if let Some(water_height) = level.water_level(column) {
+        let base_height = if let Some(water_height) = (level.water)(column) {
             water_height
         } else {
-            level.height(column)
+            (level.height)(column)
         };
         for z in base_height + 1..=base_height + 2 {
             level(column, z, |block| {
@@ -25,7 +25,7 @@ pub fn find_trees(
 ) -> Vec<(IVec3, TreeSpecies)> {
     let mut trees = HashSet::default();
     for column in area {
-        let z = level.height(column) + 1;
+        let z = (level.height)(column) + 1;
         if let Block::Log(species, _) = level(column.extend(z)) {
             // Check whether this is a tree instead of part of a man-made structure
             let mut pos = column.extend(z);

@@ -60,7 +60,7 @@ pub fn make_quarry(level: &mut Level, quarry: Quarry) -> PlaceList {
     for column in quarry.area {
         let mut pos = level.ground(column);
         pos.z = pos.z.min(floor);
-        *level.height_mut(column) = pos.z;
+        (level.height)(column, pos.z);
         level(pos, PackedMud)
     }
     level.fill_at(quarry.area, floor + 1..floor + 5, Air);

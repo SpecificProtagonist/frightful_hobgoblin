@@ -1,6 +1,6 @@
 use bevy_ecs::schedule::ScheduleLabel;
 
-use crate::remove_foliage::find_trees;
+use crate::{pathfind::reachability_2d_from, remove_foliage::find_trees};
 
 use super::*;
 
@@ -35,6 +35,8 @@ pub fn sim(mut level: Level) {
         level(pos, Wool(Magenta))
     }
 
+    level.reachability = reachability_2d_from(&level, city_center.center());
+
     // Find trees
     for (pos, species) in find_trees(&level, level.area()) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
@@ -67,8 +69,8 @@ pub fn sim(mut level: Level) {
                 quarry::make_stone_piles,
                 quarry::update_stone_pile_visuals,
             ),
-            // plan_house,
-            // plan_lumberjack,
+            plan_house,
+            plan_lumberjack,
             plan_quarry,
             apply_deferred,
             assign_builds,
@@ -95,7 +97,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 10 {
+        if tick < 20 {
             world.spawn((
                 Id::default(),
                 Villager::default(),
@@ -107,7 +109,8 @@ pub fn sim(mut level: Level) {
     }
 
     let level = world.remove_resource::<Level>().unwrap();
-    let replay = world.remove_resource::<Replay>().unwrap();
-    rayon::spawn(move || level.save_metadata().unwrap());
-    replay.finish();
+    level.debug_save();
+    // let replay = world.remove_resource::<Replay>().unwrap();
+    // rayon::spawn(move || level.save_metadata().unwrap());
+    // replay.finish();
 }

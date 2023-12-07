@@ -763,6 +763,7 @@ impl Block {
                     Ok("0") => Water,
                     _ => Air,
                 },
+                "tall_seagrass" => Water,
                 "stone" => Full(Stone),
                 "granite" => Full(Granite),
                 "diorite" => Full(Diorite),
@@ -819,7 +820,7 @@ impl Block {
                 "lilac" => TallPlant(TallPlant::Lilac, half(props)),
                 "rose_bush" => TallPlant(TallPlant::Rose, half(props)),
                 "peony" => TallPlant(TallPlant::Peony, half(props)),
-                "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
+                // "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
                 "snow" => SnowLayer, // Todo: store layer
                 "fence" => Fence(Wood(Oak)),
                 "cobblestone_wall" => Fence(MossyCobble),

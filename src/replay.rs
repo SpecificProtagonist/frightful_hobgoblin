@@ -380,7 +380,7 @@ pub fn tick_replay(
     }
     // New villagers
     for (id, pos, vill) in &new_vills {
-        let biome = level.biome(pos.block().truncate());
+        let biome = (level.biome)(pos.block().truncate());
         replay.command(format!(
             "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
             pos.x,

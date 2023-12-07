@@ -4,10 +4,6 @@ use sim::*;
 
 use super::{lumberjack::TreeIsNearLumberCamp, quarry::Quarry};
 
-// // TODO: instead store
-// #[derive(Component, Deref, DerefMut)]
-// pub struct Blocked(pub Rect);
-
 #[derive(Component, Deref, DerefMut)]
 pub struct Planned(Rect);
 
@@ -22,14 +18,14 @@ pub struct ToBeBuild;
 pub fn unevenness(level: &Level, area: Rect) -> f32 {
     let avg_height = level.average_height(area);
     area.into_iter()
-        .map(|pos| (level.height(pos) as f32 - avg_height).abs().powf(2.))
+        .map(|pos| ((level.height)(pos) as f32 - avg_height).abs().powf(2.))
         .sum::<f32>()
         / area.total() as f32
 }
 
 pub fn wateryness(level: &Level, area: Rect) -> f32 {
     area.into_iter()
-        .filter(|pos| level.water_level(*pos).is_some())
+        .filter(|pos| (level.water)(*pos).is_some())
         .count() as f32
         / area.total() as f32
 }
@@ -112,10 +108,11 @@ pub fn plan_house(
             if !level.unblocked(area) {
                 return None;
             }
-            let distance = center.distance(area.center().as_vec2()) / 50.;
+            let distance = (level.reachability)(area.center()) as f32;
             // TODO: try to minimize the amount of trees in the footprint
-            let score =
-                wateryness(&level, area) * 20. + unevenness(&level, area) + distance.powf(2.);
+            let score = wateryness(&level, area) * 20.
+                + unevenness(&level, area)
+                + (distance / 100.).powf(2.);
             Some((area, score))
         },
         200,
@@ -134,16 +131,17 @@ pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(With<Lumberjack>, With<Planned>)>,
-    center: Query<&Pos, With<CityCenter>>,
     trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
 ) {
     if !planned.is_empty() {
         return;
     }
-    let center = center.single().truncate();
 
     let Some(area) = optimize(
-        Rect::new_centered(center.block(), ivec2(rand_range(4..=6), rand_range(5..=8))),
+        Rect::new_centered(
+            level.area().center(),
+            ivec2(rand_range(4..=6), rand_range(5..=8)),
+        ),
         |mut area, temperature| {
             let max_move = (60. * temperature) as i32;
             area = area.offset(ivec2(
@@ -157,7 +155,7 @@ pub fn plan_lumberjack(
             if !level.unblocked(area) {
                 return None;
             }
-            let center_distance = center.distance(area.center().as_vec2()) / 50.;
+            let center_distance = (level.reachability)(area.center()).max(150) as f32;
             let tree_access = trees
                 .iter()
                 .map(|(_, p)| {
@@ -166,7 +164,7 @@ pub fn plan_lumberjack(
                 .sum::<f32>();
             let score = wateryness(&level, area) * 20.
                 + unevenness(&level, area) * 1.
-                + center_distance * 1.
+                + center_distance / 200.
                 + tree_access * 5.;
             Some((area, score))
         },
@@ -192,12 +190,10 @@ pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(With<Quarry>, With<Planned>)>,
-    center: Query<&Pos, With<CityCenter>>,
 ) {
     if !planned.is_empty() {
         return;
     }
-    let center = center.single().truncate();
 
     let Some(quarry) = optimize(
         Quarry {
@@ -217,7 +213,11 @@ pub fn plan_quarry(
             if !level.unblocked(quarry.area) | !level.unblocked(quarry.probing_area()) {
                 return None;
             }
-            let center_distance = (center.distance(quarry.area.center().as_vec2())).max(80.) / 50.;
+            let mut distance = (level.reachability)(quarry.area.center()) as f32 - 650.;
+            // Penalize quarries near city center
+            if distance < 0. {
+                distance *= -5.
+            }
             let avg_start_height = level.average_height(quarry.area);
             let quarried_height = level.average_height(quarry.probing_area()) - avg_start_height;
             // TODO: Pit quarries
@@ -228,7 +228,7 @@ pub fn plan_quarry(
             let score = wateryness(&level, quarry.area) * 20.
                 + unevenness(&level, quarry.area) * 1.5
                 - quarried_height * 1.
-                + center_distance * 1.;
+                + distance / 100.;
             Some((quarry, score))
         },
         200,
@@ -322,7 +322,7 @@ pub fn test_build_quarry(
             level(pos, Wool(Black))
         }
         for pos in quarry.probing_area() {
-            *level.blocked_mut(pos) = true;
+            (level.blocked)(pos, true);
             let pos = level.ground(pos);
             level(pos, Wool(Red))
         }
