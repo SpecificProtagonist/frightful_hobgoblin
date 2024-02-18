@@ -217,6 +217,7 @@ impl Replay {
                 });
                 nbt
             });
+            // TODO: check out compression speed & file size when using Compression::fast or similar
             nbt::encode::write_gzip_compound_tag(
                 &mut std::fs::File::create(
                     data_path.join(format!("command_storage_sim_{invocation}_{chunk}.dat")),
@@ -367,6 +368,7 @@ pub fn tick_replay(
     mut level: ResMut<Level>,
     mut replay: ResMut<Replay>,
     new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
+    named: Query<(&Id, &Name), Changed<Name>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
     mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&InBoat>), Changed<Pos>>,
     jobless: Query<&Id, Added<Jobless>>,
@@ -398,6 +400,13 @@ pub fn tick_replay(
             vill.carry_id.snbt(),
         ));
         replay.carry_ids.push((*id, vill.carry_id));
+    }
+    // Names
+    for (id, name) in &named {
+        replay.command(format!(
+            "data modify entity {id} CustomName set value \"{{\\\"text\\\":\\\"{}\\\"}}\"",
+            name.0
+        ));
     }
     // Movement
     for (id, pos, mut prev, in_boat) in &mut moved {

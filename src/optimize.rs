@@ -1,8 +1,8 @@
 use std::f32::INFINITY;
 
+// TODO: Gradient descent starting from multiple random seeds?
+
 /// Smaller score is better
-/// TODO: also try accepting worse scores on high temperatures
-/// (requires kinda normalized scores); maybe as a new function
 pub fn optimize<T: PartialEq + Clone>(
     mut value: T,
     fun: impl Fn(T, f32) -> Option<(T, f32)>,

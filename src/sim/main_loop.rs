@@ -77,6 +77,7 @@ pub fn sim(mut level: Level) {
             apply_deferred,
             new_construction_site,
             (test_build_house, test_build_lumberjack, test_build_quarry),
+            personal_name::name,
             apply_deferred,
             tick_replay,
             // remove_outdated,
@@ -109,8 +110,8 @@ pub fn sim(mut level: Level) {
     }
 
     let level = world.remove_resource::<Level>().unwrap();
-    level.debug_save();
-    // let replay = world.remove_resource::<Replay>().unwrap();
-    // rayon::spawn(move || level.save_metadata().unwrap());
-    // replay.finish();
+    // level.debug_save();
+    let replay = world.remove_resource::<Replay>().unwrap();
+    rayon::spawn(move || level.save_metadata().unwrap());
+    replay.finish();
 }

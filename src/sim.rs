@@ -6,6 +6,7 @@ mod construction;
 mod logistics;
 pub mod lumberjack;
 mod main_loop;
+mod personal_name;
 pub mod quarry;
 
 pub use main_loop::sim;
@@ -50,6 +51,9 @@ pub struct Villager {
     pub carry: Option<Stack>,
     pub carry_id: Id,
 }
+
+#[derive(Component)]
+pub struct Name(pub String);
 
 #[derive(Component, Default)]
 pub struct InBoat(pub Id);

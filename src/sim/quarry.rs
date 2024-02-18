@@ -31,7 +31,6 @@ pub struct StonePile {
 
 pub fn assign_worker(
     mut commands: Commands,
-    mut replay: ResMut<Replay>,
     available: Query<(Entity, &Pos), With<Jobless>>,
     new: Query<(Entity, &Pos), (With<Lumberjack>, Added<Built>)>,
 ) {
@@ -44,7 +43,6 @@ pub fn assign_worker(
         else {
             return;
         };
-        replay.dbg("assign lumberjack");
         commands.entity(worker).remove::<Jobless>().insert(Mason {
             workplace,
             ready_to_work: true,

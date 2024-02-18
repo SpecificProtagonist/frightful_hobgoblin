@@ -60,7 +60,6 @@ enum ChopStage {
 
 pub fn assign_worker(
     mut commands: Commands,
-    mut replay: ResMut<Replay>,
     available: Query<(Entity, &Pos), With<Jobless>>,
     new: Query<(Entity, &Pos), (With<Lumberjack>, Added<Built>)>,
 ) {
@@ -73,7 +72,6 @@ pub fn assign_worker(
         else {
             return;
         };
-        replay.dbg("assign lumberjack");
         commands
             .entity(worker)
             .remove::<Jobless>()
@@ -110,7 +108,7 @@ pub fn work(
             lumberworker.ready_to_work = false;
         } else if let Some(stack) = villager.carry {
             // Drop off lumber
-            // TODO: This allows overly full piles due to multiple simultaneous deliveries. Fix this by introducing storage piles.
+            // TODO: This allows overly full piles due to multiple simultaneous deliveries. Fix this by introducing storage piles?
             if let Some((to, _, _, _)) = piles
                 .iter()
                 .filter(|(_, _, current, lumber_pile)| {

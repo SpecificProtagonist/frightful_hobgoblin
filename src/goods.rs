@@ -16,7 +16,7 @@ impl Good {
         match self {
             Self::Stone => Full(Cobble),
             Self::Wood => Full(Wood(Oak)),
-            Self::Soil => CoarseDirt,
+            Self::Soil => PackedMud,
             Self::Brick => Full(Brick),
         }
     }

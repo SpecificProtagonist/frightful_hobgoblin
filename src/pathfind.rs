@@ -36,7 +36,7 @@ impl PartialOrd for Node {
 const WALK_COST_PER_BLOCK: u32 = 3;
 const BOATING_COST_PER_BLOCK: u32 = 2;
 const STAIR_COOLDOWN: i8 = 7;
-const BOAT_TOGGLE_COST: u32 = 20 * WALK_COST_PER_BLOCK;
+const BOAT_TOGGLE_COST: u32 = 40 * WALK_COST_PER_BLOCK;
 
 #[derive(Debug)]
 pub struct PathSearch {
