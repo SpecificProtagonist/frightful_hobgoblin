@@ -159,13 +159,15 @@ fn assign_work(
             .min_by_key(|(d, _)| *d as i32)
         {
             out_piles
-                .get_component_mut::<OutPile>(task.0.from)
+                .get_mut(task.0.from)
                 .unwrap()
+                .2
                 .available
                 .remove(task.0.stack);
             in_piles
-                .get_component_mut::<InPile>(task.1.to)
+                .get_mut(task.1.to)
                 .unwrap()
+                .2
                 .requested
                 .remove(task.0.stack);
             replay.dbg("assign carry");

@@ -27,12 +27,15 @@ pub mod test_house;
 
 use std::cell::Cell;
 
-// Replaces SipHash with ahash & disables randomness
-pub use bevy_utils::{StableHashMap as HashMap, StableHashSet as HashSet};
+use bevy_utils::FixedState;
 pub use geometry::*;
 pub use level::*;
 pub use prefab::PREFABS;
 pub use rand::*;
+
+// Replaces SipHash with ahash & disables randomness
+pub type HashMap<K, V> = std::collections::HashMap<K, V, FixedState>;
+pub type HashSet<K> = std::collections::HashSet<K, FixedState>;
 
 pub fn default<T: Default>() -> T {
     Default::default()

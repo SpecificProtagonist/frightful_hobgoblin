@@ -81,7 +81,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
 pub fn plan_house(
     mut commands: Commands,
     level: Res<Level>,
-    planned: Query<(With<House>, With<Planned>)>,
+    planned: Query<(), (With<House>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
 ) {
     if planned.iter().len() > 0 {
@@ -130,7 +130,7 @@ pub fn plan_house(
 pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
-    planned: Query<(With<Lumberjack>, With<Planned>)>,
+    planned: Query<(), (With<Lumberjack>, With<Planned>)>,
     trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
 ) {
     if !planned.is_empty() {
@@ -189,7 +189,7 @@ pub fn plan_lumberjack(
 pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
-    planned: Query<(With<Quarry>, With<Planned>)>,
+    planned: Query<(), (With<Quarry>, With<Planned>)>,
 ) {
     if !planned.is_empty() {
         return;
@@ -247,12 +247,12 @@ pub fn plan_quarry(
 pub fn assign_builds(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    construction_sites: Query<With<ConstructionSite>>,
-    houses: Query<(With<House>, Without<Planned>)>,
+    construction_sites: Query<(), With<ConstructionSite>>,
+    houses: Query<(), (With<House>, Without<Planned>)>,
     planned_houses: Query<(Entity, &Planned), With<House>>,
-    lumberjacks: Query<(With<Lumberjack>, Without<Planned>)>,
+    lumberjacks: Query<(), (With<Lumberjack>, Without<Planned>)>,
     planned_lumberjacks: Query<(Entity, &Planned), With<Lumberjack>>,
-    quarries: Query<(With<Quarry>, Without<Planned>)>,
+    quarries: Query<(), (With<Quarry>, Without<Planned>)>,
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
     if construction_sites.iter().len() > 10 {

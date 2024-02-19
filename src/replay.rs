@@ -3,10 +3,12 @@ use crate::sim::quarry::Mason;
 use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
+use flate2::write::GzEncoder;
+use nbt::encode::write_compound_tag;
 use nbt::{CompoundTag, Tag};
 
 use std::fmt::{Display, Write};
-use std::fs::{create_dir_all, read, write};
+use std::fs::{create_dir_all, read, write, File};
 use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -217,15 +219,14 @@ impl Replay {
                 });
                 nbt
             });
-            // TODO: check out compression speed & file size when using Compression::fast or similar
-            nbt::encode::write_gzip_compound_tag(
-                &mut std::fs::File::create(
-                    data_path.join(format!("command_storage_sim_{invocation}_{chunk}.dat")),
-                )
-                .unwrap(),
-                &nbt,
+            let mut file = File::create(
+                data_path.join(format!("command_storage_sim_{invocation}_{chunk}.dat")),
             )
             .unwrap();
+            let mut encoder = GzEncoder::new(&mut file, default());
+            write_compound_tag(&mut encoder, &mut nbt).unwrap();
+            encoder.finish().unwrap();
+
             arc.fetch_sub(1, Ordering::Relaxed);
         });
 

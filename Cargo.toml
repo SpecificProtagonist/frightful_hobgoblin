@@ -27,15 +27,11 @@ itertools = "0.9"
 bresenham = { path = "bresenham-rs" }
 # Used only for debugging
 image = { version = "0.23", default-features = false, features = ["png"] }
-# Turn off multithreading
-bevy_ecs = {version = "0.12", default-features = false}
-bevy_math = "0.12"
-bevy_derive = "0.12"
-bevy_utils = "0.12"
+bevy_ecs = "0.13"
+bevy_math = "0.13"
+bevy_derive = "0.13"
+bevy_utils = "0.13"
 bitflags = "2.3.3"
 enum-iterator = "1.4.1"
 nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs.git" }
-
-[patch.crates-io]
-# Fix corruped gzip
-named-binary-tag = { git = "https://github.com/SpecificProtagonist/named-binary-tag.git", branch = "fix-gzip" }
+flate2 = "1"

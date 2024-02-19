@@ -65,10 +65,6 @@ impl<T> ChooseExt for [T] {
     }
 }
 
-trait ChooseExt2: ExactSizeIterator {
-    // TODO
-}
-
 thread_local! {
     pub static RNG: Cell<WyRand> = default();
 }

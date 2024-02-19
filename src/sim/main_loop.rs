@@ -1,4 +1,4 @@
-use bevy_ecs::schedule::ScheduleLabel;
+use bevy_ecs::schedule::ExecutorKind;
 
 use crate::{pathfind::reachability_2d_from, remove_foliage::find_trees};
 
@@ -42,9 +42,8 @@ pub fn sim(mut level: Level) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
     }
 
-    #[derive(ScheduleLabel, Clone, Hash, Eq, PartialEq, Debug)]
-    struct MainLoop;
-    let mut sched = Schedule::new(MainLoop);
+    let mut sched = Schedule::default();
+    sched.set_executor_kind(ExecutorKind::SingleThreaded);
     sched.add_systems(
         (
             grow_trees,
@@ -69,16 +68,11 @@ pub fn sim(mut level: Level) {
                 quarry::make_stone_piles,
                 quarry::update_stone_pile_visuals,
             ),
-            plan_house,
-            plan_lumberjack,
-            plan_quarry,
-            apply_deferred,
+            (plan_house, plan_lumberjack, plan_quarry),
             assign_builds,
-            apply_deferred,
             new_construction_site,
             (test_build_house, test_build_lumberjack, test_build_quarry),
             personal_name::name,
-            apply_deferred,
             tick_replay,
             // remove_outdated,
             |mut tick: ResMut<Tick>| tick.0 += 1,
