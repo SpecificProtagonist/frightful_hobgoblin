@@ -12,6 +12,7 @@ pub fn sim(mut level: Level) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
+    println!("center: {city_center_pos:?}");
 
     let starting_resources = {
         let mut stock = Goods::default();
@@ -92,7 +93,7 @@ pub fn sim(mut level: Level) {
     for tick in 0..30000 {
         sched.run(&mut world);
 
-        if tick < 20 {
+        if tick < 40 {
             world.spawn((
                 Id::default(),
                 Villager::default(),

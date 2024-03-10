@@ -4,11 +4,13 @@ use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
 use flate2::write::GzEncoder;
+use flate2::Compression;
 use nbt::encode::write_compound_tag;
 use nbt::{CompoundTag, Tag};
 
 use std::fmt::{Display, Write};
 use std::fs::{create_dir_all, read, write, File};
+use std::io::Write as _;
 use std::ops::DerefMut;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
@@ -223,9 +225,13 @@ impl Replay {
                 data_path.join(format!("command_storage_sim_{invocation}_{chunk}.dat")),
             )
             .unwrap();
-            let mut encoder = GzEncoder::new(&mut file, default());
-            write_compound_tag(&mut encoder, &mut nbt).unwrap();
-            encoder.finish().unwrap();
+            // If writing directly to a GzEncoder and the chunk size is too big, it
+            // gets silently trunctated?!?
+            let mut uncompressed = Vec::new();
+            write_compound_tag(&mut uncompressed, &nbt).unwrap();
+            GzEncoder::new(&mut file, Compression::new(1))
+                .write_all(&mut uncompressed)
+                .unwrap();
 
             arc.fetch_sub(1, Ordering::Relaxed);
         });
@@ -256,6 +262,7 @@ impl Replay {
             format!(
                 "
             scoreboard players set SIM_{0} sim_tick 0
+            scoreboard objectives setdisplay sidebar sim_tick
             # How many sim ticks to replay per game tick (0 to stop)
             scoreboard objectives add speed dummy
             scoreboard players set SIM_{0} speed 1
@@ -287,6 +294,7 @@ impl Replay {
 
         let tag_path = pack_path.join("data/minecraft/tags/functions/");
         create_dir_all(&tag_path).unwrap();
+        // TODO: add instead of override!
         write(
             tag_path.join("load.json"),
             format!("{{values:[\"sim_{}:check_setup\"]}}", self.invocation),
@@ -294,6 +302,7 @@ impl Replay {
         .unwrap();
 
         // For now just start automatically
+        // TODO: add instead of override!
         write(
             tag_path.join("tick.json"),
             format!("{{values:[\"sim_{}:check_tick\"]}}", self.invocation),
@@ -322,7 +331,7 @@ impl Replay {
             ", self.invocation),
         )
         .unwrap();
-        write(sim_path.join("tick.mcfunction"), {
+        write(sim_path.join("game_tick.mcfunction"), {
             let mut tick = format!(
                 "
                 scoreboard players operation SIM_{0} warp += SIM_{0} speed
@@ -340,7 +349,7 @@ impl Replay {
         write(
             sim_path.join("check_tick.mcfunction"),
             format!(
-                "execute if entity @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] run function sim_{}:tick",
+                "execute if entity @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] run function sim_{}:game_tick",
                 self.area.min.x,
                 self.area.min.y,
                 self.area.size().x,

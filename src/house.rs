@@ -92,12 +92,27 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
     rec.extend(level.pop_recording(cursor));
     let cursor = level.recording_cursor();
 
-    // Whitewash
+    // Paint/Whitewash
+    let paint = if 0.5 > rand() {
+        MushroomStem
+    } else {
+        *[
+            Terracotta(Some(White)),
+            Terracotta(Some(Red)),
+            Terracotta(Some(Orange)),
+            Terracotta(Some(Lime)),
+            Terracotta(Some(Green)),
+            Terracotta(Some(LightBlue)),
+            Terracotta(Some(Magenta)),
+            Terracotta(Some(Pink)),
+        ]
+        .choose()
+    };
     'outer: for pos in area.border() {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
             match level(pos) {
-                MuddyMangroveRoots => level(pos, MushroomStem),
+                MuddyMangroveRoots => level(pos, paint),
                 _ => continue 'outer,
             }
         }

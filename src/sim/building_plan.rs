@@ -262,7 +262,7 @@ pub fn assign_builds(
     if houses.iter().len() < 30 {
         plans.extend(&planned_houses)
     }
-    if lumberjacks.iter().len() < 20 {
+    if lumberjacks.iter().len() < 10 {
         plans.extend(&planned_lumberjacks)
     }
     if quarries.iter().len() < 10 {
