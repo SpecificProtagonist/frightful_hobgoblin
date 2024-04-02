@@ -68,9 +68,9 @@ impl Level {
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
 
         let mut sections = vec![None; chunk_count * 24];
-        let mut biome = ColumnMap::new(chunk_min, chunk_max, 4, Biome::Basic);
-        let mut height = ColumnMap::new(chunk_min, chunk_max, 1, 0);
-        let mut water = ColumnMap::new(chunk_min, chunk_max, 1, None);
+        let mut biome = ColumnMap::new(chunk_min, chunk_max, 4);
+        let mut height = ColumnMap::new(chunk_min, chunk_max, 1);
+        let mut water = ColumnMap::new(chunk_min, chunk_max, 1);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
@@ -101,8 +101,8 @@ impl Level {
             biome,
             height,
             water,
-            blocked: ColumnMap::new(chunk_min, chunk_max, 1, false),
-            reachability: ColumnMap::new(chunk_min, chunk_max, 1, 0),
+            blocked: ColumnMap::new(chunk_min, chunk_max, 1),
+            reachability: ColumnMap::new(chunk_min, chunk_max, 1),
             dirty_chunks: vec![false; chunk_count],
             setblock_recording: default(),
         }
@@ -175,8 +175,8 @@ impl Level {
         Ok(())
     }
 
-    pub fn column_map<T: Copy>(&self, resolution: i32, default: T) -> ColumnMap<T> {
-        ColumnMap::new(self.chunk_min, self.chunk_max, resolution, default)
+    pub fn column_map<T: Clone>(&self, resolution: i32, default: T) -> ColumnMap<T> {
+        ColumnMap::new_with(self.chunk_min, self.chunk_max, resolution, default)
     }
 
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
@@ -225,12 +225,12 @@ impl Level {
 
     pub fn unblocked(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
         area.into_iter()
-            .all(|column| self.area().contains(column) && !(self.blocked)(column))
+            .all(|column| self.area().contains(column) && !self.blocked[column])
     }
 
     pub fn set_blocked(&mut self, area: impl IntoIterator<Item = IVec2>) {
         for column in area {
-            (self.blocked)(column, true);
+            self.blocked[column] = true;
         }
     }
 
@@ -272,7 +272,7 @@ impl Level {
     }
 
     pub fn ground(&self, col: IVec2) -> IVec3 {
-        col.extend((self.height)(col))
+        col.extend(self.height[col])
     }
 
     pub fn average_height(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
@@ -281,7 +281,7 @@ impl Level {
             .into_iter()
             .map(|p| {
                 count += 1;
-                (self.height)(p) as f32
+                self.height[p] as f32
             })
             .sum();
         total / count as f32

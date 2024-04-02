@@ -179,7 +179,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
         level.fill_at(area, z, Air)
     }
     for col in area {
-        for z in ((level.height)(col) + 1..=floor).rev() {
+        for z in (level.height[col] + 1..=floor).rev() {
             level(col, z, Air)
         }
     }
@@ -200,7 +200,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
         }
     }
     for col in area.shrink(1) {
-        for z in ((level.height)(col) - 1).min(floor)..=floor {
+        for z in (level.height[col] - 1).min(floor)..=floor {
             let pos = col.extend(z);
             if (!level(pos).solid()) | (level(pos).soil()) {
                 level(pos, PackedMud)

@@ -181,9 +181,9 @@ pub fn reachability_2d_from(level: &Level, start: IVec2) -> ColumnMap<u32> {
                 continue;
             };
 
-            if reach_z(new_pos.truncate()) < new_pos.z {
-                reach_z(new_pos.truncate(), new_pos.z);
-                reachability(new_pos.truncate(), new_cost);
+            if reach_z[new_pos.truncate()] < new_pos.z {
+                reach_z[new_pos.truncate()] = new_pos.z;
+                reachability[new_pos.truncate()] = new_cost;
             }
 
             queue.push(Node {

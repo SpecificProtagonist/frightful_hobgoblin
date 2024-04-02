@@ -1,8 +1,9 @@
 use crate::*;
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Default, Debug, Copy, Clone)]
 #[repr(u8)]
 pub enum Biome {
+    #[default]
     Basic,
     River,
     Ocean,

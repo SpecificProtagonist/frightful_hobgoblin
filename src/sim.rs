@@ -3,6 +3,7 @@
 
 pub mod building_plan;
 mod construction;
+mod desire_lines;
 mod logistics;
 pub mod lumberjack;
 mod main_loop;

@@ -1,3 +1,5 @@
+use std::ops::{Index, IndexMut};
+
 use crate::*;
 
 pub struct ColumnMap<T> {
@@ -7,8 +9,19 @@ pub struct ColumnMap<T> {
     pub data: Vec<T>,
 }
 
-impl<T: Copy> ColumnMap<T> {
-    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex, resolution: i32, default: T) -> Self {
+impl<T: Default + Clone> ColumnMap<T> {
+    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex, resolution: i32) -> Self {
+        Self::new_with(chunk_min, chunk_max, resolution, default())
+    }
+}
+
+impl<T: Clone> ColumnMap<T> {
+    pub fn new_with(
+        chunk_min: ChunkIndex,
+        chunk_max: ChunkIndex,
+        resolution: i32,
+        default: T,
+    ) -> Self {
         let chunk_count = (chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1);
         Self {
             chunk_min,
@@ -17,7 +30,9 @@ impl<T: Copy> ColumnMap<T> {
             data: vec![default; (chunk_count * (16 / resolution) * (16 / resolution)) as usize],
         }
     }
+}
 
+impl<T> ColumnMap<T> {
     fn column_index(&self, column: IVec2) -> usize {
         self.chunk_index(column.into())
             * (16 / self.resolution as usize)
@@ -43,37 +58,17 @@ impl<T: Copy> ColumnMap<T> {
     }
 }
 
-impl<T: Copy> FnOnce<(IVec2,)> for ColumnMap<T> {
+impl<T: Copy> Index<IVec2> for ColumnMap<T> {
     type Output = T;
 
-    extern "rust-call" fn call_once(self, column: (IVec2,)) -> Self::Output {
-        self.call(column)
+    fn index(&self, index: IVec2) -> &Self::Output {
+        &self.data[self.column_index(index)]
     }
 }
 
-impl<T: Copy> FnMut<(IVec2,)> for ColumnMap<T> {
-    extern "rust-call" fn call_mut(&mut self, column: (IVec2,)) -> Self::Output {
-        self.call(column)
-    }
-}
-
-impl<T: Copy> Fn<(IVec2,)> for ColumnMap<T> {
-    extern "rust-call" fn call(&self, (column,): (IVec2,)) -> Self::Output {
-        self.data[self.column_index(column)]
-    }
-}
-
-impl<T: Copy> FnOnce<(IVec2, T)> for ColumnMap<T> {
-    type Output = ();
-
-    extern "rust-call" fn call_once(mut self, args: (IVec2, T)) -> Self::Output {
-        self.call_mut(args)
-    }
-}
-
-impl<T: Copy> FnMut<(IVec2, T)> for ColumnMap<T> {
-    extern "rust-call" fn call_mut(&mut self, (column, value): (IVec2, T)) -> Self::Output {
-        let index = self.column_index(column);
-        self.data[index] = value
+impl<T: Copy> IndexMut<IVec2> for ColumnMap<T> {
+    fn index_mut(&mut self, index: IVec2) -> &mut Self::Output {
+        let index = self.column_index(index);
+        &mut self.data[index]
     }
 }

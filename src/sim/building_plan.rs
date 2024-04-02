@@ -18,14 +18,14 @@ pub struct ToBeBuild;
 pub fn unevenness(level: &Level, area: Rect) -> f32 {
     let avg_height = level.average_height(area);
     area.into_iter()
-        .map(|pos| ((level.height)(pos) as f32 - avg_height).abs().powf(2.))
+        .map(|pos| (level.height[pos] as f32 - avg_height).abs().powf(2.))
         .sum::<f32>()
         / area.total() as f32
 }
 
 pub fn wateryness(level: &Level, area: Rect) -> f32 {
     area.into_iter()
-        .filter(|pos| (level.water)(*pos).is_some())
+        .filter(|pos| level.water[*pos].is_some())
         .count() as f32
         / area.total() as f32
 }
@@ -108,7 +108,7 @@ pub fn plan_house(
             if !level.unblocked(area) {
                 return None;
             }
-            let distance = (level.reachability)(area.center()) as f32;
+            let distance = level.reachability[area.center()] as f32;
             // TODO: try to minimize the amount of trees in the footprint
             let score = wateryness(&level, area) * 20.
                 + unevenness(&level, area)
@@ -155,7 +155,7 @@ pub fn plan_lumberjack(
             if !level.unblocked(area) {
                 return None;
             }
-            let center_distance = (level.reachability)(area.center()).max(150) as f32;
+            let center_distance = level.reachability[area.center()].max(150) as f32;
             let tree_access = trees
                 .iter()
                 .map(|(_, p)| {
@@ -213,7 +213,7 @@ pub fn plan_quarry(
             if !level.unblocked(quarry.area) | !level.unblocked(quarry.probing_area()) {
                 return None;
             }
-            let mut distance = (level.reachability)(quarry.area.center()) as f32 - 650.;
+            let mut distance = level.reachability[quarry.area.center()] as f32 - 650.;
             // Penalize quarries near city center
             if distance < 0. {
                 distance *= -5.
@@ -322,7 +322,7 @@ pub fn test_build_quarry(
             level(pos, Wool(Black))
         }
         for pos in quarry.probing_area() {
-            (level.blocked)(pos, true);
+            level.blocked[pos] = true;
             let pos = level.ground(pos);
             level(pos, Wool(Red))
         }

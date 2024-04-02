@@ -189,7 +189,7 @@ pub fn walk(
                     if in_boat.is_none() {
                         let boat_id = Id::default();
                         commands.entity(entity).insert(InBoat(boat_id));
-                        let biome = (level.biome)(pos.block().truncate());
+                        let biome = level.biome[pos.block().truncate()];
                         replay.command(format!(
                             "summon boat {} {} {} {{{}, Invulnerable:1, Type:\"{}\"}}",
                             pos.x,

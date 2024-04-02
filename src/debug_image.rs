@@ -48,7 +48,7 @@ impl MapImage {
 
     pub fn ocean_and_river(&mut self, level: &Level) {
         for column in self.area {
-            match (level.biome)(column) {
+            match level.biome[column] {
                 Biome::River => self.set(column, Color::River),
                 Biome::Ocean => self.set(column, Color::Ocean),
                 _ => (),
@@ -63,7 +63,7 @@ impl MapImage {
     pub fn heightmap_with(&mut self, level: &Level, min: i32, max: i32) {
         for column in self.area {
             self.set(column, {
-                let height = (level.height)(column);
+                let height = level.height[column];
                 Color::Grey(
                     (((height as f32 - min as f32) / (max as f32 - min as f32)).clamp(0., 255.)
                         * 255.) as u8,
@@ -74,7 +74,7 @@ impl MapImage {
 
     pub fn water(&mut self, level: &Level) {
         for column in self.area {
-            if (level.water)(column).is_some() {
+            if level.water[column].is_some() {
                 self.set(column, Color::Water)
             }
         }

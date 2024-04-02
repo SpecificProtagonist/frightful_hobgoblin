@@ -53,6 +53,7 @@ pub enum Block {
     MuddyMangroveRoots,
     SmoothQuartz,
     SnowLayer,
+    SnowBlock,
     Glowstone,
     GlassPane(Option<Color>),
     WallBanner(HDir, Color),
@@ -381,7 +382,7 @@ impl Block {
             Sand => "sand".into(),
             Gravel => "gravel".into(),
             Farmland => "farmland".into(),
-            Path => "grass_path".into(),
+            Path => "dirt_path".into(),
             CoarseDirt => "coarse_dirt".into(),
             Podzol => "podzol".into(),
             SoulSand => "soul_sand".into(),
@@ -494,6 +495,7 @@ impl Block {
             MuddyMangroveRoots => "muddy_mangrove_roots".into(),
             SmoothQuartz => "smooth_quartz".into(),
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
+            SnowBlock => "snow_block".into(),
             Glowstone => "glowstone".into(),
             GlassPane(color) => {
                 if let Some(color) = color {
@@ -776,6 +778,7 @@ impl Block {
                 "bedrock" => Bedrock,
                 "gravel" => Gravel,
                 "grass_block" => Grass,
+                "dirt_path" => Path,
                 "sand" => Sand,
                 "dirt" if props.get_str("variant").is_err() => Dirt,
                 "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => CoarseDirt,
@@ -822,6 +825,7 @@ impl Block {
                 "peony" => TallPlant(TallPlant::Peony, half(props)),
                 // "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
                 "snow" => SnowLayer, // Todo: store layer
+                "snow_block" => SnowBlock,
                 "fence" => Fence(Wood(Oak)),
                 "cobblestone_wall" => Fence(MossyCobble),
                 "mossy_cobblestone_wall" => Fence(MossyCobble),

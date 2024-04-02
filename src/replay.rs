@@ -392,7 +392,7 @@ pub fn tick_replay(
     }
     // New villagers
     for (id, pos, vill) in &new_vills {
-        let biome = (level.biome)(pos.block().truncate());
+        let biome = level.biome[pos.block().truncate()];
         replay.command(format!(
             "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
             pos.x,
@@ -424,7 +424,8 @@ pub fn tick_replay(
         let facing = pos.0 + delta;
         if let Some(in_boat) = in_boat {
             let off = vec3(0., 0., -0.48);
-            // Unfortunately the boat lags behind (visually only?)
+            // Unfortunately the boat lags behind (visually only)
+            // TODO: use /ride instead
             replay.tp(in_boat.0, pos.0 + off, facing + off);
         } else {
             replay.tp(*id, pos.0, facing);

@@ -1,6 +1,6 @@
 use bevy_ecs::schedule::ExecutorKind;
 
-use crate::{pathfind::reachability_2d_from, remove_foliage::find_trees};
+use crate::{pathfind::reachability_2d_from, remove_foliage::find_trees, sim::desire_lines::*};
 
 use super::*;
 
@@ -38,6 +38,8 @@ pub fn sim(mut level: Level) {
 
     level.reachability = reachability_2d_from(&level, city_center.center());
 
+    world.insert_resource(DesireLines::new(&level));
+
     // Find trees
     for (pos, species) in find_trees(&level, level.area()) {
         world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
@@ -73,6 +75,7 @@ pub fn sim(mut level: Level) {
             assign_builds,
             new_construction_site,
             (test_build_house, test_build_lumberjack, test_build_quarry),
+            desire_lines,
             personal_name::name,
             tick_replay,
             // remove_outdated,
