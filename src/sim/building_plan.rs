@@ -43,6 +43,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
             if !level.area().has_subrect(area) {
                 return None;
             }
+            // TODO: try place near river
             // TODO: Take biomes into account
             let distance = area
                 .center()
@@ -241,6 +242,48 @@ pub fn plan_quarry(
         Planned(quarry.area),
         quarry,
     ));
+}
+
+pub fn upgrade_plaza(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    tick: Res<Tick>,
+    center: Query<(Entity, &CityCenter)>,
+) {
+    if tick.0 != 10 {
+        return;
+    }
+    let (entity, rect) = center.single();
+
+    let cursor = level.recording_cursor();
+    let mut rec = ConsList::new();
+
+    // Visit blocks in a spiral from the center
+    let mut offset = IVec2::ZERO;
+    let mut dir = HDir::YNeg;
+    for _ in 0..rect.size().max_element().pow(2) {
+        // Rounded corners
+        let metr = offset.as_vec2().powf(4.);
+        if metr.x + metr.y < (rect.size().max_element() as f32 / 2.).powf(4.) + 0.6 {
+            let pos = level.ground(rect.center() + offset);
+            level(pos, Path);
+            if 0.2 > rand() {
+                rec.push_back(ConsItem::Goto(MoveTask {
+                    goal: pos + IVec3::Z,
+                    distance: 2,
+                }));
+            }
+            rec.extend(level.pop_recording(cursor.clone()).map(ConsItem::Set));
+        }
+        if (offset.x == offset.y)
+            | (offset.x < 0) & (offset.x == -offset.y)
+            | (offset.x > 0) & (offset.x == 1 - offset.y)
+        {
+            dir = dir.rotated(1);
+        }
+        offset += dir;
+    }
+    commands.entity(entity).insert(ConstructionSite::new(rec));
 }
 
 // Very temporary, just for testing!

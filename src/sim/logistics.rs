@@ -7,7 +7,7 @@ use crate::{
 
 use bevy_ecs::prelude::*;
 
-#[derive(Component, Debug)]
+#[derive(Component, Debug, Clone, Copy)]
 pub struct MoveTask {
     pub goal: IVec3,
     pub distance: i32,
@@ -20,7 +20,7 @@ impl MoveTask {
 }
 
 /// Path to move along, in reverse order
-#[derive(Component)]
+#[derive(Component, Debug)]
 pub struct MovePath {
     steps: VecDeque<PathingNode>,
     vertical: bool,
@@ -164,7 +164,10 @@ pub fn walk(
             const WALK_PER_TICK: f32 = 0.16;
             const BOATING_PER_TICK: f32 = 0.2;
             const CLIMB_PER_TICK: f32 = 0.09;
-            let mut next_node = *path.steps.front().unwrap();
+            let Some(mut next_node) = path.steps.front().copied() else {
+                commands.entity(entity).remove::<(MoveTask, MovePath)>();
+                continue;
+            };
             let diff = (next_node.pos.as_vec3() - pos.0).truncate();
             if path.vertical {
                 // Climbing
@@ -178,8 +181,6 @@ pub fn walk(
                     path.steps.pop_front();
                     if let Some(&next) = path.steps.front() {
                         path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
-                    } else {
-                        commands.entity(entity).remove::<(MoveTask, MovePath)>();
                     }
                 }
             } else {
@@ -213,8 +214,6 @@ pub fn walk(
                     if let Some(&next) = path.steps.front() {
                         path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
                         next_node = next;
-                    } else {
-                        commands.entity(entity).remove::<(MoveTask, MovePath)>();
                     }
                 }
                 if !path.vertical {

@@ -4,13 +4,13 @@
 pub mod building_plan;
 mod construction;
 mod desire_lines;
-mod logistics;
+pub mod logistics;
 pub mod lumberjack;
-mod main_loop;
 mod personal_name;
 pub mod quarry;
+mod sim_schedule;
 
-pub use main_loop::sim;
+pub use sim_schedule::sim;
 
 use std::collections::VecDeque;
 
@@ -32,8 +32,8 @@ use bevy_math::Vec2Swizzles;
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct Tick(pub i32);
 
-#[derive(Component)]
-pub struct CityCenter;
+#[derive(Component, Deref)]
+pub struct CityCenter(Rect);
 
 #[derive(Component, Deref, DerefMut, PartialEq)]
 pub struct Pos(pub Vec3);
@@ -63,10 +63,16 @@ pub struct InBoat(pub Id);
 #[derive(Component)]
 pub struct Jobless;
 
-pub type PlaceList = VecDeque<SetBlock>;
+pub type ConsList = VecDeque<ConsItem>;
 
-#[derive(Component)]
-pub struct PlaceTask(PlaceList);
+#[derive(Copy, Clone, Debug)]
+pub enum ConsItem {
+    Set(SetBlock),
+    Goto(MoveTask),
+}
+
+#[derive(Component, Deref, DerefMut)]
+pub struct PlaceTask(ConsList);
 
 #[derive(Component)]
 pub struct Tree {
@@ -183,10 +189,16 @@ fn place(
     mut builders: Query<(Entity, &mut PlaceTask), Without<MoveTask>>,
 ) {
     for (entity, mut build) in &mut builders {
-        if let Some(set) = build.0.pop_front() {
-            replay.block(set.pos, set.block);
-        } else {
-            commands.entity(entity).remove::<PlaceTask>();
+        match build.0.pop_front() {
+            Some(ConsItem::Set(set)) => {
+                replay.block(set.pos, set.block);
+            }
+            Some(ConsItem::Goto(goto)) => {
+                commands.entity(entity).insert(goto);
+            }
+            None => {
+                commands.entity(entity).remove::<PlaceTask>();
+            }
         }
     }
 }

@@ -1,4 +1,7 @@
-use std::{ops::Add, str::FromStr};
+use std::{
+    ops::{Add, AddAssign},
+    str::FromStr,
+};
 
 use bevy_math::Vec2Swizzles;
 pub use bevy_math::{ivec2, ivec3, vec2, vec3, IVec2, IVec3, Vec2, Vec3};
@@ -247,8 +250,8 @@ pub use HDir::*;
 impl HDir {
     pub const ALL: [Self; 4] = [YPos, XNeg, YNeg, XPos];
 
-    pub fn rotated(self, turns: i32) -> Self {
-        match (self as i32 + turns).rem_euclid(4) {
+    pub fn rotated(self, steps: i32) -> Self {
+        match (self as i32 + steps).rem_euclid(4) {
             1 => XNeg,
             2 => YNeg,
             3 => XPos,
@@ -329,15 +332,15 @@ impl IVec2Ext for IVec2 {
 }
 
 pub trait IVec3Ext {
-    fn rotated(self, turns: i32) -> Self;
+    fn rotated(self, steps: i32) -> Self;
     fn mirrord(self, axis: Axis) -> Self;
     fn add(self, offset: impl Into<IVec2>) -> Self;
 }
 
 impl IVec3Ext for IVec3 {
     /// Turns around the y axis
-    fn rotated(self, turns: i32) -> Self {
-        match turns % 4 {
+    fn rotated(self, steps: i32) -> Self {
+        match steps % 4 {
             1 => ivec3(-self.y, self.x, self.z),
             2 => ivec3(-self.x, -self.y, self.z),
             3 => ivec3(self.y, -self.x, self.z),
@@ -394,6 +397,12 @@ impl Add<HDir> for IVec2 {
 
     fn add(self, rhs: HDir) -> Self::Output {
         self + IVec2::from(rhs)
+    }
+}
+
+impl AddAssign<HDir> for IVec2 {
+    fn add_assign(&mut self, rhs: HDir) {
+        *self = *self + rhs
     }
 }
 

@@ -1,7 +1,9 @@
-use crate::{sim::PlaceList, *};
+use crate::{sim::ConsList, *};
 use bevy_math::Vec2Swizzles;
 
-pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) -> PlaceList {
+use self::sim::ConsItem;
+
+pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) -> ConsList {
     let cursor = level.recording_cursor();
 
     let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb].choose();
@@ -88,7 +90,7 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
 
     let mut list = level.pop_recording(cursor).collect::<Vec<_>>();
     list.sort_by_key(|setblock| setblock.pos.z);
-    list.into()
+    list.into_iter().map(ConsItem::Set).collect()
 }
 
 type Curve = fn(f32) -> f32;

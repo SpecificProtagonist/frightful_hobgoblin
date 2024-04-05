@@ -24,17 +24,12 @@ pub fn sim(mut level: Level) {
     level.set_blocked(city_center);
     world.spawn((
         Pos(city_center_pos.as_vec3()),
-        CityCenter,
+        CityCenter(city_center),
         OutPile {
             available: starting_resources.clone(),
         },
         Pile::new(starting_resources),
     ));
-
-    for pos in city_center {
-        let pos = level.ground(pos);
-        level(pos, Wool(Magenta))
-    }
 
     level.reachability = reachability_2d_from(&level, city_center.center());
 
@@ -74,7 +69,12 @@ pub fn sim(mut level: Level) {
             (plan_house, plan_lumberjack, plan_quarry),
             assign_builds,
             new_construction_site,
-            (test_build_house, test_build_lumberjack, test_build_quarry),
+            (
+                test_build_house,
+                test_build_lumberjack,
+                test_build_quarry,
+                upgrade_plaza,
+            ),
             desire_lines,
             personal_name::name,
             tick_replay,

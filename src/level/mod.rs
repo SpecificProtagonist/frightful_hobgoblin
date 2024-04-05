@@ -594,5 +594,5 @@ pub struct SetBlock {
     pub previous: Block,
 }
 
-#[derive(Default)]
+#[derive(Default, Clone)]
 pub struct RecordingCursor(usize);

@@ -1,6 +1,8 @@
-use crate::{sim::PlaceList, *};
+use crate::{sim::ConsList, *};
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
+
+use self::sim::ConsItem;
 
 // Material for construction
 #[derive(Clone, Copy, Eq, PartialEq, Hash, Debug)]
@@ -48,25 +50,29 @@ impl std::fmt::Display for Stack {
 
 pub const CARRY_CAPACITY: f32 = 64.;
 
-pub fn next_stack(list: &PlaceList) -> Option<Stack> {
+pub fn next_stack(list: &ConsList) -> Option<Stack> {
     let mut stack: Option<Stack> = None;
-    for set in list {
-        if let Some(next) = goods_for_block(set.block) {
-            if let Some(stack) = &mut stack {
-                if stack.kind == next.kind {
-                    stack.amount += next.amount;
-                    if stack.amount >= CARRY_CAPACITY {
-                        return Some(Stack {
-                            kind: stack.kind,
-                            amount: CARRY_CAPACITY,
-                        });
-                    }
-                } else {
-                    break;
+    for cons in list {
+        let ConsItem::Set(set) = cons else {
+            continue;
+        };
+        let Some(next) = goods_for_block(set.block) else {
+            continue;
+        };
+        if let Some(stack) = &mut stack {
+            if stack.kind == next.kind {
+                stack.amount += next.amount;
+                if stack.amount >= CARRY_CAPACITY {
+                    return Some(Stack {
+                        kind: stack.kind,
+                        amount: CARRY_CAPACITY,
+                    });
                 }
             } else {
-                stack = Some(next)
+                break;
             }
+        } else {
+            stack = Some(next)
         }
     }
     stack
@@ -172,6 +178,8 @@ impl Goods {
         stack
     }
 
+    // This returned block when there were material variants.
+    // Unless they're coming back, just change to returning bool?
     pub fn build(&mut self, block: Block) -> Option<Block> {
         let Some(needed) = goods_for_block(block) else {
             return Some(block);

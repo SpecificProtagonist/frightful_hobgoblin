@@ -1,6 +1,8 @@
-use crate::{remove_foliage::remove_trees, roof::roof, sim::PlaceList, *};
+use crate::{remove_foliage::remove_trees, roof::roof, sim::ConsList, *};
 
-pub fn house(level: &mut Level, area: Rect) -> PlaceList {
+use self::sim::{logistics::MoveTask, ConsItem};
+
+pub fn house(level: &mut Level, area: Rect) -> ConsList {
     let inner = area.shrink(1);
 
     let (floor, mut rec) = foundation(level, area);
@@ -72,8 +74,22 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         column_till_roof(level, pos, MangroveRoots);
     }
 
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec.extend(roof_rec);
+
+    // Some movement
+    for i in 0..rec.len() {
+        if 0.06 > rand() {
+            rec.insert(
+                i,
+                ConsItem::Goto(MoveTask::new(ivec3(
+                    rand_range(inner.min.x..=inner.max.x),
+                    rand_range(inner.min.y..=inner.max.y),
+                    floor + 1,
+                ))),
+            );
+        }
+    }
 
     let cursor = level.recording_cursor();
     level.fill(roof_fixup, Full(roof_mat));
@@ -89,7 +105,7 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         }
     }
 
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     let cursor = level.recording_cursor();
 
     // Paint/Whitewash
@@ -118,11 +134,11 @@ pub fn house(level: &mut Level, area: Rect) -> PlaceList {
         }
     }
 
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec
 }
 
-pub fn shack(level: &mut Level, area: Rect) -> PlaceList {
+pub fn shack(level: &mut Level, area: Rect) -> ConsList {
     let (floor, mut rec) = foundation(level, area);
 
     // Roof build now so we know how high the walls have to be
@@ -159,17 +175,17 @@ pub fn shack(level: &mut Level, area: Rect) -> PlaceList {
         column_till_roof(level, pos, Full(wall_mat));
     }
 
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec.extend(roof_rec);
 
     let cursor = level.recording_cursor();
     level.fill(roof_fixup, Full(Wood(Oak)));
 
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec
 }
 
-fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
+fn foundation(level: &mut Level, area: Rect) -> (i32, ConsList) {
     let floor = level.average_height(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
@@ -183,7 +199,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
             level(col, z, Air)
         }
     }
-    let mut rec: PlaceList = level.pop_recording(cursor).collect();
+    let mut rec: ConsList = level.pop_recording(cursor).map(ConsItem::Set).collect();
     let cursor = level.recording_cursor();
     for col in area.border() {
         // TODO: if ground is too far down, try to make supports against the nearest wall instead
@@ -207,7 +223,7 @@ fn foundation(level: &mut Level, area: Rect) -> (i32, PlaceList) {
             }
         }
     }
-    rec.extend(level.pop_recording(cursor));
+    rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
 
     (floor, rec)
 }

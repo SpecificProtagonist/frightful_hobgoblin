@@ -54,6 +54,17 @@ pub struct PathingNode {
 // TODO: Make walking on paths faster; make stairs reduce stair cost
 // TODO: Acknowledge that boats are wider than one block
 pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i32) -> PathSearch {
+    fn heuristic(a: IVec3, b: IVec3) -> i32 {
+        let horizontal_diff = (a - b).abs();
+        (horizontal_diff.x + horizontal_diff.y).max((a.z - b.z).abs())
+    }
+    if heuristic(start, end) <= range_to_end {
+        return PathSearch {
+            path: default(),
+            success: true,
+            cost: 0,
+        };
+    }
     let area = level.area().shrink(2);
     if range_to_end == 0 {
         for pos in [&mut end, &mut start] {

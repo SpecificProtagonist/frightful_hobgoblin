@@ -1,4 +1,5 @@
 use crate::*;
+use itertools::Itertools;
 use sim::*;
 
 #[derive(Component)]
@@ -40,22 +41,16 @@ impl LumberPile {
 #[component(storage = "SparseSet")]
 pub struct ChopTask {
     tree: Entity,
-    stage: ChopStage,
+    chopped: bool,
 }
 
 impl ChopTask {
     pub fn new(tree: Entity) -> Self {
         Self {
             tree,
-            stage: ChopStage::Goto,
+            chopped: false,
         }
     }
-}
-
-enum ChopStage {
-    Goto,
-    Chop,
-    Finish,
 }
 
 pub fn assign_worker(
@@ -81,6 +76,8 @@ pub fn assign_worker(
             });
     }
 }
+
+// TODO: Cap lumber piles accidentally get chopped down when next to tree?
 
 pub fn work(
     mut commands: Commands,
@@ -139,37 +136,35 @@ pub fn chop(
     trees: Query<(&Pos, &Tree)>,
 ) {
     for (jack, mut vill, mut task) in &mut lumberjacks {
-        match task.stage {
-            ChopStage::Goto => {
-                let (target, _tree) = trees.get(task.tree).unwrap();
-                commands.entity(jack).insert((MoveTask {
-                    goal: target.block(),
-                    distance: 2,
-                },));
-                task.stage = ChopStage::Chop;
-            }
-            ChopStage::Chop => {
-                let (target, _tree) = trees.get(task.tree).unwrap();
-                let cursor = level.recording_cursor();
-                remove_tree(&mut level, target.block());
-                let place = PlaceTask(level.pop_recording(cursor).collect());
-                let mut amount = 0.;
-                for set in &place.0 {
-                    amount += match set.previous {
-                        Log(..) => 4.,
-                        Fence(..) => 1.,
-                        Leaves(..) => 0.25,
-                        _ => 0.,
-                    }
+        if !task.chopped {
+            let (target, _tree) = trees.get(task.tree).unwrap();
+
+            let mut place = PlaceTask(default());
+            place.push_back(ConsItem::Goto(MoveTask {
+                goal: target.block(),
+                distance: 2,
+            }));
+
+            let cursor = level.recording_cursor();
+            remove_tree(&mut level, target.block());
+            let rec = level.pop_recording(cursor).collect_vec();
+            let mut amount = 0.;
+            for set in &rec {
+                amount += match set.previous {
+                    Log(..) => 4.,
+                    Fence(..) => 1.,
+                    Leaves(..) => 0.25,
+                    _ => 0.,
                 }
-                vill.carry = Some(Stack::new(Good::Wood, amount));
-                commands.entity(task.tree).despawn();
-                commands.entity(jack).insert(place);
-                task.stage = ChopStage::Finish;
             }
-            ChopStage::Finish => {
-                commands.entity(jack).remove::<ChopTask>();
-            }
+            place.extend(rec.into_iter().map(ConsItem::Set));
+            vill.carry = Some(Stack::new(Good::Wood, amount));
+
+            commands.entity(task.tree).despawn();
+            commands.entity(jack).insert(place);
+            task.chopped = true;
+        } else {
+            commands.entity(jack).remove::<ChopTask>();
         }
     }
 }

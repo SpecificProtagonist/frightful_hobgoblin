@@ -50,7 +50,7 @@ pub fn assign_worker(
     }
 }
 
-pub fn make_quarry(level: &mut Level, quarry: Quarry) -> PlaceList {
+pub fn make_quarry(level: &mut Level, quarry: Quarry) -> ConsList {
     let floor = level.average_height(quarry.area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
@@ -70,7 +70,7 @@ pub fn make_quarry(level: &mut Level, quarry: Quarry) -> PlaceList {
         + IVec3::Z;
     level(pos, Stonecutter(HAxis::X));
 
-    level.pop_recording(cursor).collect()
+    level.pop_recording(cursor).map(ConsItem::Set).collect()
 }
 
 pub fn make_stone_piles(
