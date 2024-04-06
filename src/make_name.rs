@@ -1,6 +1,5 @@
 use crate::*;
 
-// Todo: Villager names
 // Todo: make toponyms take features into account (not needed for other villages mentioned but not generated)
 //       that's also something to be mentioned in the village chronicle
 // Todo: different generators for different biomes

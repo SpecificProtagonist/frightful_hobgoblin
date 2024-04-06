@@ -26,13 +26,13 @@ impl Good {
 
 #[derive(Copy, Clone)]
 pub struct Stack {
-    pub kind: Good,
+    pub good: Good,
     pub amount: f32,
 }
 
 impl Stack {
     pub fn new(kind: Good, amount: f32) -> Self {
-        Self { kind, amount }
+        Self { good: kind, amount }
     }
 }
 
@@ -44,7 +44,7 @@ impl std::fmt::Debug for Stack {
 
 impl std::fmt::Display for Stack {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{:?}×{}", self.kind, self.amount)
+        write!(f, "{:?}×{}", self.good, self.amount)
     }
 }
 
@@ -60,11 +60,11 @@ pub fn next_stack(list: &ConsList) -> Option<Stack> {
             continue;
         };
         if let Some(stack) = &mut stack {
-            if stack.kind == next.kind {
+            if stack.good == next.good {
                 stack.amount += next.amount;
                 if stack.amount >= CARRY_CAPACITY {
                     return Some(Stack {
-                        kind: stack.kind,
+                        good: stack.good,
                         amount: CARRY_CAPACITY,
                     });
                 }
@@ -153,43 +153,40 @@ pub struct Goods(HashMap<Good, f32>);
 
 impl Goods {
     pub fn has(&self, stack: Stack) -> bool {
-        self.get(&stack.kind)
+        self.get(&stack.good)
             .map(|&a| a >= stack.amount)
             .unwrap_or(false)
     }
 
     pub fn add(&mut self, stack: Stack) {
-        *self.entry(stack.kind).or_default() += stack.amount;
+        *self.entry(stack.good).or_default() += stack.amount;
     }
 
     pub fn remove(&mut self, stack: Stack) {
-        if let Some(entry) = self.get_mut(&stack.kind) {
+        if let Some(entry) = self.get_mut(&stack.good) {
             *entry -= stack.amount;
             if *entry <= 0. {
-                self.0.remove(&stack.kind);
+                self.0.remove(&stack.good);
             }
         }
     }
 
     pub fn remove_up_to(&mut self, mut stack: Stack) -> Stack {
-        let available = self.entry(stack.kind).or_default();
+        let available = self.entry(stack.good).or_default();
         stack.amount = stack.amount.min(*available);
         *available -= stack.amount;
         stack
     }
 
-    // This returned block when there were material variants.
-    // Unless they're coming back, just change to returning bool?
-    pub fn build(&mut self, block: Block) -> Option<Block> {
-        let Some(needed) = goods_for_block(block) else {
-            return Some(block);
-        };
-        let stored = self.entry(needed.kind).or_default();
+    /// Try consume the goods required for block, return what good is missing
+    pub fn try_consume(&mut self, block: Block) -> Option<Good> {
+        let needed = goods_for_block(block)?;
+        let stored = self.entry(needed.good).or_default();
         if *stored >= needed.amount {
             *stored -= needed.amount;
-            Some(block)
-        } else {
             None
+        } else {
+            Some(needed.good)
         }
     }
 }

@@ -87,7 +87,7 @@ pub fn pickup(
             // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
             let extra = out_pile.available.remove_up_to(Stack {
-                kind: task.stack.kind,
+                good: task.stack.good,
                 amount: missing,
             });
             task.stack.amount += extra.amount;
@@ -127,7 +127,7 @@ pub fn deliver(
             pile.add(stack);
 
             if let Some(mut in_pile) = in_pile {
-                if in_pile.priority == Some(stack.kind) {
+                if in_pile.priority == Some(stack.good) {
                     in_pile.priority = None
                 }
             }

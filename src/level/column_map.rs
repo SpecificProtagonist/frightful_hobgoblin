@@ -72,3 +72,27 @@ impl<T: Copy> IndexMut<IVec2> for ColumnMap<T> {
         &mut self.data[index]
     }
 }
+
+impl<I, T> FnOnce<(I, T)> for ColumnMap<T>
+where
+    I: IntoIterator<Item = IVec2>,
+    T: Copy,
+{
+    type Output = ();
+
+    extern "rust-call" fn call_once(mut self, args: (I, T)) -> Self::Output {
+        self.call_mut(args)
+    }
+}
+
+impl<I, T> FnMut<(I, T)> for ColumnMap<T>
+where
+    I: IntoIterator<Item = IVec2>,
+    T: Copy,
+{
+    extern "rust-call" fn call_mut(&mut self, (iter, value): (I, T)) -> Self::Output {
+        for pos in iter {
+            self[pos] = value
+        }
+    }
+}

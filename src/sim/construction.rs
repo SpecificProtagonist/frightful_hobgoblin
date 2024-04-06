@@ -41,7 +41,7 @@ pub fn new_construction_site(
             if let Some(stack) = goods_for_block(set.block) {
                 requested.add(stack);
                 if priority.is_none() {
-                    priority = Some(stack.kind)
+                    priority = Some(stack.good)
                 }
             }
             if let Some(mined) = goods_for_block(set.previous) {
@@ -65,10 +65,11 @@ pub fn build(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     mut builders: Query<(Entity, &BuildTask), (With<Villager>, Without<MoveTask>)>,
-    mut buildings: Query<(Entity, &mut ConstructionSite, &mut Pile)>,
+    mut buildings: Query<(Entity, &mut ConstructionSite, &mut Pile, &mut InPile)>,
 ) {
     for (builder, build_task) in &mut builders {
-        let Ok((e_building, mut building, mut pile)) = buildings.get_mut(build_task.building)
+        let Ok((e_building, mut building, mut pile, mut in_pile)) =
+            buildings.get_mut(build_task.building)
         else {
             continue;
         };
@@ -78,15 +79,16 @@ pub fn build(
                 building.todo.pop_front();
             }
             Some(ConsItem::Set(set)) => {
-                if let Some(block) = pile.build(set.block) {
-                    // TODO: check if current block is still the same as when the ConsList was created
-                    replay.block(set.pos, block);
-                    replay.dust(set.pos);
-                    building.todo.pop_front();
-                } else {
+                if let Some(missing) = pile.try_consume(set.block) {
                     building.has_builder = false;
                     building.has_materials = false;
+                    in_pile.priority = Some(missing);
                     commands.entity(builder).remove::<BuildTask>();
+                } else {
+                    // TODO: check if current block is still the same as when the ConsList was created
+                    replay.block(set.pos, set.block);
+                    replay.dust(set.pos);
+                    building.todo.pop_front();
                 }
             }
             None => {
@@ -107,9 +109,9 @@ pub fn build(
 }
 
 pub fn check_construction_site_readiness(
-    mut query: Query<(&mut ConstructionSite, &Pile, &mut InPile), Changed<Pile>>,
+    mut query: Query<(&mut ConstructionSite, &Pile), Changed<Pile>>,
 ) {
-    for (mut site, pile, mut in_pile) in &mut query {
+    for (mut site, pile) in &mut query {
         if !site.has_materials {
             match site.todo[0] {
                 ConsItem::Goto(_) => {
@@ -119,8 +121,6 @@ pub fn check_construction_site_readiness(
                     if let Some(needed) = goods_for_block(set.block) {
                         if pile.has(needed) {
                             site.has_materials = true;
-                        } else if in_pile.priority.is_none() {
-                            in_pile.priority = Some(needed.kind);
                         }
                     } else {
                         site.has_materials = true

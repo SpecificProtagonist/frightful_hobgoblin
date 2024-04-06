@@ -9,6 +9,7 @@ pub mod lumberjack;
 mod personal_name;
 pub mod quarry;
 mod sim_schedule;
+mod storage_pile;
 
 pub use sim_schedule::sim;
 
@@ -91,7 +92,6 @@ impl Tree {
 
 fn assign_work(
     mut commands: Commands,
-    mut replay: ResMut<Replay>,
     idle: Query<
         (Entity, &Pos),
         (
@@ -177,7 +177,6 @@ fn assign_work(
                 .2
                 .requested
                 .remove(task.0.stack);
-            replay.dbg("assign carry");
             commands.entity(vill).insert(task);
         }
     }

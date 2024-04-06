@@ -130,6 +130,11 @@ impl Replay {
     }
 
     pub fn dbg(&mut self, msg: &str) {
+        #[cfg(debug_assertions)]
+        self.say(msg);
+    }
+
+    pub fn say(&mut self, msg: &str) {
         self.command(format!("say {msg}"));
     }
 
@@ -439,7 +444,7 @@ pub fn tick_replay(
                 "data modify entity {} ArmorItems[3] set value {}",
                 vill.carry_id,
                 stack
-                    .kind
+                    .good
                     .display_as_block()
                     .blockstate(&UNKNOWN_BLOCKS.write().unwrap())
                     .item_snbt()
