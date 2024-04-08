@@ -3,6 +3,7 @@ use roof::roof;
 
 use self::{
     remove_foliage::remove_trees,
+    roof::roof_material,
     sim::{logistics::MoveTask, ConsItem, ConsList},
 };
 
@@ -27,17 +28,7 @@ pub fn house(level: &mut Level, area: Rect) -> ConsList {
     let second_floor = floor + 3;
 
     // Roof build now so we know how high the walls have to be
-    let roof_mat = if 0.3 > rand() {
-        Blackstone
-    } else if 0.1 > rand() {
-        Wood(DarkOak)
-    } else if 0.1 > rand() {
-        Wood(Mangrove)
-    } else if 0.1 > rand() {
-        Wood(Birch)
-    } else {
-        Wood(Spruce)
-    };
+    let roof_mat = roof_material(level.biome[area.center()]);
     let roof_rec = roof(level, area.grow(1), second_floor + 3, roof_mat);
 
     // Second story

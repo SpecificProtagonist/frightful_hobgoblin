@@ -47,6 +47,20 @@ pub fn rand_3(prob: f32) -> IVec3 {
     ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
 }
 
+pub fn rand_weighted<T: Copy>(items: &[(f32, T)]) -> T {
+    let total_weight = items.iter().fold(0., |acc, (weight, _)| acc + *weight);
+    let mut rng = total_weight * rand::<f32>();
+    let mut chosen = items[0].1;
+    for (weight, item) in items {
+        chosen = *item;
+        rng -= weight;
+        if rng < 0. {
+            break;
+        }
+    }
+    chosen
+}
+
 pub trait ChooseExt {
     type Item;
     fn try_choose(&self) -> Option<&Self::Item>;

@@ -3,25 +3,10 @@ use bevy_math::Vec2Swizzles;
 
 use self::sim::ConsItem;
 
-pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) -> ConsList {
+pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> ConsList {
     let cursor = level.recording_cursor();
 
-    let curve = *[straight, straight_high, straight_low, kerb, reverse_kerb].choose();
-
-    // TODO: Incorporate this into the curve directly
-    #[allow(clippy::fn_address_comparisons)]
-    if (curve == kerb) | (curve == straight_high) {
-        base_z -= 1
-    }
-
-    let size = if area.size().y > area.size().x {
-        area.size().yx()
-    } else {
-        area.size()
-    };
-
-    let base_shape = [gable, raised_gable, hip].choose();
-    let shape = base_shape(base_z as f32, size.as_vec2(), curve);
+    let shape = roof_shape(level.biome[area.center()], base_z, area.size().as_vec2());
 
     let center = area.center_vec2() - Vec2::splat(0.5);
     let shape: Shape = if area.size().y > area.size().x {
@@ -93,7 +78,115 @@ pub fn roof(level: &mut Level, area: Rect, mut base_z: i32, mat: BlockMaterial) 
     list.into_iter().map(ConsItem::Set).collect()
 }
 
+pub fn roof_material(biome: Biome) -> BlockMaterial {
+    use Biome::*;
+    rand_weighted(match biome {
+        Basic | River | Ocean | Beach => &[
+            (1., Wood(Spruce)),
+            (0.3, Blackstone),
+            (0.1, Wood(Mangrove)),
+            (0.1, Wood(DarkOak)),
+        ],
+        Snowy => &[(1.0, Blackstone), (0.5, Wood(Spruce)), (0.5, Wood(DarkOak))],
+        Desert => &[
+            (1.0, Andesite),
+            (0.4, Granite),
+            (0.4, Wood(Spruce)),
+            (0.4, Wood(Birch)),
+        ],
+        Taiga => &[
+            (1., Wood(Spruce)),
+            (0.1, Blackstone),
+            (0.1, Wood(Mangrove)),
+            (0.1, Wood(DarkOak)),
+        ],
+        BirchForest => &[(1., Wood(Birch)), (0.1, Blackstone), (0.1, Wood(Mangrove))],
+        Swamp | MangroveSwamp => &[
+            (1., Wood(Spruce)),
+            (1., Wood(Mangrove)),
+            (0.3, Wood(Crimson)),
+            (0.3, Wood(Warped)),
+        ],
+        Jungles => &[(1., Wood(Jungle)), (0.2, Wood(Acacia))],
+        Mesa => &[(1., Wood(Spruce)), (0.5, Brick)],
+        Savanna => &[(1., Wood(Acacia)), (0.2, Granite), (0.2, MudBrick)],
+        DarkForest => &[(1., Wood(DarkOak)), (0.7, Blackstone)],
+        CherryGrove => &[(1., Wood(Cherry)), (0.2, Wood(Birch)), (0.2, Diorite)],
+    })
+}
+
+fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
+    use Biome::*;
+    let (curve, base_shape): (&[(f32, Curve)], &[(f32, BaseShape)]) = match biome {
+        Basic | Beach | River | BirchForest | DarkForest | CherryGrove => (
+            &[
+                (1., straight),
+                (1., straight_high),
+                (1., straight_low),
+                (1., kerb),
+                (1., reverse_kerb),
+            ],
+            &[(1., gable), (1., raised_gable), (0.5, hip)],
+        ),
+        Ocean => (
+            &[
+                (1., straight),
+                (2., straight_high),
+                (1., kerb),
+                (1., reverse_kerb),
+            ],
+            &[(1., gable), (2., raised_gable), (1., hip)],
+        ),
+        Snowy | Taiga => (
+            &[
+                (1., straight),
+                (2., straight_high),
+                (1., kerb),
+                (1., reverse_kerb),
+            ],
+            &[(1., gable), (1., raised_gable), (1., hip)],
+        ),
+        Desert => (
+            // TODO: just use flat roofs
+            &[(1., straight_low)],
+            &[(1., gable), (1., hip)],
+        ),
+        Swamp | MangroveSwamp => (
+            &[
+                (1., straight),
+                (1., straight_low),
+                (1., kerb),
+                (1., reverse_kerb),
+            ],
+            &[(1., hip)],
+        ),
+        Jungles => (
+            &[
+                (1., straight),
+                (1., straight_low),
+                (1., kerb),
+                (1., reverse_kerb),
+            ],
+            &[(1., raised_gable), (1., hip)],
+        ),
+        Mesa | Savanna => (
+            &[(1., straight_low)],
+            &[(1., gable), (1., raised_gable), (1., hip)],
+        ),
+    };
+    let curve = rand_weighted(curve);
+    let base_shape = rand_weighted(base_shape);
+
+    // TODO: Incorporate this into the curve directly
+    #[allow(clippy::fn_address_comparisons)]
+    if (curve == kerb) | (curve == straight_high) {
+        base_z -= 1
+    }
+    base_shape(base_z as f32, size, curve)
+}
+
 type Curve = fn(f32) -> f32;
+type BaseShape = fn(f32, Vec2, Curve) -> Shape;
 type Shape = Box<dyn Fn(Vec2) -> f32>;
 
 fn straight(frac: f32) -> f32 {

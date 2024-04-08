@@ -250,7 +250,7 @@ pub fn upgrade_plaza(
     tick: Res<Tick>,
     center: Query<(Entity, &CityCenter)>,
 ) {
-    if tick.0 != 10 {
+    if tick.0 != 1000 {
         return;
     }
     let (entity, rect) = center.single();
