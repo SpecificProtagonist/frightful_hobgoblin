@@ -45,6 +45,7 @@ pub fn desire_lines(
             };
         // Apply wear
         *wear += 1;
+        let wear = *wear;
         if matches!(
             level(pos + IVec3::Z),
             SmallPlant(..) | TallPlant(..) | SnowLayer
@@ -52,13 +53,30 @@ pub fn desire_lines(
             level(pos + IVec3::Z, Air)
         } else {
             match level(pos) {
-                Grass | Podzol if *wear > 7 => {
+                Grass | Podzol if wear > 7 => {
                     level(pos, if 0.5 < rand() { Dirt } else { CoarseDirt })
                 }
-                Dirt | CoarseDirt if *wear > 17 => level(pos, Path),
-                Path if *wear > 24 => level(pos, Gravel),
-                Sand if *wear > 17 => level(pos, PackedMud),
-                SnowBlock if *wear > 12 => level(pos, Gravel),
+                Dirt | CoarseDirt
+                    if (wear > 12) & {
+                        // Try to add some steps (only works for shallow slopes)
+                        let lower_neighbors = NEIGHBORS_2D
+                            .iter()
+                            .any(|off| level.height[pos.truncate() + *off] < level.height[pos]);
+                        let heigher_neighbor_wear = NEIGHBORS_2D.iter().any(|off| {
+                            (level.height[pos.truncate() + *off] > level.height[pos])
+                                && (dl[pos.truncate() + *off] >= dl[pos] - 1)
+                        });
+                        heigher_neighbor_wear & !lower_neighbors
+                    } =>
+                {
+                    level(pos + IVec3::Z, Slab(Granite, Bottom))
+                }
+                Dirt | CoarseDirt if (wear > 17) & (level(pos + IVec3::Z) == Air) => {
+                    level(pos, Path)
+                }
+                Path if wear > 24 => level(pos, Gravel),
+                Sand if wear > 17 => level(pos, PackedMud),
+                SnowBlock if (wear > 9) & (0.3 < rand()) => level(pos, Gravel),
                 _ => (),
             }
         }

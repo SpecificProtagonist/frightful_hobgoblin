@@ -201,6 +201,14 @@ impl Level {
         (pos.x.rem_euclid(16) + pos.y.rem_euclid(16) * 16 + pos.z.rem_euclid(16) * 16 * 16) as usize
     }
 
+    fn block_mut(&mut self, pos: IVec3) -> &mut Block {
+        let chunk_index = self.chunk_index(pos.into());
+        self.dirty_chunks[chunk_index] = true;
+        let index = self.section_index(pos);
+        let section = self.sections[index].get_or_insert_default();
+        &mut section.blocks[Self::block_in_section_index(pos)]
+    }
+
     pub fn chunk_min(&self) -> ChunkIndex {
         self.chunk_min
     }
@@ -236,6 +244,14 @@ impl Level {
 
     pub fn recording_cursor(&self) -> RecordingCursor {
         RecordingCursor(self.setblock_recording.len())
+    }
+
+    pub fn undo_recording(&mut self, cursor: RecordingCursor) -> Vec<SetBlock> {
+        let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
+        for set in rec.iter().rev() {
+            *self.block_mut(set.pos) = set.block
+        }
+        rec
     }
 
     pub fn pop_recording(

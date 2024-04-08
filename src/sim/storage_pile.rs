@@ -192,7 +192,8 @@ impl StonePile {
         .unwrap();
 
         let z = level.average_height(area.border()) as i32 + 1;
-        (level.height)(area, z);
+        (level.height)(area, z - 1);
+        level.fill_at(area, z - 1, PackedMud);
         level.set_blocked(area);
         (
             area.center_vec2().extend(z as f32),
@@ -208,7 +209,6 @@ pub fn update_stone_pile_visuals(
     query: Query<(&StonePile, &Pile), Changed<Pile>>,
 ) {
     for (stonepile, pile) in &query {
-        level.fill_at(stonepile.volume.d2(), stonepile.volume.min.z - 1, PackedMud);
         let mut leftover = pile.get(&Good::Stone).copied().unwrap_or(0.);
         for pos in stonepile.volume {
             level(

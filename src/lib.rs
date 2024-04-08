@@ -8,22 +8,22 @@
 // Flat module hierarchy is ok for now
 pub mod debug_image;
 mod geometry;
-mod level;
-// pub mod make_divider;
-pub mod make_name;
-pub mod make_trees;
-pub mod prefab;
-pub mod remove_foliage;
-pub mod sim;
-// pub mod terraform;
 pub mod goods;
 pub mod house;
+mod level;
+pub mod make_name;
+pub mod make_trees;
 pub mod optimize;
 pub mod pathfind;
+pub mod prefab;
 pub mod rand;
+pub mod remove_foliage;
 pub mod replay;
 pub mod roof;
+pub mod sim;
 pub mod test_house;
+// pub mod terraform;
+// pub mod make_divider;
 
 use std::cell::Cell;
 

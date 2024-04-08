@@ -71,6 +71,8 @@ pub fn sim(mut level: Level) {
     let starting_resources = {
         let mut stock = Goods::default();
         stock.add(Stack::new(Good::Soil, 99999999.));
+        stock.add(Stack::new(Good::Wood, 99999999.));
+        stock.add(Stack::new(Good::Stone, 99999999.));
         stock
     };
     level.set_blocked(city_center);

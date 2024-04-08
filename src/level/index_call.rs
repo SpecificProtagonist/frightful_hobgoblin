@@ -1,5 +1,7 @@
 //! This is not a good idea, not at all! I could just have a method. But I'm not here
-//! to make sensible engineering choices, I'm purely here to have fun mwahaha
+//! to make sensible engineering choices, I'm here to have fun
+
+use std::mem;
 
 use crate::*;
 
@@ -40,19 +42,14 @@ impl FnOnce<(IVec3, Block)> for Level {
 
 impl FnMut<(IVec3, Block)> for Level {
     extern "rust-call" fn call_mut(&mut self, (pos, block): (IVec3, Block)) {
-        let chunk_index = self.chunk_index(pos.into());
-        self.dirty_chunks[chunk_index] = true;
-        let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_default();
-        let previous = &mut section.blocks[Self::block_in_section_index(pos)];
-        if *previous != block {
+        let previous = mem::replace(self.block_mut(pos), block);
+        if previous != block {
             self.setblock_recording.push(SetBlock {
                 pos,
-                previous: *previous,
+                previous,
                 block,
             });
         }
-        *previous = block;
     }
 }
 
@@ -66,20 +63,16 @@ impl<F: FnOnce(Block) -> Block> FnOnce<(IVec3, F)> for Level {
 
 impl<F: FnOnce(Block) -> Block> FnMut<(IVec3, F)> for Level {
     extern "rust-call" fn call_mut(&mut self, (pos, fun): (IVec3, F)) {
-        let chunk_index = self.chunk_index(pos.into());
-        self.dirty_chunks[chunk_index] = true;
-        let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_default();
-        let previous = &mut section.blocks[Self::block_in_section_index(pos)];
+        let previous = self.block_mut(pos);
         let block = fun(*previous);
-        if *previous != block {
+        let previous = mem::replace(previous, block);
+        if previous != block {
             self.setblock_recording.push(SetBlock {
                 pos,
-                previous: *previous,
+                previous,
                 block,
             });
         }
-        *previous = block;
     }
 }
 

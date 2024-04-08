@@ -73,6 +73,21 @@ impl<T: Copy> IndexMut<IVec2> for ColumnMap<T> {
     }
 }
 
+impl<T: Copy> Index<IVec3> for ColumnMap<T> {
+    type Output = T;
+
+    fn index(&self, index: IVec3) -> &Self::Output {
+        &self.data[self.column_index(index.truncate())]
+    }
+}
+
+impl<T: Copy> IndexMut<IVec3> for ColumnMap<T> {
+    fn index_mut(&mut self, index: IVec3) -> &mut Self::Output {
+        let index = self.column_index(index.truncate());
+        &mut self.data[index]
+    }
+}
+
 impl<I, T> FnOnce<(I, T)> for ColumnMap<T>
 where
     I: IntoIterator<Item = IVec2>,
