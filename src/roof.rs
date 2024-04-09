@@ -81,7 +81,7 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
 pub fn roof_material(biome: Biome) -> BlockMaterial {
     use Biome::*;
     rand_weighted(match biome {
-        Basic | River | Ocean | Beach => &[
+        Plain | Forest | River | Ocean | Beach => &[
             (1., Wood(Spruce)),
             (0.3, Blackstone),
             (0.1, Wood(Mangrove)),
@@ -118,7 +118,7 @@ pub fn roof_material(biome: Biome) -> BlockMaterial {
 fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
     use Biome::*;
     let (curve, base_shape): (&[(f32, Curve)], &[(f32, BaseShape)]) = match biome {
-        Basic | Beach | River | BirchForest | DarkForest | CherryGrove => (
+        Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => (
             &[
                 (1., straight),
                 (1., straight_high),

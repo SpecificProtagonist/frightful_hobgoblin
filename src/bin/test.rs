@@ -9,7 +9,7 @@ use nbt::decode::read_gzip_compound_tag;
 
 fn main() {
     let seed = match std::env::args().nth(1) {
-        Some(seed) if seed == "random" => tls_rng().generate::<u16>() % 999 as u64,
+        Some(seed) if seed == "random" => tls_rng().generate::<u16>() as u64 % 999,
         Some(seed) => seed.parse().expect("Invalid seed"),
         None => get_seed(SAVE_READ_PATH),
     };

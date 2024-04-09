@@ -2,6 +2,8 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
+use self::make_trees::Tree;
+
 use super::{lumberjack::TreeIsNearLumberCamp, quarry::Quarry};
 
 #[derive(Component, Deref, DerefMut)]

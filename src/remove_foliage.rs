@@ -19,7 +19,7 @@ pub fn ground(level: &mut Level, area: Rect) {
     }
 }
 
-pub fn find_trees(
+pub fn find_minecraft_trees(
     level: &Level,
     area: impl IntoIterator<Item = IVec2>,
 ) -> Vec<(IVec3, TreeSpecies)> {
@@ -50,11 +50,31 @@ pub fn find_trees(
     trees.into_iter().collect()
 }
 
-// TODO: Remove any tree entities
-pub fn remove_tree(level: &mut Level, pos: IVec3) {
-    let Log(species, ..) = level(pos) else {
-        println!("Tried to remove tree at {pos:?} but not found");
-        return;
+// TODO: Also remove tree entities & custom trees
+// Passing the necessary systemparams around everywhere is kind of annoying
+// maybe a custom systemparam is enough?
+// or maybe add a clear area task before building is generated?
+pub fn remove_tree(
+    // mut commands: Commands,
+    // mut trees: ResMut<Trees>,
+    level: &mut Level,
+    pos: IVec3,
+) {
+    // let Some(entity) = trees[pos] else {
+    //     println!("Tried to remove tree at {pos:?} but no entity");
+    //     return;
+    // };
+    // trees[pos] = None;
+    // commands.entity(entity).despawn();
+
+    // TODO: Remove custom trees (GrowTree)
+
+    // Handle normal Minecraft trees:
+
+    // let pos = level.ground(pos) + IVec3::Z;
+    let species = match level(pos) {
+        Log(s, ..) => s,
+        _ => return,
     };
     // Store distance from log, 0 means log
     let mut blocks = vec![(pos, 0)];
@@ -83,7 +103,7 @@ pub fn remove_tree(level: &mut Level, pos: IVec3) {
 }
 
 pub fn remove_trees(level: &mut Level, area: impl IntoIterator<Item = IVec2>) {
-    for (pos, _) in find_trees(level, area) {
+    for (pos, _) in find_minecraft_trees(level, area) {
         remove_tree(level, pos)
     }
 }

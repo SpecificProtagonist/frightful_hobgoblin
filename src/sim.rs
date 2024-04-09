@@ -75,21 +75,6 @@ pub enum ConsItem {
 #[derive(Component, Deref, DerefMut)]
 pub struct PlaceTask(ConsList);
 
-#[derive(Component)]
-pub struct Tree {
-    _species: TreeSpecies,
-    to_be_chopped: bool,
-}
-
-impl Tree {
-    fn new(species: TreeSpecies) -> Self {
-        Self {
-            _species: species,
-            to_be_chopped: false,
-        }
-    }
-}
-
 fn assign_work(
     mut commands: Commands,
     idle: Query<

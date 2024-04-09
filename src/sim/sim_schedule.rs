@@ -1,9 +1,10 @@
-use bevy_ecs::schedule::ExecutorKind;
+use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
 
-use crate::{pathfind::reachability_2d_from, remove_foliage::find_trees, sim::desire_lines::*};
+use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
 use self::{
     make_name::make_town_name,
+    make_trees::{init_trees, spawn_trees},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals, LumberPile, StonePile},
 };
 
@@ -87,18 +88,11 @@ pub fn sim(mut level: Level) {
 
     level.reachability = reachability_2d_from(&level, city_center.center());
 
-    world.insert_resource(DesireLines::new(&level));
-
-    // Find trees
-    for (pos, species) in find_trees(&level, level.area()) {
-        world.spawn((Pos(pos.as_vec3()), Tree::new(species)));
-    }
-
     let mut sched = Schedule::default();
     sched.set_executor_kind(ExecutorKind::SingleThreaded);
     sched.add_systems(
         (
-            grow_trees,
+            (grow_trees, spawn_trees),
             assign_work,
             (
                 place,
@@ -147,6 +141,10 @@ pub fn sim(mut level: Level) {
     ));
     world.insert_resource(replay);
     world.insert_resource(level);
+
+    world.init_resource::<DesireLines>();
+    world.run_system_once(init_trees);
+
     for tick in 0..30000 {
         sched.run(&mut world);
 

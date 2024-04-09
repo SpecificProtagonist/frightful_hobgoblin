@@ -4,13 +4,14 @@ use crate::*;
 #[repr(u8)]
 pub enum Biome {
     #[default]
-    Basic,
+    Plain,
     River,
     Ocean,
     Beach,
     // Mountains,
     Snowy,
     Desert,
+    Forest,
     Taiga,
     BirchForest,
     Swamp,
@@ -28,14 +29,16 @@ impl Biome {
     pub fn from_id(id: &str) -> Self {
         let id = id.strip_prefix("minecraft:").unwrap();
         match id {
-            "snowy_plains" | "ice_spikes" | "snowy_taiga" | "grove" | "snowy_slopes"
-            | "frozen_peaks" | "jagged_peaks" | "stony_peaks" => Snowy,
+            "snowy_plains" | "ice_spikes" | "snowy_taiga" | "snowy_slopes" | "frozen_peaks"
+            | "jagged_peaks" | "stony_peaks" => Snowy,
             "desert" => Desert,
             "swamp" => Swamp,
             "mangrove_swamp" => MangroveSwamp,
+            "cherry_grove" => CherryGrove,
+            "forest" | "flower_forest" => Forest,
             "birch_forest" | "old_growth_birch_forest" => BirchForest,
             "dark_forest" => DarkForest,
-            "taiga" | "old_growth_pine_taiga" => Taiga,
+            "grove" | "taiga" | "old_growth_pine_taiga" | "old_growth_spruce_taiga" => Taiga,
             "savanna" | "savanna_plateau" | "windswept_savanna" => Savanna,
             "junge" | "sparse_junge" | "bamboo_jungle" => Jungles,
             "badlands" | "eroded_badlands" | "wooded_badland" => Mesa,
@@ -50,7 +53,7 @@ impl Biome {
             | "deep_cold_ocean"
             | "frozen_ocean"
             | "deep_frozen_ocean" => Ocean,
-            _ => Basic,
+            _ => Plain,
         }
     }
 
@@ -78,7 +81,7 @@ impl Biome {
                     TreeSpecies::DarkOak
                 }
             }
-            Basic => {
+            Plain => {
                 if 0.15 > rand() {
                     TreeSpecies::Birch
                 } else {

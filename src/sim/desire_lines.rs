@@ -5,9 +5,9 @@ use super::*;
 #[derive(Resource, Deref, DerefMut)]
 pub struct DesireLines(ColumnMap<i32>);
 
-impl DesireLines {
-    pub fn new(level: &Level) -> Self {
-        DesireLines(level.column_map(1, 0))
+impl FromWorld for DesireLines {
+    fn from_world(world: &mut World) -> Self {
+        Self(world.resource::<Level>().column_map(1, 0))
     }
 }
 

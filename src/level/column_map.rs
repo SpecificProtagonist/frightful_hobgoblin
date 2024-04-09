@@ -2,6 +2,7 @@ use std::ops::{Index, IndexMut};
 
 use crate::*;
 
+// TODO: test with non-po2 resolution
 pub struct ColumnMap<T> {
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
@@ -55,6 +56,18 @@ impl<T> ColumnMap<T> {
                 + (chunk.1 - self.chunk_min.1) * (self.chunk_max.0 - self.chunk_min.0 + 1))
                 as usize
         }
+    }
+
+    pub fn cells(&self) -> impl Iterator<Item = IVec2> {
+        let res = self.resolution as usize;
+        let (min, max) = (self.chunk_min, self.chunk_max);
+        ((min.0 * 16)..=(max.0 * 16 + 15))
+            .step_by(res)
+            .flat_map(move |x| {
+                ((min.1 * 16)..=(max.1 * 16 + 15))
+                    .step_by(res)
+                    .map(move |y| ivec2(x, y))
+            })
     }
 }
 

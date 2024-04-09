@@ -2,7 +2,7 @@ use crate::*;
 use itertools::Itertools;
 use sim::*;
 
-use self::storage_pile::LumberPile;
+use self::{make_trees::Tree, storage_pile::LumberPile};
 
 #[derive(Component)]
 pub struct Lumberjack {
@@ -77,7 +77,8 @@ pub fn work(
             // Go chopping
             let Some((tree, _, mut tree_meta)) = trees
                 .iter_mut()
-                .filter(|(_, _, tree)| !tree.to_be_chopped)
+                .filter(|(_, _, tree)| tree.ready & !tree.to_be_chopped)
+                // TODO: prefer larger trees
                 .min_by_key(|(_, p, _)| p.distance_squared(worker_pos.0) as i32)
             else {
                 return;
