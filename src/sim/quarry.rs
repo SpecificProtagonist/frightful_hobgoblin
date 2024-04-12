@@ -1,7 +1,7 @@
 use crate::*;
 use sim::*;
 
-use self::storage_pile::StonePile;
+use self::{storage_pile::StonePile, trees::Untree};
 
 #[derive(Component, Eq, PartialEq, Copy, Clone)]
 pub struct Quarry {
@@ -47,11 +47,11 @@ pub fn assign_worker(
     }
 }
 
-pub fn make_quarry(level: &mut Level, quarry: Quarry) -> ConsList {
+pub fn make_quarry(level: &mut Level, untree: &mut Untree, quarry: Quarry) -> ConsList {
     let floor = level.average_height(quarry.area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
-    remove_trees(level, quarry.area.grow(1));
+    untree.remove_trees(level, quarry.area.grow(1));
     for column in quarry.area {
         let mut pos = level.ground(column);
         pos.z = pos.z.min(floor);

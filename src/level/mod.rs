@@ -287,8 +287,8 @@ impl Level {
         }
     }
 
-    pub fn ground(&self, col: IVec2) -> IVec3 {
-        col.extend(self.height[col])
+    pub fn ground(&self, column: IVec2) -> IVec3 {
+        column.extend(self.height[column])
     }
 
     pub fn average_height(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {

@@ -1,26 +1,23 @@
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::prelude::*;
+use bevy_ecs::{prelude::*, system::SystemParam};
 use std::f32::consts::PI;
 
 use crate::{
-    remove_foliage::find_minecraft_trees,
     sim::{Pos, Tick},
     *,
 };
 
 #[derive(Component)]
 pub struct Tree {
-    pub ready: bool,
-    pub to_be_chopped: bool,
+    pub blocks: Vec<(IVec3, Block)>,
+    pub state: TreeState,
 }
 
-impl Tree {
-    fn new(ready: bool) -> Self {
-        Self {
-            ready,
-            to_be_chopped: false,
-        }
-    }
+#[derive(Eq, PartialEq)]
+pub enum TreeState {
+    Young,
+    Ready,
+    MarkedForChoppage,
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -38,12 +35,71 @@ pub fn init_trees(mut commands: Commands, level: Res<Level>) {
         noise[column] = rand();
     }
 
-    // Find existing trees
-    for (pos, _) in find_minecraft_trees(&level, level.area()) {
-        trees[pos] = Some(commands.spawn((Pos(pos.as_vec3()), Tree::new(true))).id());
-        noise[pos] = 1.;
+    // Find vanilla trees
+    let mut found = HashSet::<IVec3>::default();
+    for column in level.area() {
+        let pos = level.ground(column) + IVec3::Z;
+        if let Block::Log(species, LogType::Normal(Axis::Z)) = level(pos) {
+            // Check whether this is a tree instead of part of a man-made structure
+            let mut check = pos;
+            while let Block::Log(..) = level(check) {
+                check += IVec3::Z;
+            }
+            if !matches!(level(check), Leaves(..)) {
+                continue;
+            }
+
+            // Find all blocks
+            // Store distance from log, 0 means log
+            let mut blocks: Vec<(IVec3, Block)> = Vec::new();
+            let mut to_check = vec![(pos, 0)];
+            while let Some((pos, distance)) = to_check.pop() {
+                found.insert(pos);
+                blocks.push((pos, level(pos)));
+                for off_x in -1..=1 {
+                    for off_y in -1..=1 {
+                        for off_z in -1..=1 {
+                            let off = ivec3(off_x, off_y, off_z);
+                            let pos = pos + off;
+                            if found.contains(&pos) {
+                                continue;
+                            }
+                            match level(pos) {
+                                Log(s, ..) if (s == species) & (distance <= 1) => {
+                                    to_check.push((pos, 0))
+                                }
+                                // Checking species can leave leaves behind when trees intersect
+                                // Also, azalea
+                                Leaves(_, Some(d))
+                                    if (d > distance) & (off.length_squared() == 1) =>
+                                {
+                                    to_check.push((pos, d))
+                                }
+                                // TODO: Beehives
+                                // TODO: Snoe
+                                _ => (),
+                            }
+                        }
+                    }
+                }
+            }
+
+            trees[pos] = Some(
+                commands
+                    .spawn((
+                        Pos(pos.as_vec3()),
+                        Tree {
+                            blocks,
+                            state: TreeState::Ready,
+                        },
+                    ))
+                    .id(),
+            );
+            noise[pos] = 1.;
+        }
     }
 
+    commands.insert_resource(Trees(trees));
     commands.insert_resource(TreeNoise(noise));
 }
 
@@ -52,15 +108,10 @@ pub fn spawn_trees(
     noise: ResMut<TreeNoise>,
     level: Res<Level>,
     tick: Res<Tick>,
-    trees: Query<&Pos, With<Tree>>,
+    mut tree_map: ResMut<Trees>,
 ) {
     if (tick.0 % 150) != 1 {
         return;
-    }
-
-    let mut tree_map = level.column_map(2, false);
-    for tree in &trees {
-        tree_map[tree.block()] = true;
     }
 
     'outer: for column in noise.cells() {
@@ -69,12 +120,12 @@ pub fn spawn_trees(
         }
 
         // Check whether the tree has already been placed
-        if tree_map[column] {
+        if tree_map[column].is_some() {
             continue;
         }
 
         // Stagger spawn
-        if 0.03 < rand() {
+        if 0.02 < rand() {
             continue;
         }
 
@@ -94,11 +145,11 @@ pub fn spawn_trees(
 
         use Biome::*;
         let chance = match level.biome[column] {
-            Plain | Ocean | Beach | Mesa | Savanna => 0.4,
+            Plain | Ocean | Beach | Mesa | Savanna => 0.3,
             River => 0.6,
             Snowy => 0.,
-            Desert => 0.06,
-            Forest | Taiga | BirchForest | DarkForest | CherryGrove | Jungles => 0.8,
+            Desert => 0.05,
+            Forest | Taiga | BirchForest | DarkForest | CherryGrove | Jungles => 0.75,
             Swamp | MangroveSwamp => 0.8,
         };
         let kind: &[_] = match level.biome[column] {
@@ -129,25 +180,32 @@ pub fn spawn_trees(
             continue;
         }
 
-        commands.spawn((
-            Pos((ground + IVec3::Z).as_vec3()),
-            Tree::new(false),
-            GrowTree::make(rand_weighted(kind).params()),
-        ));
+        tree_map[column] = Some(
+            commands
+                .spawn((
+                    Pos((ground + IVec3::Z).as_vec3()),
+                    Tree {
+                        blocks: default(),
+                        state: TreeState::Young,
+                    },
+                    GrowTree::make(rand_weighted(kind).params()),
+                ))
+                .id(),
+        );
     }
 }
 
 pub fn grow_trees(
     mut level: ResMut<Level>,
     tick: Res<Tick>,
-    mut trees: Query<(&Pos, &mut GrowTree, &mut Tree)>,
+    mut trees: Query<(&Pos, &mut Tree, &mut GrowTree)>,
 ) {
-    for (pos, mut grow, mut tree) in &mut trees {
+    for (pos, mut tree, mut grow) in &mut trees {
         if rand_range(0..=(tick.0 - grow.last_grown).max(1)) > 500 {
             if (grow.size < grow.max_size) & (rand_f32(grow.size, 6.) < 4.) {
-                grow.build(&mut level, pos.0);
-                if grow.size > 1.3 {
-                    tree.ready = true;
+                grow.build(&mut level, pos.0, &mut tree.blocks);
+                if (grow.size > 1.3) & (tree.state == TreeState::Young) {
+                    tree.state = TreeState::Ready;
                 }
                 grow.size += rand_f32(0.13, 0.25);
             }
@@ -199,7 +257,6 @@ impl TreeGen {
 // Very basic, but good enough for testing
 #[derive(Component)]
 pub struct GrowTree {
-    pub blocks: Vec<(IVec3, Block)>,
     pub size: f32,
     // TODO: move into TreeParams
     max_size: f32,
@@ -254,7 +311,6 @@ impl GrowTree {
         let stem = branch(params.stem_thickness, params.stem_len, Vec3::Z);
         Self {
             stem,
-            blocks: default(),
             size: -0.1,
             max_size: rand_f32(1.5, 2.0) * rand_f32(1.0, 2.0),
             last_grown: 0,
@@ -262,12 +318,17 @@ impl GrowTree {
         }
     }
 
-    pub fn build(&mut self, level: &mut Level, pos: Vec3) {
+    pub fn build(
+        &mut self,
+        level: &mut Level,
+        pos: Vec3,
+        current_blocks: &mut Vec<(IVec3, Block)>,
+    ) {
         if self.size < 0.25 {
             level(pos, GroundPlant(Sapling(self.params.species)));
             return;
         }
-        for (pos, block) in self.blocks.drain(..) {
+        for (pos, block) in current_blocks.drain(..) {
             if level(pos) == block {
                 level(pos, Air)
             }
@@ -327,8 +388,7 @@ impl GrowTree {
             Vec3::ZERO,
             0,
         );
-        self.blocks
-            .extend(level.get_recording(cursor).map(|r| (r.pos, r.block)));
+        current_blocks.extend(level.get_recording(cursor).map(|r| (r.pos, r.block)));
     }
 }
 
@@ -397,6 +457,30 @@ pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
     for off in &[ivec2(1, 1), ivec2(-1, 1), ivec2(1, -1), ivec2(-1, -1)] {
         for z in 4 + rand_1(0.5)..=log_height - 1 + rand_1(0.5) {
             level(pos + ivec3(off.x, off.y, z), |b| b | leaf_block);
+        }
+    }
+}
+
+#[derive(SystemParam)]
+pub struct Untree<'w, 's> {
+    commands: Commands<'w, 's>,
+    tree_map: ResMut<'w, Trees>,
+    trees: Query<'w, 's, &'static Tree>,
+}
+
+impl<'w, 's> Untree<'w, 's> {
+    pub fn remove_trees(&mut self, level: &mut Level, area: impl IntoIterator<Item = IVec2>) {
+        for column in area.into_iter() {
+            if let Some(entity) = self.tree_map[column] {
+                let tree = self.trees.get(entity).unwrap();
+                for (pos, block) in &tree.blocks {
+                    if level(*pos) == *block {
+                        level(*pos, Air)
+                    }
+                }
+                self.tree_map[column] = None;
+                self.commands.entity(entity).despawn();
+            }
         }
     }
 }

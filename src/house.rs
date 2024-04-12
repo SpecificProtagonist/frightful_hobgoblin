@@ -2,15 +2,15 @@ use crate::*;
 use roof::roof;
 
 use self::{
-    remove_foliage::remove_trees,
     roof::roof_material,
     sim::{logistics::MoveTask, ConsItem, ConsList},
+    trees::Untree,
 };
 
-pub fn house(level: &mut Level, area: Rect) -> ConsList {
+pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let inner = area.shrink(1);
 
-    let (floor, mut rec) = foundation(level, area);
+    let (floor, mut rec) = foundation(level, untree, area);
 
     let cursor = level.recording_cursor();
 
@@ -143,8 +143,8 @@ pub fn house(level: &mut Level, area: Rect) -> ConsList {
     rec
 }
 
-pub fn shack(level: &mut Level, area: Rect) -> ConsList {
-    let (floor, mut rec) = foundation(level, area);
+pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
+    let (floor, mut rec) = foundation(level, untree, area);
 
     // Roof build now so we know how high the walls have to be
     let roof_rec = roof(level, area.grow(1), floor + 3, Wood(Oak));
@@ -190,11 +190,11 @@ pub fn shack(level: &mut Level, area: Rect) -> ConsList {
     rec
 }
 
-fn foundation(level: &mut Level, area: Rect) -> (i32, ConsList) {
+fn foundation(level: &mut Level, untree: &mut Untree, area: Rect) -> (i32, ConsList) {
     let floor = level.average_height(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
-    remove_trees(level, area.grow(1));
+    untree.remove_trees(level, area.grow(1));
 
     for z in (floor + 1..floor + 10).rev() {
         level.fill_at(area, z, Air)

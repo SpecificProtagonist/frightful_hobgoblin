@@ -12,7 +12,6 @@ pub mod goods;
 pub mod house;
 mod level;
 pub mod make_name;
-pub mod make_trees;
 pub mod optimize;
 pub mod pathfind;
 pub mod prefab;
@@ -22,6 +21,7 @@ pub mod replay;
 pub mod roof;
 pub mod sim;
 pub mod test_house;
+pub mod trees;
 // pub mod terraform;
 // pub mod make_divider;
 

@@ -2,7 +2,10 @@ use crate::*;
 use itertools::Itertools;
 use sim::*;
 
-use self::{make_trees::Tree, storage_pile::LumberPile};
+use self::{
+    storage_pile::LumberPile,
+    trees::{Tree, TreeState, Untree},
+};
 
 #[derive(Component)]
 pub struct Lumberjack {
@@ -22,12 +25,12 @@ pub struct Lumberworker {
 #[derive(Component)]
 #[component(storage = "SparseSet")]
 pub struct ChopTask {
-    tree: Entity,
+    tree: IVec3,
     chopped: bool,
 }
 
 impl ChopTask {
-    pub fn new(tree: Entity) -> Self {
+    pub fn new(tree: IVec3) -> Self {
         Self {
             tree,
             chopped: false,
@@ -75,16 +78,18 @@ pub fn work(
         let worker_pos = pos.get(entity).unwrap();
         if lumberworker.ready_to_work {
             // Go chopping
-            let Some((tree, _, mut tree_meta)) = trees
+            let Some((_, tree_pos, mut tree_meta)) = trees
                 .iter_mut()
-                .filter(|(_, _, tree)| tree.ready & !tree.to_be_chopped)
+                .filter(|(_, _, tree)| tree.state == TreeState::Ready)
                 // TODO: prefer larger trees
                 .min_by_key(|(_, p, _)| p.distance_squared(worker_pos.0) as i32)
             else {
                 return;
             };
-            commands.entity(entity).insert(ChopTask::new(tree));
-            tree_meta.to_be_chopped = true;
+            commands
+                .entity(entity)
+                .insert(ChopTask::new(tree_pos.block()));
+            tree_meta.state = TreeState::MarkedForChoppage;
             lumberworker.ready_to_work = false;
         } else if let Some(stack) = villager.carry {
             // Drop off lumber
@@ -116,20 +121,18 @@ pub fn chop(
         (Entity, &mut Villager, &mut ChopTask),
         (Without<MoveTask>, Without<PlaceTask>),
     >,
-    trees: Query<(&Pos, &Tree)>,
+    mut untree: Untree,
 ) {
     for (jack, mut vill, mut task) in &mut lumberjacks {
         if !task.chopped {
-            let (target, _tree) = trees.get(task.tree).unwrap();
-
             let mut place = PlaceTask(default());
             place.push_back(ConsItem::Goto(MoveTask {
-                goal: target.block(),
+                goal: task.tree,
                 distance: 2,
             }));
 
             let cursor = level.recording_cursor();
-            remove_tree(&mut level, target.block());
+            untree.remove_trees(&mut level, Some(task.tree.truncate()));
             let rec = level.pop_recording(cursor).collect_vec();
             let mut amount = 0.;
             for set in &rec {
@@ -143,7 +146,6 @@ pub fn chop(
             place.extend(rec.into_iter().map(ConsItem::Set));
             vill.carry = Some(Stack::new(Good::Wood, amount));
 
-            commands.entity(task.tree).despawn();
             commands.entity(jack).insert(place);
             task.chopped = true;
         } else {

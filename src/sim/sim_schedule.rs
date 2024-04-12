@@ -4,8 +4,8 @@ use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
 use self::{
     make_name::make_town_name,
-    make_trees::{init_trees, spawn_trees},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals, LumberPile, StonePile},
+    trees::{init_trees, spawn_trees},
 };
 
 use super::*;
@@ -143,6 +143,7 @@ pub fn sim(mut level: Level) {
     world.insert_resource(level);
 
     world.init_resource::<DesireLines>();
+
     world.run_system_once(init_trees);
 
     for tick in 0..30000 {

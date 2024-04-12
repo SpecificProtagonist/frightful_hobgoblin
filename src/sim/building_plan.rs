@@ -2,7 +2,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
-use self::make_trees::Tree;
+use self::trees::{Tree, Untree};
 
 use super::{lumberjack::TreeIsNearLumberCamp, quarry::Quarry};
 
@@ -327,6 +327,7 @@ pub fn test_build_house(
     mut replay: ResMut<Replay>,
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut untree: Untree,
     new: Query<(Entity, &House), With<ToBeBuild>>,
 ) {
     for (entity, house) in &new {
@@ -334,7 +335,11 @@ pub fn test_build_house(
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::house(&mut level, house.area)));
+            .insert(ConstructionSite::new(house::house(
+                &mut level,
+                &mut untree,
+                house.area,
+            )));
     }
 }
 
@@ -342,6 +347,7 @@ pub fn test_build_house(
 pub fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut untree: Untree,
     new: Query<(Entity, &Lumberjack), With<ToBeBuild>>,
 ) {
     for (entity, lumberjack) in &new {
@@ -350,6 +356,7 @@ pub fn test_build_lumberjack(
             .remove::<ToBeBuild>()
             .insert(ConstructionSite::new(house::shack(
                 &mut level,
+                &mut untree,
                 lumberjack.area,
             )));
     }
@@ -359,6 +366,7 @@ pub fn test_build_lumberjack(
 pub fn test_build_quarry(
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut untree: Untree,
     new: Query<(Entity, &Quarry), Added<ToBeBuild>>,
 ) {
     for (entity, quarry) in &new {
@@ -375,7 +383,9 @@ pub fn test_build_quarry(
             .entity(entity)
             .remove::<ToBeBuild>()
             .insert(ConstructionSite::new(quarry::make_quarry(
-                &mut level, *quarry,
+                &mut level,
+                &mut untree,
+                *quarry,
             )));
     }
 }
