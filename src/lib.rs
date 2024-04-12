@@ -30,7 +30,6 @@ use std::cell::Cell;
 use bevy_utils::FixedState;
 pub use geometry::*;
 pub use level::*;
-pub use prefab::PREFABS;
 pub use rand::*;
 
 // Replaces SipHash with ahash & disables randomness
@@ -45,7 +44,3 @@ const DATA_VERSION: i32 = 3578;
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;
-
-/// The config isn't commited to git because it just contains the paths to the world folders
-#[path = "../config_local.rs"]
-pub mod config;

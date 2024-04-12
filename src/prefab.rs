@@ -8,8 +8,9 @@ use std::{
 
 use nbt::{decode::read_gzip_compound_tag, CompoundTag, Tag};
 
-use crate::{config::TEMPLATE_PATH, *};
+use crate::*;
 
+#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
 
@@ -48,7 +49,7 @@ impl Prefab {
 pub static PREFABS: LazyLock<HashMap<String, Prefab>> = LazyLock::new(|| {
     let mut map = HashMap::default();
     load_folder(&mut map, "prefabs".into(), "");
-    load_folder(&mut map, TEMPLATE_PATH.into(), "");
+    // load_folder(&mut map, TEMPLATE_PATH.into(), "");
     map
 });
 

@@ -7,7 +7,6 @@ use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
     provider::{FolderRegionProvider, RegionProvider},
 };
-use anyhow::{anyhow, Result};
 use bevy_ecs::system::Resource;
 use itertools::Itertools;
 use nbt::CompoundTag;
@@ -133,14 +132,13 @@ impl Level {
                 & (index.1 < self.chunk_max.1)
             {
                 save_chunk(&chunk_provider, index.into(), sections)
-                    .unwrap_or_else(|_| panic!("Failed to save chunk ({},{}): ", index.0, index.1))
             }
         }
 
-        self.save_metadata().unwrap();
+        self.save_metadata();
     }
 
-    pub fn save_metadata(&self) -> Result<()> {
+    pub fn save_metadata(&self) {
         // Edit metadata
         let level_nbt_path =
             self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
@@ -172,7 +170,6 @@ impl Level {
             .open(&level_nbt_path)
             .expect("Failed to open level.dat");
         nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
-        Ok(())
     }
 
     pub fn column_map<T: Clone>(&self, resolution: i32, default: T) -> ColumnMap<T> {
@@ -364,17 +361,18 @@ fn load_chunk(
     biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
-) -> Result<()> {
+) -> Option<()> {
     let nbt = chunk_provider
         .get_region(RegionPosition::from_chunk_position(
             chunk_index.0,
             chunk_index.1,
-        ))?
+        ))
+        .ok()?
         .read_chunk(RegionChunkPosition::from_chunk_position(
             chunk_index.0,
             chunk_index.1,
         ))
-        .map_err(|_| anyhow!("Chunk read error"))?;
+        .ok()?;
     let version = nbt.get_i32("DataVersion").unwrap();
     if !(3465..=DATA_VERSION).contains(&version) {
         eprintln!(
@@ -473,7 +471,7 @@ fn load_chunk(
         }
     }
 
-    Ok(())
+    Some(())
 }
 
 fn bits_per_index(palette_len: usize) -> usize {
@@ -484,9 +482,10 @@ fn save_chunk(
     chunk_provider: &FolderRegionProvider,
     index: ChunkIndex,
     sections: &[Option<Box<Section>>],
-) -> Result<()> {
+) {
     chunk_provider
-        .get_region(RegionPosition::from_chunk_position(index.0, index.1))?
+        .get_region(RegionPosition::from_chunk_position(index.0, index.1))
+        .unwrap()
         .write_chunk(
             RegionChunkPosition::from_chunk_position(index.0, index.1),
             {
@@ -585,8 +584,7 @@ fn save_chunk(
                 nbt
             },
         )
-        .map_err(|_| anyhow!("Chunk write error"))?;
-    Ok(())
+        .unwrap();
 }
 
 #[derive(Clone)]

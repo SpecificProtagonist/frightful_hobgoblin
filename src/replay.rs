@@ -176,7 +176,6 @@ impl Replay {
     }
 
     fn flush_chunk(&mut self) {
-        const INITIAL_CAPACITY: usize = 1000;
         // This needs to be the last commands to get executed this tick
         self.command(format!(
             "data modify storage sim_{0}_0:data commands set from storage sim_{0}_{1}:data commands",
@@ -184,8 +183,7 @@ impl Replay {
             self.command_chunk + 1
         ));
         let tick_commands = std::mem::take(&mut self.commands_this_tick);
-        let mut commands =
-            std::mem::replace(&mut self.commands, Vec::with_capacity(INITIAL_CAPACITY));
+        let mut commands = std::mem::replace(&mut self.commands, Vec::with_capacity(1000));
         commands.push(tick_commands);
 
         let data_path = self.level_path.join("data/");
@@ -249,6 +247,7 @@ impl Replay {
     }
 
     pub fn finish(mut self) {
+        self.say("Replay complete", Gray);
         self.flush_chunk();
 
         let pack_path = self
@@ -342,6 +341,10 @@ impl Replay {
         write(sim_path.join("game_tick.mcfunction"), {
             let mut tick = format!(
                 "
+                execute if score sim speed matches 0.. run scoreboard players operation SIM_{0} speed = sim speed
+                scoreboard players set sim speed -1
+                execute if score sim warp matches 0.. run scoreboard players operation SIM_{0} speed = sim warp
+                scoreboard players set sim warp -1
                 scoreboard players operation SIM_{0} warp += SIM_{0} speed
                 execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
             ",
@@ -359,8 +362,8 @@ impl Replay {
             format!(
                 "
                 tag @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] add sim_{4}_in_area
-                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, simulation resumed\",\"color\":\"gray\"}}
-                tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, simulation paused\",\"color\":\"gray\"}}
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, replay resumed\",\"color\":\"gray\"}}
+                tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, replay paused\",\"color\":\"gray\"}}
                 tag @a remove sim_{4}_previous_in_area
                 execute if entity @p[tag=sim_{4}_in_area] run function sim_{}:game_tick
                 tag @p[tag=sim_{4}_in_area] add sim_{4}_previous_in_area

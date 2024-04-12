@@ -324,7 +324,6 @@ pub fn assign_builds(
 
 // TMP
 pub fn test_build_house(
-    mut replay: ResMut<Replay>,
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,

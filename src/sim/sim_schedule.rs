@@ -166,6 +166,6 @@ pub fn sim(mut level: Level) {
     let level = world.remove_resource::<Level>().unwrap();
     // level.debug_save();
     let replay = world.remove_resource::<Replay>().unwrap();
-    rayon::spawn(move || level.save_metadata().unwrap());
+    rayon::spawn(move || level.save_metadata());
     replay.finish();
 }

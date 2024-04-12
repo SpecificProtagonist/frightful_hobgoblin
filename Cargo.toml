@@ -1,9 +1,9 @@
 [package]
 name = "mc-gen"
 version = "0.1.0"
-authors = ["Vincent Junge <jungevincent@gmail.com>"]
+authors = ["Vincent Junge <vincentjunge@posteo.net>"]
 edition = "2021"
-default-run = "test"
+default-run = "run"
 
 [profile.dev]
 opt-level = 1
@@ -16,7 +16,6 @@ opt-level = 3
 debug = true
 
 [dependencies]
-anyhow = "1"
 copy_dir = "0.1.2"
 anvil-region = "0.8"
 named-binary-tag = "0.6"
@@ -35,3 +34,4 @@ bitflags = "2.3.3"
 enum-iterator = "1.4.1"
 nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs.git" }
 flate2 = "1"
+argh = "0.1.12"
