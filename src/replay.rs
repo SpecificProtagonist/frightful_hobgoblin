@@ -131,11 +131,14 @@ impl Replay {
 
     pub fn dbg(&mut self, msg: &str) {
         #[cfg(debug_assertions)]
-        self.say(msg);
+        self.say(msg, Gray);
     }
 
-    pub fn say(&mut self, msg: &str) {
-        self.command(format!("say {msg}"));
+    pub fn say(&mut self, msg: &str, color: Color) {
+        self.command(format!(
+            "tellraw @a[tag=sim_{}_in_area] {{\"text\":\"{msg}\",\"color\":\"{color}\"}}",
+            self.invocation
+        ));
     }
 
     pub fn dust(&mut self, pos: IVec3) {
@@ -354,7 +357,14 @@ impl Replay {
         write(
             sim_path.join("check_tick.mcfunction"),
             format!(
-                "execute if entity @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] run function sim_{}:game_tick",
+                "
+                tag @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] add sim_{4}_in_area
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, simulation resumed\",\"color\":\"gray\"}}
+                tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, simulation paused\",\"color\":\"gray\"}}
+                tag @a remove sim_{4}_previous_in_area
+                execute if entity @p[tag=sim_{4}_in_area] run function sim_{}:game_tick
+                tag @p[tag=sim_{4}_in_area] add sim_{4}_previous_in_area
+                tag @a remove sim_{4}_in_area",
                 self.area.min.x,
                 self.area.min.y,
                 self.area.size().x,

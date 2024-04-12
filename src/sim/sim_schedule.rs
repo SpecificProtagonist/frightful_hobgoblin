@@ -12,11 +12,14 @@ use super::*;
 
 pub fn sim(mut level: Level) {
     let mut replay = Replay::new(&level);
-    replay.say(&format!(
-        "{}: Founding of {}",
-        rand_range(1400..1550),
-        make_town_name()
-    ));
+    replay.say(
+        &format!(
+            "{}: Founding of {}",
+            rand_range(1400..1550),
+            make_town_name()
+        ),
+        Yellow,
+    );
 
     let mut world = World::new();
     world.init_resource::<Tick>();

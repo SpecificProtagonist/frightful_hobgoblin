@@ -92,7 +92,6 @@ pub fn build(
                 }
             }
             None => {
-                replay.dbg("Building finished");
                 commands.entity(builder).remove::<BuildTask>();
                 commands
                     .entity(e_building)

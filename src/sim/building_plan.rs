@@ -331,7 +331,6 @@ pub fn test_build_house(
     new: Query<(Entity, &House), With<ToBeBuild>>,
 ) {
     for (entity, house) in &new {
-        replay.dbg(&format!("building house at {:?}", house.area.center()));
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
