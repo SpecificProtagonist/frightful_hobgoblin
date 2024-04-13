@@ -29,7 +29,7 @@ pub struct Mason {
 pub fn assign_worker(
     mut commands: Commands,
     available: Query<(Entity, &Pos), With<Jobless>>,
-    new: Query<(Entity, &Pos), (With<Lumberjack>, Added<Built>)>,
+    new: Query<(Entity, &Pos), (With<Quarry>, Added<Built>)>,
 ) {
     let assigned = Vec::new();
     for (workplace, pos) in &new {

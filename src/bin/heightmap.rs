@@ -1,4 +1,7 @@
-use mc_gen::{config::*, debug_image::*, *};
+use mc_gen::{debug_image::*, *};
+#[path = "../../config_local.rs"]
+mod config;
+use config::*;
 
 fn main() {
     let area = Rect::new_centered(ivec2(AREA[0], AREA[1]), ivec2(AREA[2], AREA[3]));

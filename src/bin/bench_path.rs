@@ -1,6 +1,8 @@
 #![allow(dead_code)]
 use std::time::Instant;
 
+#[path = "../../config_local.rs"]
+mod config;
 use config::*;
 use mc_gen::pathfind::{pathfind, reachability_2d_from, reachability_from};
 use mc_gen::*;

@@ -133,13 +133,14 @@ pub fn plan_house(
 pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
-    planned: Query<(), (With<Lumberjack>, With<Planned>)>,
+    planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
     trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
 ) {
     if !planned.is_empty() {
         return;
     }
 
+    // TODO: Seperate focus and shack position selection
     let Some(area) = optimize(
         Rect::new_centered(
             level.area().center(),
@@ -182,10 +183,11 @@ pub fn plan_lumberjack(
         }
     }
 
+    commands.spawn((Pos(level.ground(area.center()).as_vec3()), LumberjackFocus));
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
         Planned(area),
-        Lumberjack { area },
+        LumberjackShack { area },
     ));
 }
 
@@ -295,8 +297,8 @@ pub fn assign_builds(
     construction_sites: Query<(), With<ConstructionSite>>,
     houses: Query<(), (With<House>, Without<Planned>)>,
     planned_houses: Query<(Entity, &Planned), With<House>>,
-    lumberjacks: Query<(), (With<Lumberjack>, Without<Planned>)>,
-    planned_lumberjacks: Query<(Entity, &Planned), With<Lumberjack>>,
+    lumberjacks: Query<(), (With<LumberjackShack>, Without<Planned>)>,
+    planned_lumberjacks: Query<(Entity, &Planned), With<LumberjackShack>>,
     quarries: Query<(), (With<Quarry>, Without<Planned>)>,
     planned_quarries: Query<(Entity, &Planned), With<Quarry>>,
 ) {
@@ -346,7 +348,7 @@ pub fn test_build_lumberjack(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,
-    new: Query<(Entity, &Lumberjack), With<ToBeBuild>>,
+    new: Query<(Entity, &LumberjackShack), With<ToBeBuild>>,
 ) {
     for (entity, lumberjack) in &new {
         commands

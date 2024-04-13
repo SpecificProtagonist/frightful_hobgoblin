@@ -8,7 +8,10 @@ use self::{
 };
 
 #[derive(Component)]
-pub struct Lumberjack {
+pub struct LumberjackFocus;
+
+#[derive(Component)]
+pub struct LumberjackShack {
     pub area: Rect,
 }
 
@@ -41,7 +44,7 @@ impl ChopTask {
 pub fn assign_worker(
     mut commands: Commands,
     available: Query<(Entity, &Pos), With<Jobless>>,
-    new: Query<(Entity, &Pos), (With<Lumberjack>, Added<Built>)>,
+    new: Query<(Entity, &Pos), Added<LumberjackFocus>>,
 ) {
     let assigned = Vec::new();
     for (workplace, pos) in &new {
@@ -158,7 +161,7 @@ pub fn make_lumber_piles(
     mut commands: Commands,
     mut level: ResMut<Level>,
     center: Query<&Pos, With<CityCenter>>,
-    new_lumberjacks: Query<&Pos, (With<Lumberjack>, Added<Built>)>,
+    new_lumberjacks: Query<&Pos, Added<LumberjackFocus>>,
 ) {
     for lumberjack in &new_lumberjacks {
         let (pos, params) = LumberPile::make(

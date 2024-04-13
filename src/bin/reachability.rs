@@ -1,4 +1,6 @@
 #![allow(dead_code)]
+#[path = "../../config_local.rs"]
+mod config;
 use config::*;
 use mc_gen::pathfind::reachability_from;
 use mc_gen::sim::building_plan::choose_starting_area;
