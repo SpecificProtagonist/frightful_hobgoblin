@@ -110,7 +110,7 @@ pub fn spawn_trees(
     tick: Res<Tick>,
     mut tree_map: ResMut<Trees>,
 ) {
-    if (tick.0 % 150) != 1 {
+    if (tick.0 % 250) != 1 {
         return;
     }
 

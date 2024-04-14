@@ -358,15 +358,15 @@ impl Blockstate {
     }
 }
 
+impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
+    fn from(name: Name) -> Self {
+        Self(name.into(), vec![])
+    }
+}
+
 impl Block {
     // TODO: for fences & similar, emit block_ticks to make MC updateblockstates
     pub fn blockstate(&self, unknown: &UnknownBlocks) -> Blockstate {
-        impl<Name: Into<Cow<'static, str>>> From<Name> for Blockstate {
-            fn from(name: Name) -> Self {
-                Self(name.into(), vec![])
-            }
-        }
-
         match self {
             Air => "air".into(),
             Full(material) => match material {

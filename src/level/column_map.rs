@@ -71,6 +71,20 @@ impl<T> ColumnMap<T> {
     }
 }
 
+impl ColumnMap<i32> {
+    pub fn average(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
+        let mut count = 0;
+        let total: f32 = area
+            .into_iter()
+            .map(|p| {
+                count += 1;
+                self[p] as f32
+            })
+            .sum();
+        total / count as f32
+    }
+}
+
 impl<T: Copy> Index<IVec2> for ColumnMap<T> {
     type Output = T;
 

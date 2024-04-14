@@ -287,18 +287,6 @@ impl Level {
     pub fn ground(&self, column: IVec2) -> IVec3 {
         column.extend(self.height[column])
     }
-
-    pub fn average_height(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
-        let mut count = 0;
-        let total: f32 = area
-            .into_iter()
-            .map(|p| {
-                count += 1;
-                self.height[p] as f32
-            })
-            .sum();
-        total / count as f32
-    }
 }
 
 pub trait RangeOrSingle {

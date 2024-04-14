@@ -191,7 +191,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
 }
 
 fn foundation(level: &mut Level, untree: &mut Untree, area: Rect) -> (i32, ConsList) {
-    let floor = level.average_height(area.border()).round() as i32;
+    let floor = level.height.average(area.border()).round() as i32;
 
     let cursor = level.recording_cursor();
     untree.remove_trees(level, area.grow(1));

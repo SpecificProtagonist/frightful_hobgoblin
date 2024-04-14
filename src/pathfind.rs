@@ -130,7 +130,7 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             }
 
             // Can be reduced for performance
-            let exploration_limit_reached = path.len() > 8000;
+            let exploration_limit_reached = path.len() > 10000;
 
             // Arrived at target
             if heuristic <= range_to_end {

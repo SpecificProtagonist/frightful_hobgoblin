@@ -1,3 +1,5 @@
+use std::f32::INFINITY;
+
 use super::*;
 
 #[derive(Component, Eq, PartialEq, Copy, Clone)]
@@ -36,7 +38,7 @@ impl LumberPile {
         };
         let (pos, params) = optimize(
             (target.block(), params),
-            |(mut pos, mut params), temperature| {
+            |(pos, params), temperature| {
                 if 0.2 > rand() {
                     params.axis = params.axis.rotated()
                 } else if 0.3 > rand() {
@@ -44,29 +46,27 @@ impl LumberPile {
                     params.length = rand_range(5..=6);
                 } else {
                     let max_move = (20. * temperature) as i32;
-                    pos += ivec2(
+                    *pos += ivec2(
                         rand_range(-max_move..=max_move),
                         rand_range(-max_move..=max_move),
                     );
                 }
-                let area = area(pos, params);
+                let area = area(*pos, *params);
 
                 if !level.unblocked(area) | (wateryness(&level, area) > 0.) {
-                    return None;
+                    return INFINITY;
                 }
                 let center_distance = target_2.distance(pos.as_vec2()) / 70.;
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = target.distance(pos.as_vec2()) / 20.;
                 let size_bonus = (params.width + params.length) as f32 * 4.;
-                let score =
-                    center_distance + worker_distance + unevenness(&level, area) * 1. - size_bonus;
-                Some(((pos, params), score))
+                center_distance + worker_distance + unevenness(&level, area) * 1. - size_bonus
             },
             100,
         )
         .unwrap();
 
-        let z = level.average_height(area(pos, params).border()) as i32;
+        let z = level.height.average(area(pos, params).border()) as i32;
         (level.height)(area(pos, params), z);
         level.set_blocked(area(pos, params));
         (pos.extend(z + 1), params)
@@ -166,32 +166,31 @@ impl StonePile {
                 max: target.block() + ivec2(rand_range(3..=4), rand_range(3..=4)),
             },
             |area, temperature| {
-                let area = if 0.3 > rand() {
-                    Rect {
+                if 0.3 > rand() {
+                    *area = Rect {
                         min: area.center(),
                         max: area.center() + ivec2(rand_range(3..=4), rand_range(3..=4)),
                     }
                 } else {
                     let max_move = (20. * temperature) as i32;
-                    area.offset(ivec2(
+                    *area += ivec2(
                         rand_range(-max_move..=max_move),
                         rand_range(-max_move..=max_move),
-                    ))
-                };
-                if !level.unblocked(area) | (wateryness(&level, area) > 0.) {
-                    return None;
+                    );
+                }
+                if !level.unblocked(*area) | (wateryness(&level, *area) > 0.) {
+                    return INFINITY;
                 }
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = target.distance(area.center_vec2()) / 20.;
                 let size_bonus = area.total() as f32 * 4.;
-                let score = worker_distance + unevenness(&level, area) * 1. - size_bonus;
-                Some((area, score))
+                worker_distance + unevenness(&level, *area) * 1. - size_bonus
             },
             100,
         )
         .unwrap();
 
-        let z = level.average_height(area.border()) as i32 + 1;
+        let z = level.height.average(area.border()) as i32 + 1;
         (level.height)(area, z - 1);
         level.fill_at(area, z - 1, PackedMud);
         level.set_blocked(area);

@@ -131,6 +131,8 @@ impl Replay {
 
     pub fn dbg(&mut self, msg: &str) {
         #[cfg(debug_assertions)]
+        println!("{msg}");
+        #[cfg(debug_assertions)]
         self.say(msg, Gray);
     }
 

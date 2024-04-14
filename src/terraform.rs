@@ -197,16 +197,6 @@ pub fn side_exposted(level: &Level, pos: Vec3) -> bool {
         && level[pos + Vec2(-1, 0)].solid())
 }
 
-pub fn average_height(level: &Level, area: impl Iterator<Item = Vec2>) -> u8 {
-    let mut sum = 0.0;
-    let mut count = 0;
-    for column in area {
-        sum += level.height(column) as f32;
-        count += 1;
-    }
-    (sum / count as f32) as u8
-}
-
 pub fn slope(level: &Level, column: Vec2) -> Vec2 {
     let mut neighbors = [0; 9];
     for dx in -1..=1 {
@@ -251,22 +241,3 @@ pub fn find_local_maxima(level: &Level, area: Rect, neighborhood_size: u8) -> Ve
     todo!()
 }
 */
-
-// TODO: add average
-// TODO: move into World, cache
-pub fn max_chunk_heights(level: &Level) -> HashMap<ChunkIndex, i32> {
-    level
-        .chunks()
-        .map(|chunk| {
-            (
-                chunk,
-                chunk
-                    .area()
-                    .into_iter()
-                    .map(|column| level.height(column))
-                    .max()
-                    .unwrap(),
-            )
-        })
-        .collect()
-}

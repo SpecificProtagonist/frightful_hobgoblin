@@ -4,6 +4,7 @@ use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
 use self::{
     make_name::make_town_name,
+    quarry::{plan_quarry, test_build_quarry},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals, LumberPile, StonePile},
     trees::{init_trees, spawn_trees},
 };

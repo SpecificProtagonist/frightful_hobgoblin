@@ -90,13 +90,6 @@ impl Rect {
         }
     }
 
-    pub fn offset(self, offset: IVec2) -> Self {
-        Self {
-            min: self.min + offset,
-            max: self.max + offset,
-        }
-    }
-
     pub fn transposed(self) -> Self {
         Self::new_centered(self.center(), self.size().yx())
     }
@@ -123,6 +116,23 @@ impl Rect {
             .chain(Some(ivec2(self.min.x, self.max.y)))
             .chain(Some(self.max))
             .chain(Some(ivec2(self.max.x, self.min.y)))
+    }
+}
+
+impl Add<IVec2> for Rect {
+    type Output = Self;
+
+    fn add(self, offset: IVec2) -> Self::Output {
+        Self {
+            min: self.min + offset,
+            max: self.max + offset,
+        }
+    }
+}
+
+impl AddAssign<IVec2> for Rect {
+    fn add_assign(&mut self, rhs: IVec2) {
+        *self = *self + rhs
     }
 }
 
