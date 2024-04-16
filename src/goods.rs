@@ -123,31 +123,6 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
     }
 }
 
-#[derive(Component, Debug, Clone, Deref, DerefMut)]
-pub struct Pile {
-    #[deref]
-    pub goods: Goods,
-    pub interact_distance: i32,
-}
-
-impl Pile {
-    pub fn new(goods: Goods) -> Self {
-        Self {
-            goods,
-            interact_distance: 1,
-        }
-    }
-}
-
-impl Default for Pile {
-    fn default() -> Self {
-        Self {
-            goods: default(),
-            interact_distance: 1,
-        }
-    }
-}
-
 #[derive(Component, Debug, Clone, Default, Deref, DerefMut)]
 pub struct Goods(HashMap<Good, f32>);
 

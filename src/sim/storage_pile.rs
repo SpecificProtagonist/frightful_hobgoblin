@@ -26,7 +26,7 @@ impl LumberPile {
         untree: &mut Untree,
         target: Vec2,
         target_2: Vec2,
-    ) -> (IVec3, Self) {
+    ) -> (IVec3, Rect, Self) {
         let params = LumberPile {
             axis: if 0.5 > rand() { HAxis::X } else { HAxis::Y },
             width: 3,
@@ -75,8 +75,8 @@ impl LumberPile {
 
         let z = level.height.average(area.border()) as i32;
         (level.height)(area, z);
-        level.set_blocked(area);
-        (pos.extend(z + 1), params)
+        (level.blocked)(area, true);
+        (pos.extend(z + 1), area, params)
     }
 }
 
@@ -162,7 +162,7 @@ pub struct StonePile {
 }
 
 impl StonePile {
-    pub fn make(level: &mut Level, untree: &mut Untree, target: Vec2) -> (Vec3, Self) {
+    pub fn make(level: &mut Level, untree: &mut Untree, target: Vec2) -> (Vec3, Rect, Self) {
         let area = optimize(
             Rect {
                 min: target.block(),
@@ -198,9 +198,10 @@ impl StonePile {
         let z = level.height.average(area.border()) as i32 + 1;
         (level.height)(area, z - 1);
         level.fill_at(area, z - 1, PackedMud);
-        level.set_blocked(area);
+        (level.blocked)(area, true);
         (
             area.center_vec2().extend(z as f32),
+            area,
             StonePile {
                 volume: Cuboid::new(area.min.extend(z), area.max.extend(z + 2)),
             },

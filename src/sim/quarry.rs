@@ -22,10 +22,10 @@ impl Params {
 
     /// Area used to determine suitability for quarrying
     fn probed_mining_area(self) -> impl Iterator<Item = IVec2> {
-        let off = (self.dir_vec2() * 8.).as_ivec2();
-        Rect::new_centered(self.pos, IVec2::splat(17))
+        let off = (self.dir_vec2() * 10.).as_ivec2();
+        Rect::new_centered(self.pos, IVec2::splat(21))
             .into_iter()
-            .filter(move |c| (*c - self.pos).as_vec2().length() < 8.)
+            .filter(move |c| (*c - self.pos).as_vec2().length() < 9.)
             .map(move |c| c + off)
     }
 
@@ -78,15 +78,28 @@ pub fn plan_quarry(
             if distance < 0. {
                 distance *= -5.
             }
-            let avg_start_height = level.height.average(params.base_area());
-            let quarried_height =
-                level.height.average(params.probed_mining_area()) - avg_start_height;
-            // TODO: avoid caves
-            if quarried_height < 5. {
+            // TODO: determine floor height here, weighed by towards lower points along border
+            let avg_start_height = level.height.average(params.base_area()) as i32;
+
+            let mut stone = 0;
+            let mut columns = 0;
+            for column in params.probed_mining_area() {
+                columns += 1;
+                for z in avg_start_height..avg_start_height + 15 {
+                    match level(column.extend(z)) {
+                        Full(_) => stone += 1,
+                        other if !other.solid() => break,
+                        _ => (),
+                    }
+                }
+            }
+            let avg_stone = stone as f32 / columns as f32;
+
+            if avg_stone < 5. {
                 return INFINITY;
             }
             let area = Rect::new_centered(params.pos, IVec2::splat(7));
-            wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5 - quarried_height * 1.
+            wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5 - avg_stone * 1.
                 + distance / 100.
         },
         200,
@@ -101,8 +114,8 @@ pub fn plan_quarry(
     to_mine.sort_by_key(|c| {
         FloatOrd(-(c.as_vec2() + params.dir_vec2() * 5. - params.pos.as_vec2()).length())
     });
+    to_mine.drain(..(to_mine.len() as f32 * 0.35) as usize);
 
-    // TODO: create quarry now
     commands.spawn((
         Pos(level.ground(params.pos).as_vec3() + Vec3::Z),
         Planned(
@@ -169,8 +182,8 @@ pub fn make_stone_piles(
     mut untree: Untree,
 ) {
     for quarry in &new_quarries {
-        // TODO: disincentivice stone piles located higher than the quarry
-        let (pos, params) = StonePile::make(&mut level, &mut untree, quarry.truncate());
+        // TODO: disincentivise stone piles located higher than the quarry?
+        let (pos, _, params) = StonePile::make(&mut level, &mut untree, quarry.truncate());
         commands.spawn((
             Pos(pos),
             params,
@@ -180,7 +193,9 @@ pub fn make_stone_piles(
             Pile {
                 goods: default(),
                 interact_distance: 2,
+                despawn_when_empty: None,
             },
+            StoragePile,
         ));
     }
 }
@@ -216,7 +231,7 @@ pub fn work(
         (Without<PlaceTask>, Without<DeliverTask>, Without<MoveTask>),
     >,
     mut quarries: Query<&mut Quarry>,
-    piles: Query<(Entity, &Pos, &Pile, &StonePile)>,
+    piles: Query<(Entity, &Pos, &Pile, &StonePile), With<StoragePile>>,
 ) {
     for (worker, villager, mut mason) in &mut workers {
         let worker_pos = pos.get(worker).unwrap();

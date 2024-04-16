@@ -65,8 +65,6 @@ pub fn assign_worker(
     }
 }
 
-// TODO: Cap lumber piles accidentally get chopped down when next to tree?
-
 pub fn work(
     mut commands: Commands,
     pos: Query<&Pos>,
@@ -75,7 +73,7 @@ pub fn work(
         (Without<ChopTask>, Without<DeliverTask>, Without<MoveTask>),
     >,
     mut trees: Query<(Entity, &Pos, &mut Tree)>,
-    piles: Query<(Entity, &Pos, &Pile, &LumberPile)>,
+    piles: Query<(Entity, &Pos, &Pile, &LumberPile), With<StoragePile>>,
 ) {
     for (entity, villager, mut lumberworker) in &mut workers {
         let worker_pos = pos.get(entity).unwrap();
@@ -163,7 +161,7 @@ pub fn make_lumber_piles(
     new_lumberjacks: Query<&Pos, Added<LumberjackFocus>>,
 ) {
     for lumberjack in &new_lumberjacks {
-        let (pos, params) = LumberPile::make(
+        let (pos, _, params) = LumberPile::make(
             &mut level,
             &mut untree,
             lumberjack.0.truncate(),
@@ -178,9 +176,9 @@ pub fn make_lumber_piles(
             Pile {
                 goods: default(),
                 interact_distance: params.width,
+                despawn_when_empty: None,
             },
+            StoragePile,
         ));
-
-        // TODO: Clear trees here
     }
 }

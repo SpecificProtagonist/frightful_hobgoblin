@@ -229,17 +229,17 @@ pub fn assign_builds(
     if houses.iter().len() < 30 {
         plans.extend(&planned_houses)
     }
-    if lumberjacks.iter().len() < 10 {
+    if lumberjacks.iter().len() < 8 {
         plans.extend(&planned_lumberjacks)
     }
-    if quarries.iter().len() < 5 {
+    if quarries.iter().len() < 3 {
         plans.extend(&planned_quarries);
     }
     if let Some(&(selected, area)) = plans.try_choose() {
         if area.iter().any(|c| level.blocked[*c]) {
             commands.entity(selected).despawn();
         } else {
-            level.set_blocked(area.iter().copied());
+            (level.blocked)(area.iter().copied(), true);
             commands
                 .entity(selected)
                 .remove::<Planned>()

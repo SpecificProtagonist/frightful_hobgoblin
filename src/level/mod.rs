@@ -233,12 +233,6 @@ impl Level {
             .all(|column| self.area().contains(column) && !self.blocked[column])
     }
 
-    pub fn set_blocked(&mut self, area: impl IntoIterator<Item = IVec2>) {
-        for column in area {
-            self.blocked[column] = true;
-        }
-    }
-
     pub fn recording_cursor(&self) -> RecordingCursor {
         RecordingCursor(self.setblock_recording.len())
     }

@@ -200,7 +200,7 @@ fn starting_resources(
 ) {
     let (center, pos) = city_center.single();
     for _ in 0..6 {
-        let (pos, params) =
+        let (pos, area, params) =
             LumberPile::make(&mut level, &mut untree, pos.truncate(), pos.truncate());
 
         let goods = {
@@ -217,11 +217,12 @@ fn starting_resources(
             Pile {
                 goods,
                 interact_distance: params.width,
+                despawn_when_empty: Some(area),
             },
         ));
     }
     for _ in 0..6 {
-        let (pos, params) = StonePile::make(&mut level, &mut untree, pos.truncate());
+        let (pos, area, params) = StonePile::make(&mut level, &mut untree, pos.truncate());
 
         let goods = {
             let mut stock = Goods::default();
@@ -237,6 +238,7 @@ fn starting_resources(
             Pile {
                 goods,
                 interact_distance: 2,
+                despawn_when_empty: Some(area),
             },
         ));
     }
@@ -253,4 +255,20 @@ fn starting_resources(
         },
         Pile::new(starting_resources),
     ));
+}
+
+fn spawn_villagers(
+    mut commands: Commands,
+    tick: Res<Tick>,
+    city_center: Query<&Pos, With<CityCenter>>,
+) {
+    if tick.0 < 25 {
+        commands.spawn((
+            Id::default(),
+            Villager::default(),
+            Jobless,
+            Pos(city_center.single().0 + vec3(rand_f32(-8., 8.), rand_f32(-8., 8.), 1.)),
+            PrevPos(default()),
+        ));
+    }
 }

@@ -1,9 +1,5 @@
 use super::*;
-use crate::{
-    goods::{Good, Pile},
-    pathfind::PathingNode,
-    *,
-};
+use crate::{goods::Good, pathfind::PathingNode, *};
 
 use bevy_ecs::prelude::*;
 
@@ -39,7 +35,40 @@ pub struct DeliverTask {
     pub to: Entity,
 }
 
-// TODO: Storage piles, which don't request resources but allow storing resources that need to be relocated, e.g. lumber piles, piles from deconstruction or from relocating other storage piles.
+#[derive(Component, Debug, Clone, Deref, DerefMut)]
+pub struct Pile {
+    #[deref]
+    pub goods: Goods,
+    pub interact_distance: i32,
+    /// If this is some, clear unblock the area and despawn this pile if it empties
+    pub despawn_when_empty: Option<Rect>,
+}
+
+impl Pile {
+    pub fn new(goods: Goods) -> Self {
+        Self {
+            goods,
+            interact_distance: 1,
+            despawn_when_empty: None,
+        }
+    }
+}
+
+impl Default for Pile {
+    fn default() -> Self {
+        Self {
+            goods: default(),
+            interact_distance: 1,
+            despawn_when_empty: None,
+        }
+    }
+}
+
+/// Pile that doesn't request goods but can be used to store them
+/// TODO: note what capacity it has
+#[derive(Component, Default)]
+pub struct StoragePile;
+
 /// Pile that actively requests goods.
 #[derive(Component, Default, Debug)]
 pub struct InPile {
@@ -66,6 +95,7 @@ pub struct DeliverReady;
 
 pub fn pickup(
     mut commands: Commands,
+    mut level: ResMut<Level>,
     pos: Query<&Pos>,
     mut out_piles: Query<(&mut Pile, &mut OutPile)>,
     mut pickup: Query<
@@ -92,6 +122,12 @@ pub fn pickup(
             });
             task.stack.amount += extra.amount;
             pile.remove(task.stack);
+            if let Some(area) = pile.despawn_when_empty {
+                if pile.iter().all(|(_, &amount)| amount <= 0.) {
+                    (level.blocked)(area, false);
+                    commands.entity(task.from).despawn();
+                }
+            }
             villager.carry = Some(task.stack);
             commands
                 .entity(entity)

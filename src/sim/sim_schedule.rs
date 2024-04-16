@@ -27,7 +27,7 @@ pub fn sim(mut level: Level) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
-    level.set_blocked(city_center);
+    (level.blocked)(city_center, true);
     world.spawn((Pos(city_center_pos.as_vec3()), CityCenter(city_center)));
     level.reachability = reachability_2d_from(&level, city_center.center());
     replay.command(format!(
@@ -46,9 +46,12 @@ pub fn sim(mut level: Level) {
     world.run_system_once(starting_resources);
 
     let mut sched = Schedule::default();
+    // Because the systems are extremely lightweight, running them on a single thread
+    // is much faster
     sched.set_executor_kind(ExecutorKind::SingleThreaded);
     sched.add_systems(
         (
+            spawn_villagers,
             (grow_trees, spawn_trees),
             assign_work,
             (
@@ -91,18 +94,8 @@ pub fn sim(mut level: Level) {
             .chain(),
     );
 
-    for tick in 0..30000 {
+    for _ in 0..30000 {
         sched.run(&mut world);
-
-        if tick < 20 {
-            world.spawn((
-                Id::default(),
-                Villager::default(),
-                Jobless,
-                Pos(city_center_pos.as_vec3() + Vec3::Z),
-                PrevPos(default()),
-            ));
-        }
     }
 
     let level = world.remove_resource::<Level>().unwrap();

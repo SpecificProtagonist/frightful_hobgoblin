@@ -74,9 +74,17 @@ pub fn desire_lines(
                 Dirt | CoarseDirt if (wear > 17) & (level(pos + IVec3::Z) == Air) => {
                     level(pos, Path)
                 }
-                Path if wear > 24 => level(pos, Gravel),
+                Path if wear > 24 => level(
+                    pos,
+                    |b: Block| if b.solid() { Gravel } else { Full(Cobble) },
+                ),
                 Sand if wear > 17 => level(pos, PackedMud),
-                SnowBlock if (wear > 9) & (0.3 < rand()) => level(pos, Gravel),
+                SnowBlock if (wear > 9) & (0.3 < rand()) => {
+                    level(
+                        pos,
+                        |b: Block| if b.solid() { Gravel } else { Full(Cobble) },
+                    )
+                }
                 _ => (),
             }
         }

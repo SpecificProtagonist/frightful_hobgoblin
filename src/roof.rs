@@ -15,6 +15,7 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
         Box::new(move |pos: Vec2| shape(pos - center))
     };
 
+    // Basic structure
     for pos in area {
         let z = shape(pos.as_vec2());
         let z_block = z.round();
@@ -35,6 +36,7 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
         level(pos, z_block as i32, |b| b | block);
     }
 
+    // Fix-ups
     for pos in area {
         let z_block = shape(pos.as_vec2()).round() as i32;
         for dir in HDir::ALL {
@@ -117,6 +119,9 @@ pub fn roof_material(biome: Biome) -> BlockMaterial {
 
 fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
     use Biome::*;
+    // Hip roofs only work on relatively square footprints
+    // let hip_base = size.min_element() as f32 / size.max_element() as f32;
+    let hip_base = (1.0 - (size.max_element() - size.min_element()) / 4.).min(0.);
     let (curve, base_shape): (&[(f32, Curve)], &[(f32, BaseShape)]) = match biome {
         Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => (
             &[
@@ -126,7 +131,7 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
                 (1., kerb),
                 (1., reverse_kerb),
             ],
-            &[(1., gable), (1., raised_gable), (0.5, hip)],
+            &[(1., gable), (1., raised_gable), (hip_base, hip)],
         ),
         Ocean => (
             &[
@@ -135,7 +140,7 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
                 (1., kerb),
                 (1., reverse_kerb),
             ],
-            &[(1., gable), (2., raised_gable), (1., hip)],
+            &[(1., gable), (2., raised_gable), (2. * hip_base, hip)],
         ),
         Snowy | Taiga => (
             &[
@@ -144,12 +149,12 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
                 (1., kerb),
                 (1., reverse_kerb),
             ],
-            &[(1., gable), (1., raised_gable), (1., hip)],
+            &[(1., gable), (1., raised_gable), (hip_base, hip)],
         ),
         Desert => (
             // TODO: just use flat roofs
             &[(1., straight_low)],
-            &[(1., gable), (1., hip)],
+            &[(1., gable), (2. * hip_base, hip)],
         ),
         Swamp | MangroveSwamp => (
             &[
@@ -158,7 +163,7 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
                 (1., kerb),
                 (1., reverse_kerb),
             ],
-            &[(1., hip)],
+            &[(hip_base, hip)],
         ),
         Jungles => (
             &[
@@ -167,11 +172,11 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
                 (1., kerb),
                 (1., reverse_kerb),
             ],
-            &[(1., raised_gable), (1., hip)],
+            &[(1., raised_gable), (2. * hip_base, hip)],
         ),
         Mesa | Savanna => (
             &[(1., straight_low)],
-            &[(1., gable), (1., raised_gable), (1., hip)],
+            &[(1., gable), (1., raised_gable), (1.5 * hip_base, hip)],
         ),
     };
     let curve = rand_weighted(curve);

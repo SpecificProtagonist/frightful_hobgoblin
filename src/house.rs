@@ -70,7 +70,7 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     };
 
     for pos in area.corners() {
-        column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)))
+        column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)));
     }
 
     // Wattle
