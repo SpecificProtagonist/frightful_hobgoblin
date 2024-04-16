@@ -64,10 +64,10 @@ pub fn new_construction_site(
 pub fn build(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
-    mut builders: Query<(Entity, &BuildTask), (With<Villager>, Without<MoveTask>)>,
+    mut builders: Query<(Entity, &mut Villager, &BuildTask), (With<Villager>, Without<MoveTask>)>,
     mut buildings: Query<(Entity, &mut ConstructionSite, &mut Pile, &mut InPile)>,
 ) {
-    for (builder, build_task) in &mut builders {
+    for (builder, mut villager, build_task) in &mut builders {
         let Ok((e_building, mut building, mut pile, mut in_pile)) =
             buildings.get_mut(build_task.building)
         else {
@@ -78,6 +78,7 @@ pub fn build(
                 commands.entity(builder).insert(goto);
                 building.todo.pop_front();
             }
+            Some(ConsItem::Carry(stack)) => villager.carry = stack,
             Some(ConsItem::Set(set)) => {
                 if let Some(missing) = pile.try_consume(set.block) {
                     building.has_builder = false;
@@ -113,7 +114,7 @@ pub fn check_construction_site_readiness(
     for (mut site, pile) in &mut query {
         if !site.has_materials {
             match site.todo[0] {
-                ConsItem::Goto(_) => {
+                ConsItem::Goto(_) | ConsItem::Carry(_) => {
                     site.has_materials = true;
                 }
                 ConsItem::Set(set) => {

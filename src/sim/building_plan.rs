@@ -4,10 +4,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
-use self::{
-    quarry::Quarry,
-    trees::{Tree, Untree},
-};
+use self::{quarry::Quarry, trees::Tree};
 
 use super::lumberjack::TreeIsNearLumberCamp;
 

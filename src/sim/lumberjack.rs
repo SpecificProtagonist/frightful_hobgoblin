@@ -4,7 +4,7 @@ use sim::*;
 
 use self::{
     storage_pile::LumberPile,
-    trees::{Tree, TreeState, Untree},
+    trees::{Tree, TreeState},
 };
 
 #[derive(Component)]
@@ -117,16 +117,14 @@ pub fn work(
     }
 }
 
+// Seperate system to allow other villagers to chop. Should this be merge into `work`?
 pub fn chop(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    mut lumberjacks: Query<
-        (Entity, &mut Villager, &mut ChopTask),
-        (Without<MoveTask>, Without<PlaceTask>),
-    >,
+    mut lumberjacks: Query<(Entity, &mut ChopTask), (Without<MoveTask>, Without<PlaceTask>)>,
     mut untree: Untree,
 ) {
-    for (jack, mut vill, mut task) in &mut lumberjacks {
+    for (jack, mut task) in &mut lumberjacks {
         if !task.chopped {
             let mut place = PlaceTask(default());
             place.push_back(ConsItem::Goto(MoveTask {
@@ -147,7 +145,7 @@ pub fn chop(
                 }
             }
             place.extend(rec.into_iter().map(ConsItem::Set));
-            vill.carry = Some(Stack::new(Good::Wood, amount));
+            place.push_back(ConsItem::Carry(Some(Stack::new(Good::Wood, amount))));
 
             commands.entity(jack).insert(place);
             task.chopped = true;
@@ -160,12 +158,14 @@ pub fn chop(
 pub fn make_lumber_piles(
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut untree: Untree,
     center: Query<&Pos, With<CityCenter>>,
     new_lumberjacks: Query<&Pos, Added<LumberjackFocus>>,
 ) {
     for lumberjack in &new_lumberjacks {
         let (pos, params) = LumberPile::make(
             &mut level,
+            &mut untree,
             lumberjack.0.truncate(),
             center.single().truncate(),
         );

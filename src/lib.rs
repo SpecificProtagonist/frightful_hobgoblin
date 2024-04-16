@@ -31,6 +31,7 @@ use bevy_utils::FixedState;
 pub use geometry::*;
 pub use level::*;
 pub use rand::*;
+pub use trees::Untree;
 
 // Replaces SipHash with ahash & disables randomness
 pub type HashMap<K, V> = std::collections::HashMap<K, V, FixedState>;

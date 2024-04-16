@@ -21,7 +21,12 @@ impl LumberPile {
             }) as f32
     }
 
-    pub fn make(level: &mut Level, target: Vec2, target_2: Vec2) -> (IVec3, Self) {
+    pub fn make(
+        level: &mut Level,
+        untree: &mut Untree,
+        target: Vec2,
+        target_2: Vec2,
+    ) -> (IVec3, Self) {
         let params = LumberPile {
             axis: if 0.5 > rand() { HAxis::X } else { HAxis::Y },
             width: 3,
@@ -65,10 +70,12 @@ impl LumberPile {
             100,
         )
         .unwrap();
+        let area = area(pos, params);
+        untree.remove_trees(level, area);
 
-        let z = level.height.average(area(pos, params).border()) as i32;
-        (level.height)(area(pos, params), z);
-        level.set_blocked(area(pos, params));
+        let z = level.height.average(area.border()) as i32;
+        (level.height)(area, z);
+        level.set_blocked(area);
         (pos.extend(z + 1), params)
     }
 }
@@ -93,10 +100,6 @@ pub fn update_lumber_pile_visuals(
                 (0, 2),
                 (2, 1),
                 (1, 2),
-                // (-1, 2),
-                // (0, 3),
-                // (2, 2),
-                // (1, 3),
             ],
             5 => &[
                 (0, 0),
@@ -159,7 +162,7 @@ pub struct StonePile {
 }
 
 impl StonePile {
-    pub fn make(level: &mut Level, target: Vec2) -> (Vec3, Self) {
+    pub fn make(level: &mut Level, untree: &mut Untree, target: Vec2) -> (Vec3, Self) {
         let area = optimize(
             Rect {
                 min: target.block(),
@@ -190,6 +193,8 @@ impl StonePile {
         )
         .unwrap();
 
+        untree.remove_trees(level, area);
+
         let z = level.height.average(area.border()) as i32 + 1;
         (level.height)(area, z - 1);
         level.fill_at(area, z - 1, PackedMud);
@@ -200,6 +205,10 @@ impl StonePile {
                 volume: Cuboid::new(area.min.extend(z), area.max.extend(z + 2)),
             },
         )
+    }
+
+    pub fn max(&self) -> f32 {
+        self.volume.volume() as f32
     }
 }
 

@@ -29,6 +29,8 @@ use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;
 use bevy_math::Vec2Swizzles;
 
+use self::storage_pile::{LumberPile, StonePile};
+
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct Tick(pub i32);
 
@@ -69,6 +71,7 @@ pub type ConsList = VecDeque<ConsItem>;
 pub enum ConsItem {
     Set(SetBlock),
     Goto(MoveTask),
+    Carry(Option<Stack>),
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -169,9 +172,9 @@ fn assign_work(
 fn place(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
-    mut builders: Query<(Entity, &mut PlaceTask), Without<MoveTask>>,
+    mut builders: Query<(Entity, &mut Villager, &mut PlaceTask), Without<MoveTask>>,
 ) {
-    for (entity, mut build) in &mut builders {
+    for (entity, mut villager, mut build) in &mut builders {
         match build.0.pop_front() {
             Some(ConsItem::Set(set)) => {
                 replay.block(set.pos, set.block);
@@ -179,9 +182,75 @@ fn place(
             Some(ConsItem::Goto(goto)) => {
                 commands.entity(entity).insert(goto);
             }
+            Some(ConsItem::Carry(stack)) => {
+                villager.carry = stack;
+            }
             None => {
                 commands.entity(entity).remove::<PlaceTask>();
             }
         }
     }
+}
+
+fn starting_resources(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    mut untree: Untree,
+    city_center: Query<(Entity, &Pos), With<CityCenter>>,
+) {
+    let (center, pos) = city_center.single();
+    for _ in 0..6 {
+        let (pos, params) =
+            LumberPile::make(&mut level, &mut untree, pos.truncate(), pos.truncate());
+
+        let goods = {
+            let mut stock = Goods::default();
+            stock.add(Stack::new(Good::Wood, 200.));
+            stock
+        };
+        commands.spawn((
+            Pos(pos.as_vec3()),
+            params,
+            OutPile {
+                available: goods.clone(),
+            },
+            Pile {
+                goods,
+                interact_distance: params.width,
+            },
+        ));
+    }
+    for _ in 0..6 {
+        let (pos, params) = StonePile::make(&mut level, &mut untree, pos.truncate());
+
+        let goods = {
+            let mut stock = Goods::default();
+            stock.add(Stack::new(Good::Stone, 140.));
+            stock
+        };
+        commands.spawn((
+            Pos(pos),
+            params,
+            OutPile {
+                available: goods.clone(),
+            },
+            Pile {
+                goods,
+                interact_distance: 2,
+            },
+        ));
+    }
+    let starting_resources = {
+        let mut stock = Goods::default();
+        stock.add(Stack::new(Good::Soil, 99999999.));
+        // stock.add(Stack::new(Good::Wood, 99999999.));
+        // stock.add(Stack::new(Good::Stone, 99999999.));
+        stock
+    };
+    commands.entity(center).insert((
+        OutPile {
+            available: starting_resources.clone(),
+        },
+        Pile::new(starting_resources),
+    ));
 }

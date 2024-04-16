@@ -1,11 +1,11 @@
 use std::f32::{consts::PI, INFINITY};
 
 use crate::*;
+use bevy_utils::FloatOrd;
 use itertools::Itertools;
-use num_traits::FromPrimitive;
 use sim::*;
 
-use self::{storage_pile::StonePile, trees::Untree};
+use self::storage_pile::StonePile;
 
 #[derive(PartialEq, Copy, Clone)]
 struct Params {
@@ -34,15 +34,17 @@ impl Params {
     }
 }
 
-#[derive(Component, PartialEq, Copy, Clone)]
+#[derive(Component, PartialEq)]
 pub struct Quarry {
     params: Params,
+    // Reverse order
+    to_mine: Vec<IVec2>,
 }
 
 #[derive(Component)]
 pub struct Mason {
-    _workplace: Entity,
-    _ready_to_work: bool,
+    workplace: Entity,
+    ready_to_work: bool,
 }
 
 pub fn plan_quarry(
@@ -79,15 +81,12 @@ pub fn plan_quarry(
             let avg_start_height = level.height.average(params.base_area());
             let quarried_height =
                 level.height.average(params.probed_mining_area()) - avg_start_height;
-            // TODO: Pit quarries
-            // TODO: check how much stone is available instead of checking height differences
+            // TODO: avoid caves
             if quarried_height < 5. {
                 return INFINITY;
             }
             let area = Rect::new_centered(params.pos, IVec2::splat(7));
-            wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5
-                - quarried_height * 1.
-                - avg_start_height * 0.15
+            wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5 - quarried_height * 1.
                 + distance / 100.
         },
         200,
@@ -95,16 +94,24 @@ pub fn plan_quarry(
         return;
     };
 
+    let mut to_mine = params
+        .probed_mining_area()
+        .filter(|c| (*c - params.pos).length() >= 4.)
+        .collect_vec();
+    to_mine.sort_by_key(|c| {
+        FloatOrd(-(c.as_vec2() + params.dir_vec2() * 5. - params.pos.as_vec2()).length())
+    });
+
     // TODO: create quarry now
     commands.spawn((
-        Pos(level.ground(params.pos).as_vec3()),
+        Pos(level.ground(params.pos).as_vec3() + Vec3::Z),
         Planned(
             params
                 .base_area()
                 .chain(params.probed_mining_area())
                 .collect(),
         ),
-        Quarry { params },
+        Quarry { params, to_mine },
     ));
 }
 
@@ -115,48 +122,18 @@ pub fn test_build_quarry(
     new: Query<(Entity, &Quarry), Added<ToBeBuild>>,
 ) {
     for (entity, quarry) in &new {
-        for pos in quarry.params.probed_mining_area() {
-            level.blocked[pos] = true;
-            let pos = level.ground(pos);
-            level(pos, Wool(Red))
-        }
-        for pos in quarry.params.base_area() {
-            let pos = level.ground(pos);
-            level(pos, Wool(Black))
-        }
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
             .insert(ConstructionSite::new(quarry::make_quarry(
                 &mut level,
                 &mut untree,
-                *quarry,
+                quarry,
             )));
     }
 }
 
-pub fn assign_worker(
-    mut commands: Commands,
-    available: Query<(Entity, &Pos), With<Jobless>>,
-    new: Query<(Entity, &Pos), (With<Quarry>, Added<Built>)>,
-) {
-    let assigned = Vec::new();
-    for (workplace, pos) in &new {
-        let Some((worker, _)) = available
-            .iter()
-            .filter(|(e, _)| !assigned.contains(e))
-            .min_by_key(|(_, p)| p.distance_squared(pos.0) as i32)
-        else {
-            return;
-        };
-        commands.entity(worker).remove::<Jobless>().insert(Mason {
-            _workplace: workplace,
-            _ready_to_work: true,
-        });
-    }
-}
-
-pub fn make_quarry(level: &mut Level, untree: &mut Untree, quarry: Quarry) -> ConsList {
+pub fn make_quarry(level: &mut Level, untree: &mut Untree, quarry: &Quarry) -> ConsList {
     let rect = Rect::new_centered(quarry.params.pos, ivec2(7, 7));
     let floor = level.height.average(rect.border()).round() as i32;
 
@@ -182,20 +159,6 @@ pub fn make_quarry(level: &mut Level, untree: &mut Untree, quarry: Quarry) -> Co
         Stonecutter(HAxis::X),
     );
 
-    let mut to_mine = quarry
-        .params
-        .probed_mining_area()
-        .filter(|c| (*c - quarry.params.pos).length() >= 4.)
-        .collect_vec();
-    to_mine.sort_by_key(|c| {
-        (c.as_vec2() + quarry.params.dir_vec2() * 4. - quarry.params.pos.as_vec2()).length() as i32
-    });
-    for (i, &column) in to_mine.iter().enumerate() {
-        level.fill_at(Some(column), floor + 1..floor + 5, Air);
-        let color = Color::from_u8((i as f32 / to_mine.len() as f32 * 15.) as u8).unwrap();
-        level(column.extend(floor), Wool(color));
-    }
-
     level.pop_recording(cursor).map(ConsItem::Set).collect()
 }
 
@@ -203,9 +166,11 @@ pub fn make_stone_piles(
     mut commands: Commands,
     mut level: ResMut<Level>,
     new_quarries: Query<&Pos, (With<Quarry>, Added<Built>)>,
+    mut untree: Untree,
 ) {
     for quarry in &new_quarries {
-        let (pos, params) = StonePile::make(&mut level, quarry.truncate());
+        // TODO: disincentivice stone piles located higher than the quarry
+        let (pos, params) = StonePile::make(&mut level, &mut untree, quarry.truncate());
         commands.spawn((
             Pos(pos),
             params,
@@ -217,7 +182,96 @@ pub fn make_stone_piles(
                 interact_distance: 2,
             },
         ));
+    }
+}
 
-        // TODO: Clear trees here
+pub fn assign_worker(
+    mut commands: Commands,
+    available: Query<(Entity, &Pos), With<Jobless>>,
+    new: Query<(Entity, &Pos), (With<Quarry>, Added<Built>)>,
+) {
+    let assigned = Vec::new();
+    for (workplace, pos) in &new {
+        let mut possible_workers = available
+            .iter()
+            .filter(|(e, _)| !assigned.contains(e))
+            .collect_vec();
+        possible_workers.sort_by_key(|(_, p)| p.distance_squared(pos.0) as i32);
+        for &(worker, _) in possible_workers.iter().take(2) {
+            commands.entity(worker).remove::<Jobless>().insert(Mason {
+                workplace,
+                ready_to_work: true,
+            });
+        }
+    }
+}
+
+pub fn work(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    mut untree: Untree,
+    pos: Query<&Pos>,
+    mut workers: Query<
+        (Entity, &Villager, &mut Mason),
+        (Without<PlaceTask>, Without<DeliverTask>, Without<MoveTask>),
+    >,
+    mut quarries: Query<&mut Quarry>,
+    piles: Query<(Entity, &Pos, &Pile, &StonePile)>,
+) {
+    for (worker, villager, mut mason) in &mut workers {
+        let worker_pos = pos.get(worker).unwrap();
+        if mason.ready_to_work {
+            // Go mining
+            // First move there
+            let mut quarry = quarries.get_mut(mason.workplace).unwrap();
+            let Some(target) = quarry.to_mine.pop() else {
+                commands.entity(worker).remove::<Mason>().insert(Jobless);
+                continue;
+            };
+            let floor = pos.get(mason.workplace).unwrap().block().z;
+            mason.ready_to_work = false;
+
+            let mut place = PlaceTask(default());
+            place.push_back(ConsItem::Goto(MoveTask {
+                goal: target.extend(floor + 1),
+                distance: 2,
+            }));
+
+            // Then mine
+            let cursor = level.recording_cursor();
+            untree.remove_trees(&mut level, Some(target));
+
+            for z in floor + 1..floor + 8 {
+                level(target.extend(z), Air)
+            }
+
+            let rec = level.pop_recording(cursor).collect_vec();
+            let amount = rec
+                .iter()
+                .filter(|set| matches!(set.previous, Full(_)))
+                .count() as f32;
+            place.extend(rec.into_iter().map(ConsItem::Set));
+            place.push_back(ConsItem::Carry(Some(Stack::new(Good::Stone, amount))));
+
+            commands.entity(worker).insert(place);
+        } else if let Some(stack) = villager.carry {
+            // Drop off stone
+            if let Some((to, _, _, _)) = piles
+                .iter()
+                .filter(|(_, _, current, stone_pile)| {
+                    current.get(&Good::Stone).copied().unwrap_or_default() + stack.amount
+                        <= stone_pile.max()
+                })
+                .min_by_key(|(_, pos, _, _)| pos.distance(worker_pos.0) as i32)
+            {
+                commands.entity(worker).insert(DeliverTask { to });
+            }
+        } else {
+            // Return home
+            commands
+                .entity(worker)
+                .insert(MoveTask::new(pos.get(mason.workplace).unwrap().block()));
+            mason.ready_to_work = true;
+        }
     }
 }

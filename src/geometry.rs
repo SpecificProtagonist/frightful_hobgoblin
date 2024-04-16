@@ -683,6 +683,10 @@ impl Cuboid {
             max: self.max.truncate(),
         }
     }
+
+    pub fn volume(self) -> i32 {
+        self.size().x * self.size().y * self.size().z
+    }
 }
 
 pub struct CuboidIter {

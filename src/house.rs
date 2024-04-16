@@ -4,7 +4,6 @@ use roof::roof;
 use self::{
     roof::roof_material,
     sim::{logistics::MoveTask, ConsItem, ConsList},
-    trees::Untree,
 };
 
 pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
