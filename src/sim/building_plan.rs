@@ -4,9 +4,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
-use self::{quarry::Quarry, trees::Tree};
-
-use super::lumberjack::TreeIsNearLumberCamp;
+use self::quarry::Quarry;
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Planned(pub Vec<IVec2>);
@@ -108,66 +106,6 @@ pub fn plan_house(
     ));
 }
 
-pub fn plan_lumberjack(
-    mut commands: Commands,
-    level: Res<Level>,
-    planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
-    trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
-) {
-    if !planned.is_empty() {
-        return;
-    }
-
-    // TODO: Seperate focus and shack position selection
-    let Some(area) = optimize(
-        Rect::new_centered(
-            level.area().center(),
-            ivec2(rand_range(4..=6), rand_range(5..=8)),
-        ),
-        |area, temperature| {
-            let max_move = (60. * temperature) as i32;
-            *area += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
-            if 0.2 > rand() {
-                *area = Rect::new_centered(area.center(), area.size().yx())
-            }
-
-            if !level.unblocked(*area) {
-                return INFINITY;
-            }
-            let center_distance = level.reachability[area.center()].max(150) as f32;
-            let tree_access = trees
-                .iter()
-                .map(|(_, p)| {
-                    -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.))
-                })
-                .sum::<f32>();
-            wateryness(&level, *area) * 20.
-                + unevenness(&level, *area) * 1.
-                + center_distance / 200.
-                + tree_access * 5.
-        },
-        200,
-    ) else {
-        return;
-    };
-
-    for (tree, pos) in &trees {
-        if pos.truncate().distance(area.center_vec2()) < 20. {
-            commands.entity(tree).insert(TreeIsNearLumberCamp);
-        }
-    }
-
-    commands.spawn((Pos(level.ground(area.center()).as_vec3()), LumberjackFocus));
-    commands.spawn((
-        Pos(level.ground(area.center()).as_vec3()),
-        Planned(area.into_iter().collect()),
-        LumberjackShack { area },
-    ));
-}
-
 pub fn upgrade_plaza(
     mut commands: Commands,
     mut level: ResMut<Level>,
@@ -263,25 +201,6 @@ pub fn test_build_house(
                 &mut level,
                 &mut untree,
                 house.area,
-            )));
-    }
-}
-
-// TMP
-pub fn test_build_lumberjack(
-    mut commands: Commands,
-    mut level: ResMut<Level>,
-    mut untree: Untree,
-    new: Query<(Entity, &LumberjackShack), With<ToBeBuild>>,
-) {
-    for (entity, lumberjack) in &new {
-        commands
-            .entity(entity)
-            .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::shack(
-                &mut level,
-                &mut untree,
-                lumberjack.area,
             )));
     }
 }

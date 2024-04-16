@@ -16,6 +16,11 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::Arc;
 
+// TODO: When warping ahead, skip tps except for the last ones
+// to do that, store tps in a seperate list
+// TODO: allow (option when running the generator) to skip the replay of the first n ticks
+// to do that, directly write the commands (skipping tps and setblocks that later get overwritten) to a init function
+
 #[derive(Component, Copy, Clone)]
 pub struct Id(u32);
 

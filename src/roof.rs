@@ -120,6 +120,7 @@ pub fn roof_material(biome: Biome) -> BlockMaterial {
 fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
     use Biome::*;
     // Hip roofs only work on relatively square footprints
+    // TODO: check that they still generate often enough
     // let hip_base = size.min_element() as f32 / size.max_element() as f32;
     let hip_base = (1.0 - (size.max_element() - size.min_element()) / 4.).min(0.);
     let (curve, base_shape): (&[(f32, Curve)], &[(f32, BaseShape)]) = match biome {

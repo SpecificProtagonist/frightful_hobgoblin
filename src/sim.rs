@@ -23,7 +23,7 @@ use crate::{pathfind::pathfind, replay::*};
 use building_plan::*;
 use construction::*;
 use logistics::*;
-use lumberjack::{LumberjackFocus, LumberjackShack};
+use lumberjack::LumberjackShack;
 
 use bevy_derive::{Deref, DerefMut};
 use bevy_ecs::prelude::*;

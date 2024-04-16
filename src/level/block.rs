@@ -18,7 +18,7 @@ pub use BlockMaterial::*;
 pub use Color::*;
 pub use TreeSpecies::*;
 
-// TODO: Waterlogged blocks
+// TODO: Waterlogged blocks (incl kelp/kelp_plant)
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Block {
     #[default]

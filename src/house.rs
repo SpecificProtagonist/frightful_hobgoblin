@@ -83,7 +83,7 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
 
     // Some movement
     for i in 0..rec.len() {
-        if 0.06 > rand() {
+        if 0.03 > rand() {
             rec.insert(
                 i,
                 ConsItem::Goto(MoveTask::new(ivec3(

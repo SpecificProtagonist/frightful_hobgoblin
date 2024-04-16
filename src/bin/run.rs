@@ -12,6 +12,10 @@ struct Config {
     /// seed to use. If not set, a random seed is chosen.
     #[argh(option)]
     seed: Option<u64>,
+    /// modify world instead of generating a replay
+    /// (for debug; blockstates will be incorrect)
+    #[argh(switch)]
+    debug_save: bool,
     /// lower x bound of building area
     #[argh(positional)]
     min_x: i32,
@@ -41,5 +45,5 @@ fn main() {
 
     let level = Level::new(&config.path, &config.path, area);
 
-    sim(level);
+    sim(level, config.debug_save);
 }

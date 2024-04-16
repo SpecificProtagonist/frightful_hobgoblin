@@ -3,6 +3,7 @@ use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
 use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
 use self::{
+    lumberjack::{plan_lumberjack, test_build_lumberjack},
     make_name::make_town_name,
     quarry::{plan_quarry, test_build_quarry},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals},
@@ -11,7 +12,7 @@ use self::{
 
 use super::*;
 
-pub fn sim(mut level: Level) {
+pub fn sim(mut level: Level, debug_save: bool) {
     let mut replay = Replay::new(&level);
     replay.say(
         &format!(
@@ -99,8 +100,11 @@ pub fn sim(mut level: Level) {
     }
 
     let level = world.remove_resource::<Level>().unwrap();
-    // level.debug_save();
-    let replay = world.remove_resource::<Replay>().unwrap();
-    rayon::spawn(move || level.save_metadata());
-    replay.finish();
+    if debug_save {
+        level.debug_save();
+    } else {
+        let replay = world.remove_resource::<Replay>().unwrap();
+        rayon::spawn(move || level.save_metadata());
+        replay.finish();
+    }
 }
