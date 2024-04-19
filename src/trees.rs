@@ -24,11 +24,11 @@ pub enum TreeState {
 pub struct Trees(ColumnMap<Option<Entity>>);
 
 #[derive(Resource, Deref, DerefMut)]
-pub struct TreeNoise(ColumnMap<f32>);
+pub struct TreeNoise(ColumnMap<f32, 2>);
 
 pub fn init_trees(mut commands: Commands, level: Res<Level>) {
-    let mut noise = level.column_map(2, 0.);
-    let mut trees = level.column_map(1, None);
+    let mut noise = level.column_map(0.);
+    let mut trees = level.column_map(None);
 
     // Make some noise!
     for column in noise.cells() {

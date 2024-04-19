@@ -1,5 +1,6 @@
 mod biome;
 mod block;
+mod block_map;
 mod column_map;
 mod index_call;
 
@@ -21,6 +22,8 @@ pub use biome::*;
 pub use block::*;
 pub use column_map::ColumnMap;
 
+use self::block_map::{BlockMap, Section};
+
 #[derive(Resource)]
 pub struct Level {
     pub path: PathBuf,
@@ -28,17 +31,16 @@ pub struct Level {
     /// Both minimum and maximum inclusive
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
-    /// Sections in Z->X->Y order
-    sections: Vec<Option<Box<Section>>>,
+    blocks: BlockMap<Block>,
     /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
-    pub biome: ColumnMap<Biome>,
+    pub biome: ColumnMap<Biome, 4>,
     pub height: ColumnMap<i32>,
     pub water: ColumnMap<Option<i32>>,
     // This might store a Option<Entity> later
     pub blocked: ColumnMap<bool>,
     // Pathfinding cost from center (may not be up to date)
     pub reachability: ColumnMap<u32>,
-    dirty_chunks: Vec<bool>,
+    dirty_chunks: ColumnMap<bool, 16>,
     setblock_recording: Vec<SetBlock>,
 }
 
@@ -63,20 +65,17 @@ impl Level {
         let chunk_min = ChunkIndex::from(area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
         let chunk_max = ChunkIndex::from(area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
 
-        let chunk_count =
-            ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
-
-        let mut sections = vec![None; chunk_count * 24];
-        let mut biome = ColumnMap::new(chunk_min, chunk_max, 4);
-        let mut height = ColumnMap::new(chunk_min, chunk_max, 1);
-        let mut water = ColumnMap::new(chunk_min, chunk_max, 1);
+        let mut blocks = BlockMap::new(chunk_min, chunk_max);
+        let mut biome = ColumnMap::new(chunk_min, chunk_max);
+        let mut height = ColumnMap::new(chunk_min, chunk_max);
+        let mut water = ColumnMap::new(chunk_min, chunk_max);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
             .flat_map(|z| (chunk_min.0..=chunk_max.0).map(move |x| (x, z)))
             .collect_vec()
             .par_iter()
-            .zip(sections.par_chunks_exact_mut(24))
+            .zip(blocks.sections.par_chunks_exact_mut(24))
             .zip(biome.data.par_chunks_exact_mut(4 * 4))
             .zip(height.data.par_chunks_exact_mut(16 * 16))
             .zip(water.data.par_chunks_exact_mut(16 * 16))
@@ -96,13 +95,13 @@ impl Level {
             path: PathBuf::from(write_path),
             chunk_min,
             chunk_max,
-            sections,
+            blocks,
             biome,
             height,
             water,
-            blocked: ColumnMap::new(chunk_min, chunk_max, 1),
-            reachability: ColumnMap::new(chunk_min, chunk_max, 1),
-            dirty_chunks: vec![false; chunk_count],
+            blocked: ColumnMap::new(chunk_min, chunk_max),
+            reachability: ColumnMap::new(chunk_min, chunk_max),
+            dirty_chunks: ColumnMap::new(chunk_min, chunk_max),
             setblock_recording: default(),
         }
     }
@@ -119,18 +118,11 @@ impl Level {
         let chunk_provider = FolderRegionProvider::new(&region_path);
 
         // Saving isn't thread safe
-        for ((index, sections), dirty) in (self.chunk_min.1..=self.chunk_max.1)
+        for (index, sections) in (self.chunk_min.1..=self.chunk_max.1)
             .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
-            .zip(self.sections.chunks_exact(24))
-            .zip(&self.dirty_chunks)
+            .zip(self.blocks.sections.chunks_exact(24))
         {
-            // Don't save outermost chunks, since we don't modify them & leaving out the border simplifies things
-            if dirty
-                & (index.0 > self.chunk_min.0)
-                & (index.0 < self.chunk_max.0)
-                & (index.1 > self.chunk_min.1)
-                & (index.1 < self.chunk_max.1)
-            {
+            if self.dirty_chunks[ChunkIndex::from(index).area().min] {
                 save_chunk(&chunk_provider, index.into(), sections)
             }
         }
@@ -159,11 +151,12 @@ impl Level {
                 .as_millis() as i64,
         );
 
+        data.insert_bool("allowCommands", true);
+
         data.insert_i8("Difficulty", 0);
 
         let gamerules: &mut CompoundTag = data.get_mut("GameRules").unwrap();
         gamerules.insert_str("commandBlockOutput", "false");
-        gamerules.insert_str("gameLoopFunction", "mc-gen:loop");
 
         let mut file = std::fs::OpenOptions::new()
             .write(true)
@@ -172,38 +165,13 @@ impl Level {
         nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
     }
 
-    pub fn column_map<T: Clone>(&self, resolution: i32, default: T) -> ColumnMap<T> {
-        ColumnMap::new_with(self.chunk_min, self.chunk_max, resolution, default)
-    }
-
-    fn chunk_index(&self, chunk: ChunkIndex) -> usize {
-        if (chunk.0 < self.chunk_min.0)
-            | (chunk.0 > self.chunk_max.0)
-            | (chunk.1 < self.chunk_min.1)
-            | (chunk.1 > self.chunk_max.1)
-        {
-            panic!("Out of bounds access to chunk {}, {}", chunk.0, chunk.1);
-        } else {
-            ((chunk.0 - self.chunk_min.0)
-                + (chunk.1 - self.chunk_min.1) * (self.chunk_max.0 - self.chunk_min.0 + 1))
-                as usize
-        }
-    }
-
-    fn section_index(&self, pos: IVec3) -> usize {
-        self.chunk_index(pos.into()) * 24 + (pos.z / 16 + 4) as usize
-    }
-
-    fn block_in_section_index(pos: IVec3) -> usize {
-        (pos.x.rem_euclid(16) + pos.y.rem_euclid(16) * 16 + pos.z.rem_euclid(16) * 16 * 16) as usize
+    pub fn column_map<T: Clone, const RES: i32>(&self, default: T) -> ColumnMap<T, RES> {
+        ColumnMap::new_with(self.chunk_min, self.chunk_max, default)
     }
 
     fn block_mut(&mut self, pos: IVec3) -> &mut Block {
-        let chunk_index = self.chunk_index(pos.into());
-        self.dirty_chunks[chunk_index] = true;
-        let index = self.section_index(pos);
-        let section = self.sections[index].get_or_insert_default();
-        &mut section.blocks[Self::block_in_section_index(pos)]
+        self.dirty_chunks[pos] = true;
+        self.blocks.get_mut(pos)
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -339,7 +307,7 @@ impl<F: FnMut(Block) -> Block> BlockOrFn for F {
 fn load_chunk(
     chunk_provider: &FolderRegionProvider,
     chunk_index: ChunkIndex,
-    sections: &mut [Option<Box<Section>>],
+    sections: &mut [Option<Box<Section<Block>>>],
     biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
@@ -406,7 +374,7 @@ fn load_chunk(
         let palette = block_states.get_compound_tag_vec("palette").unwrap();
         let palette: Vec<Block> = palette.iter().map(|nbt| Block::from_nbt(nbt)).collect();
 
-        sections[(y_index + 4) as usize] = Some(Default::default());
+        sections[(y_index + 4) as usize] = Some(Box::new([Air; 16 * 16 * 16]));
         let section = sections[(y_index + 4) as usize].as_mut().unwrap();
         let Ok(indices) = block_states.get_i64_vec("data") else {
             continue;
@@ -418,7 +386,7 @@ fn load_chunk(
         for i in 0..(16 * 16 * 16) {
             let packed = indices[current_long] as u64;
             let index = packed.shr(current_bit_shift) as usize % (1 << bits_per_index);
-            section.blocks[i] = palette[index];
+            section[i] = palette[index];
 
             current_bit_shift += bits_per_index;
             if current_bit_shift > (64 - bits_per_index) {
@@ -436,7 +404,7 @@ fn load_chunk(
             'column: for section_index in (-4..20).rev() {
                 if let Some(section) = &sections[(section_index + 4i32) as usize] {
                     for y in (0..16).rev() {
-                        let block = &section.blocks[x + z * 16 + y as usize * 16 * 16];
+                        let block = &section[x + z * 16 + y as usize * 16 * 16];
                         let height = section_index * 16 + y;
                         if match block {
                             Block::Log(..) => false,
@@ -463,7 +431,7 @@ fn bits_per_index(palette_len: usize) -> usize {
 fn save_chunk(
     chunk_provider: &FolderRegionProvider,
     index: ChunkIndex,
-    sections: &[Option<Box<Section>>],
+    sections: &[Option<Box<Section<Block>>>],
 ) {
     chunk_provider
         .get_region(RegionPosition::from_chunk_position(index.0, index.1))
@@ -506,17 +474,14 @@ fn save_chunk(
                             let mut palette = HashMap::default();
                             block_states.insert_compound_tag_vec(
                                 "palette",
-                                Some(Air)
-                                    .iter()
-                                    .chain(section.blocks.iter())
-                                    .flat_map(|block| {
-                                        if !palette.contains_key(block) {
-                                            palette.insert(block, palette.len());
-                                            Some(block.to_nbt(&unknown_blocks))
-                                        } else {
-                                            None
-                                        }
-                                    }),
+                                Some(Air).iter().chain(section.iter()).flat_map(|block| {
+                                    if !palette.contains_key(block) {
+                                        palette.insert(block, palette.len());
+                                        Some(block.to_nbt(&unknown_blocks))
+                                    } else {
+                                        None
+                                    }
+                                }),
                             );
 
                             let bits_per_index = bits_per_index(palette.len());
@@ -527,7 +492,7 @@ fn save_chunk(
                             let mut current_long = 0;
                             let mut current_bit_shift = 0;
 
-                            for (i, block) in section.blocks.iter().enumerate() {
+                            for (i, block) in section.iter().enumerate() {
                                 blocks[current_long] |=
                                     (palette[block] << current_bit_shift) as i64;
                                 current_bit_shift += bits_per_index;
@@ -567,20 +532,6 @@ fn save_chunk(
             },
         )
         .unwrap();
-}
-
-#[derive(Clone)]
-pub struct Section {
-    blocks: [Block; 16 * 16 * 16],
-}
-
-impl Default for Section {
-    fn default() -> Self {
-        const AIR: Block = Block::Air;
-        Section {
-            blocks: [AIR; 16 * 16 * 16],
-        }
-    }
 }
 
 #[derive(Copy, Clone, Debug)]

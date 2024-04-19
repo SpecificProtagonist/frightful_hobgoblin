@@ -3,44 +3,33 @@ use std::ops::{Index, IndexMut};
 use crate::*;
 
 // TODO: test with non-po2 resolution
-pub struct ColumnMap<T> {
+pub struct ColumnMap<T, const RES: i32 = 1> {
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
-    resolution: i32,
     pub data: Vec<T>,
 }
 
-impl<T: Default + Clone> ColumnMap<T> {
-    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex, resolution: i32) -> Self {
-        Self::new_with(chunk_min, chunk_max, resolution, default())
+impl<T: Default + Clone, const RES: i32> ColumnMap<T, RES> {
+    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex) -> Self {
+        Self::new_with(chunk_min, chunk_max, default())
     }
 }
 
-impl<T: Clone> ColumnMap<T> {
-    pub fn new_with(
-        chunk_min: ChunkIndex,
-        chunk_max: ChunkIndex,
-        resolution: i32,
-        default: T,
-    ) -> Self {
+impl<T: Clone, const RES: i32> ColumnMap<T, RES> {
+    pub fn new_with(chunk_min: ChunkIndex, chunk_max: ChunkIndex, default: T) -> Self {
         let chunk_count = (chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1);
         Self {
             chunk_min,
             chunk_max,
-            resolution,
-            data: vec![default; (chunk_count * (16 / resolution) * (16 / resolution)) as usize],
+            data: vec![default; (chunk_count * (16 / RES) * (16 / RES)) as usize],
         }
     }
 }
 
-impl<T> ColumnMap<T> {
+impl<T, const RES: i32> ColumnMap<T, RES> {
     fn column_index(&self, column: IVec2) -> usize {
-        self.chunk_index(column.into())
-            * (16 / self.resolution as usize)
-            * (16 / self.resolution as usize)
-            + (column.x.rem_euclid(16) / self.resolution
-                + column.y.rem_euclid(16) / self.resolution * (16 / self.resolution))
-                as usize
+        self.chunk_index(column.into()) * (16 / RES as usize) * (16 / RES as usize)
+            + (column.x.rem_euclid(16) / RES + column.y.rem_euclid(16) / RES * (16 / RES)) as usize
     }
 
     fn chunk_index(&self, chunk: ChunkIndex) -> usize {
@@ -59,19 +48,18 @@ impl<T> ColumnMap<T> {
     }
 
     pub fn cells(&self) -> impl Iterator<Item = IVec2> {
-        let res = self.resolution as usize;
         let (min, max) = (self.chunk_min, self.chunk_max);
         ((min.0 * 16)..=(max.0 * 16 + 15))
-            .step_by(res)
+            .step_by(RES as usize)
             .flat_map(move |x| {
                 ((min.1 * 16)..=(max.1 * 16 + 15))
-                    .step_by(res)
+                    .step_by(RES as usize)
                     .map(move |y| ivec2(x, y))
             })
     }
 }
 
-impl ColumnMap<i32> {
+impl<const RES: i32> ColumnMap<i32, RES> {
     pub fn average(&self, area: impl IntoIterator<Item = IVec2>) -> f32 {
         let mut count = 0;
         let total: f32 = area
@@ -85,7 +73,7 @@ impl ColumnMap<i32> {
     }
 }
 
-impl<T: Copy> Index<IVec2> for ColumnMap<T> {
+impl<T: Copy, const RES: i32> Index<IVec2> for ColumnMap<T, RES> {
     type Output = T;
 
     fn index(&self, index: IVec2) -> &Self::Output {
@@ -93,14 +81,14 @@ impl<T: Copy> Index<IVec2> for ColumnMap<T> {
     }
 }
 
-impl<T: Copy> IndexMut<IVec2> for ColumnMap<T> {
+impl<T: Copy, const RES: i32> IndexMut<IVec2> for ColumnMap<T, RES> {
     fn index_mut(&mut self, index: IVec2) -> &mut Self::Output {
         let index = self.column_index(index);
         &mut self.data[index]
     }
 }
 
-impl<T: Copy> Index<IVec3> for ColumnMap<T> {
+impl<T: Copy, const RES: i32> Index<IVec3> for ColumnMap<T, RES> {
     type Output = T;
 
     fn index(&self, index: IVec3) -> &Self::Output {
@@ -108,14 +96,14 @@ impl<T: Copy> Index<IVec3> for ColumnMap<T> {
     }
 }
 
-impl<T: Copy> IndexMut<IVec3> for ColumnMap<T> {
+impl<T: Copy, const RES: i32> IndexMut<IVec3> for ColumnMap<T, RES> {
     fn index_mut(&mut self, index: IVec3) -> &mut Self::Output {
         let index = self.column_index(index.truncate());
         &mut self.data[index]
     }
 }
 
-impl<I, T> FnOnce<(I, T)> for ColumnMap<T>
+impl<I, T, const RES: i32> FnOnce<(I, T)> for ColumnMap<T, RES>
 where
     I: IntoIterator<Item = IVec2>,
     T: Copy,
@@ -127,7 +115,7 @@ where
     }
 }
 
-impl<I, T> FnMut<(I, T)> for ColumnMap<T>
+impl<I, T, const RES: i32> FnMut<(I, T)> for ColumnMap<T, RES>
 where
     I: IntoIterator<Item = IVec2>,
     T: Copy,

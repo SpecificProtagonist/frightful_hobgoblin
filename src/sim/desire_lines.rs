@@ -7,7 +7,7 @@ pub struct DesireLines(ColumnMap<i32>);
 
 impl FromWorld for DesireLines {
     fn from_world(world: &mut World) -> Self {
-        Self(world.resource::<Level>().column_map(1, 0))
+        Self(world.resource::<Level>().column_map(0))
     }
 }
 
@@ -74,16 +74,20 @@ pub fn desire_lines(
                 Dirt | CoarseDirt if (wear > 17) & (level(pos + IVec3::Z) == Air) => {
                     level(pos, Path)
                 }
-                Path if wear > 24 => level(
-                    pos,
-                    |b: Block| if b.solid() { Gravel } else { Full(Cobble) },
-                ),
+                Path if wear > 24 => {
+                    if level(pos - IVec3::Z).solid() {
+                        level(pos, Gravel)
+                    } else {
+                        level(pos, Full(Cobble))
+                    }
+                }
                 Sand if wear > 17 => level(pos, PackedMud),
                 SnowBlock if (wear > 9) & (0.3 < rand()) => {
-                    level(
-                        pos,
-                        |b: Block| if b.solid() { Gravel } else { Full(Cobble) },
-                    )
+                    if level(pos - IVec3::Z).solid() {
+                        level(pos, Gravel)
+                    } else {
+                        level(pos, Full(Cobble))
+                    }
                 }
                 _ => (),
             }

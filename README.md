@@ -1,4 +1,4 @@
-# WIP!
+# e24u
 
 WIP entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
 
@@ -23,12 +23,12 @@ To run the generator, install [Rust](https://rust-lang.org), switch to the night
 Open the world in Minecraft. Each replay only runs while you're in the build area, letting you visit multiple settlements in turn. You can speed up the replay with the following command:
 
 ```mcfunction
-/scoreboard players set sim speed <speed>
+scoreboard players set sim speed <speed>
 ```
 Or skip ahead a number of ticks (each tick is 0.05s):
 
 ```mcfunction
-/scoreboard players set sim warp <ticks_to_warp>
+scoreboard players set sim warp <ticks_to_warp>
 ```
 
 Replace `<speed>` and `<ticks_to_warp>` with positive integers. Warping ahead too far at once can cause glitches in the form of missing blocks.

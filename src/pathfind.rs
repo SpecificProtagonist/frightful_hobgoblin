@@ -170,8 +170,8 @@ pub fn reachability_2d_from(level: &Level, start: IVec2) -> ColumnMap<u32> {
     let area = level.area().shrink(2);
     let mut path = HashMap::<IVec3, (IVec3, bool)>::default();
     // Merging this into path would be more perfomant
-    let mut reachability = level.column_map(1, u32::MAX);
-    let mut reach_z = level.column_map(1, i32::MIN);
+    let mut reachability = level.column_map(u32::MAX);
+    let mut reach_z = level.column_map::<_, 1>(i32::MIN);
     let mut queue = BinaryHeap::new();
     queue.push(Node {
         pos: level.ground(start) + IVec3::Z,

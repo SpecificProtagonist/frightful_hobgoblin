@@ -20,15 +20,7 @@ impl FnMut<(IVec3,)> for Level {
 
 impl Fn<(IVec3,)> for Level {
     extern "rust-call" fn call(&self, (pos,): (IVec3,)) -> Self::Output {
-        let section_index = self.section_index(pos);
-        match &self.sections.get(section_index) {
-            Some(Some(section)) => section.blocks[Self::block_in_section_index(pos)],
-            Some(None) => Air,
-            None => {
-                eprintln!("Out of bounds access at {pos}");
-                Barrier
-            }
-        }
+        (self.blocks)(pos)
     }
 }
 
