@@ -6,6 +6,7 @@ use self::{
     lumberjack::{plan_lumberjack, test_build_lumberjack},
     make_name::make_town_name,
     quarry::{plan_quarry, test_build_quarry},
+    stall::{init_stalls, plan_stalls},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals},
     trees::{init_trees, spawn_trees},
 };
@@ -45,6 +46,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     world.run_system_once(init_trees);
     world.run_system_once(starting_resources);
+    world.run_system_once(init_stalls);
 
     let mut sched = Schedule::default();
     // Because the systems are extremely lightweight, running them on a single thread
@@ -76,7 +78,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
                 update_stone_pile_visuals,
                 quarry::work,
             ),
-            (plan_house, plan_lumberjack, plan_quarry),
+            (plan_house, plan_lumberjack, plan_quarry, plan_stalls),
             assign_builds,
             new_construction_site,
             (

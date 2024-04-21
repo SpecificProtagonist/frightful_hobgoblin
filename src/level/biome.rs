@@ -72,31 +72,12 @@ impl Biome {
     }
 
     pub fn random_tree_species(self) -> TreeSpecies {
-        match self {
-            // Mountains => { if rand(0.6) { Oak } else { Spruce } }
-            DarkForest => {
-                if 0.25 > rand() {
-                    TreeSpecies::Oak
-                } else {
-                    TreeSpecies::DarkOak
-                }
-            }
-            Plain => {
-                if 0.15 > rand() {
-                    TreeSpecies::Birch
-                } else {
-                    TreeSpecies::Oak
-                }
-            }
-            BirchForest => {
-                if 0.15 > rand() {
-                    TreeSpecies::Oak
-                } else {
-                    TreeSpecies::Birch
-                }
-            }
-            other => other.default_tree_species(),
-        }
+        rand_weighted(match self {
+            DarkForest => &[(1., DarkOak), (0.3, Oak)],
+            Plain => &[(1., Oak), (0.15, Birch), (0.1, Cherry)],
+            BirchForest => &[(1., Birch), (0.15, Oak)],
+            _ => return self.default_tree_species(),
+        })
     }
 
     pub fn default_topsoil(self) -> Block {
@@ -114,7 +95,7 @@ impl Biome {
             Savanna => "minecraft:savanna",
             Jungles => "minecraft:jungle",
             Desert => "minecraft:desert",
-            Taiga => "minecraft:taige",
+            Taiga => "minecraft:taiga",
             Snowy => "minecraft:snow",
             _ => "minecraft:plains",
         }

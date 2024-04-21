@@ -18,7 +18,7 @@ pub use BlockMaterial::*;
 pub use Color::*;
 pub use TreeSpecies::*;
 
-// TODO: Waterlogged blocks (incl kelp/kelp_plant)
+// TODO: Waterlogged blocks (incl kelp/kelp_plant); piglin head
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Block {
     #[default]
@@ -47,6 +47,7 @@ pub enum Block {
     TallPlant(TallPlant, Half),
     GroundPlant(GroundPlant),
     Wool(Color),
+    Carpet(Color),
     Terracotta(Option<Color>),
     MushroomStem,
     MangroveRoots,
@@ -488,6 +489,7 @@ impl Block {
                 vec![("facing".into(), dir.to_str().into())],
             ),
             Wool(color) => format!("{}_wool", color).into(),
+            Carpet(color) => format!("{}_carpet", color).into(),
             Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
             Terracotta(None) => "terracotta".into(),
             MushroomStem => "mushroom_stem".into(),
@@ -872,6 +874,54 @@ impl Block {
                 "green_terracotta" => Terracotta(Some(Green)),
                 "red_terracotta" => Terracotta(Some(Red)),
                 "black_terracotta" => Terracotta(Some(Black)),
+                "white_wool" => Wool(White),
+                "orange_wool" => Wool(Orange),
+                "magenta_wool" => Wool(Magenta),
+                "light_blue_wool" => Wool(LightBlue),
+                "yellow_wool" => Wool(Yellow),
+                "lime_wool" => Wool(Lime),
+                "pink_wool" => Wool(Pink),
+                "gray_wool" => Wool(Gray),
+                "light_gray_wool" => Wool(LightGray),
+                "cyan_wool" => Wool(Cyan),
+                "purple_wool" => Wool(Purple),
+                "blue_wool" => Wool(Blue),
+                "brown_wool" => Wool(Brown),
+                "green_wool" => Wool(Green),
+                "red_wool" => Wool(Red),
+                "black_wool" => Wool(Black),
+                "white_carpet" => Carpet(White),
+                "orange_carpet" => Carpet(Orange),
+                "magenta_carpet" => Carpet(Magenta),
+                "light_blue_carpet" => Carpet(LightBlue),
+                "yellow_carpet" => Carpet(Yellow),
+                "lime_carpet" => Carpet(Lime),
+                "pink_carpet" => Carpet(Pink),
+                "gray_carpet" => Carpet(Gray),
+                "light_gray_carpet" => Carpet(LightGray),
+                "cyan_carpet" => Carpet(Cyan),
+                "purple_carpet" => Carpet(Purple),
+                "blue_carpet" => Carpet(Blue),
+                "brown_carpet" => Carpet(Brown),
+                "green_carpet" => Carpet(Green),
+                "red_carpet" => Carpet(Red),
+                "black_carpet" => Carpet(Black),
+                "white_wall_banner" => wall_banner(White, props),
+                "orange_wall_banner" => wall_banner(Orange, props),
+                "magenta_wall_banner" => wall_banner(Magenta, props),
+                "light_blue_wall_banner" => wall_banner(LightBlue, props),
+                "yellow_wall_banner" => wall_banner(Yellow, props),
+                "lime_wall_banner" => wall_banner(Lime, props),
+                "pink_wall_banner" => wall_banner(Pink, props),
+                "gray_wall_banner" => wall_banner(Gray, props),
+                "light_gray_wall_banner" => wall_banner(LightGray, props),
+                "cyan_wall_banner" => wall_banner(Cyan, props),
+                "purple_wall_banner" => wall_banner(Purple, props),
+                "blue_wall_banner" => wall_banner(Blue, props),
+                "brown_wall_banner" => wall_banner(Brown, props),
+                "green_wall_banner" => wall_banner(Green, props),
+                "red_wall_banner" => wall_banner(Red, props),
+                "black_wall_banner" => wall_banner(Black, props),
                 "cauldron" => Cauldron {
                     water: props.get_str("level").unwrap_or("0").parse().unwrap(),
                 },
@@ -889,11 +939,6 @@ impl Block {
                         _ => BellAttachment::DoubleWall,
                     },
                 ),
-                "red_wall_banner" => wall_banner(Red, props),
-                "white_wall_banner" => wall_banner(Red, props),
-                "blue_wall_banner" => wall_banner(Red, props),
-                "green_wall_banner" => wall_banner(Red, props),
-                "yellow_wall_banner" => wall_banner(Red, props),
                 "ladder" => Ladder(HDir::from_str(props.get_str("facing").unwrap()).unwrap()),
                 _ => return None,
             })
@@ -1028,6 +1073,17 @@ impl Block {
         }
     }
 
+    pub fn flipped(self, x: bool, y: bool) -> Self {
+        match self {
+            Stair(material, facing, flipped) => Stair(material, facing.flipped(x, y), flipped),
+            WallBanner(facing, color) => WallBanner(facing.flipped(x, y), color),
+            Repeater(dir, delay) => Repeater(dir.flipped(x, y), delay),
+            Trapdoor(species, dir, meta) => Trapdoor(species, dir.flipped(x, y), meta),
+            Door(species, dir, meta) => Door(species, dir.flipped(x, y), meta),
+            _ => self,
+        }
+    }
+
     pub fn swap_wood_type(self, species: TreeSpecies) -> Self {
         match self {
             Full(Wood(Oak)) => Full(Wood(species)),
@@ -1038,6 +1094,15 @@ impl Block {
             Leaves(Oak, dist) => Leaves(species, dist),
             Trapdoor(Oak, dir, meta) => Trapdoor(species, dir, meta),
             Door(Oak, dir, meta) => Door(species, dir, meta),
+            _ => self,
+        }
+    }
+
+    pub fn swap_wool_color(self, map: impl Fn(Color) -> Color) -> Self {
+        match self {
+            Wool(c) => Wool(map(c)),
+            Carpet(c) => Carpet(map(c)),
+            WallBanner(dir, c) => WallBanner(dir, map(c)),
             _ => self,
         }
     }

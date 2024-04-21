@@ -10,9 +10,14 @@ use nbt::{decode::read_gzip_compound_tag, CompoundTag, Tag};
 
 use crate::*;
 
+/// e.g. summon armor_stand 142.5 -57 -20.5 {NoGravity:1,Tags:["zneg"]}
 #[allow(dead_code)]
 #[derive(Clone, Debug)]
-pub struct TemplateMark(IVec3, Option<HDir>, Vec<String>);
+pub struct TemplateMark {
+    pos: IVec3,
+    dir: Option<HDir>,
+    tags: Vec<String>,
+}
 
 // Hand-build structure, stored via structure blocks
 #[derive(Clone)]
@@ -23,18 +28,38 @@ pub struct Prefab {
 }
 
 impl Prefab {
-    pub fn build(&self, level: &mut Level, pos: IVec3, facing: HDir, wood: TreeSpecies) {
-        let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
-        for (offset, block) in self.blocks.iter() {
+    /// Flip is applied after rotation
+    pub fn build(
+        &self,
+        level: &mut Level,
+        pos: IVec3,
+        facing: HDir,
+        flip_x: bool,
+        flip_y: bool,
+        wood: TreeSpecies,
+        wool: impl Fn(Color) -> Color,
+    ) {
+        let rotation = self.markers["origin"].dir.unwrap().difference(facing);
+        for (mut offset, block) in self.blocks.iter() {
+            if flip_x {
+                offset.x *= -1
+            }
+            if flip_y {
+                offset.y *= -1
+            }
             level(
                 pos + offset.rotated(rotation),
-                block.rotated(rotation).swap_wood_type(wood),
+                block
+                    .rotated(rotation)
+                    .flipped(flip_x, flip_y)
+                    .swap_wood_type(wood)
+                    .swap_wool_color(&wool),
             );
         }
     }
 
     pub fn build_clipped(&self, level: &mut Level, pos: IVec3, facing: HDir, area: Rect) {
-        let rotation = facing as i32 + 4 - self.markers["origin"].1.unwrap() as i32;
+        let rotation = facing as i32 + 4 - self.markers["origin"].dir.unwrap() as i32;
         for (offset, block) in self.blocks.iter() {
             let pos = pos + offset.rotated(rotation);
             if area.contains(pos.truncate()) {
@@ -44,6 +69,12 @@ impl Prefab {
     }
 
     // TODO: palette swap
+}
+
+pub fn prefab(name: &str) -> &'static Prefab {
+    PREFABS
+        .get(name)
+        .unwrap_or_else(|| panic!("Missing prefab: {name}"))
 }
 
 pub static PREFABS: LazyLock<HashMap<String, Prefab>> = LazyLock::new(|| {
@@ -81,7 +112,7 @@ fn load_folder(map: &mut HashMap<String, Prefab>, folder: PathBuf, path: &str) {
 /// Can also panic, but eh, won't happen when the user is executing the program
 /// Oh, and of course CompountTagError holds a reference to the original tag
 /// so I can't just use anyhow (TODO: PR)
-fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
+fn load_from_nbt(nbt: &CompoundTag, prefab_name: &str) -> Prefab {
     #[allow(clippy::ptr_arg)]
     fn read_pos(nbt: &Vec<Tag>) -> IVec3 {
         match [&nbt[0], &nbt[1], &nbt[2]] {
@@ -93,7 +124,8 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
     let size = read_pos(nbt.get("size").unwrap());
 
     // Look for markers such as the origin
-    let markers: HashMap<_, _> = nbt
+    let mut markers = HashMap::<_, _>::default();
+    for (name, marker) in nbt
         .get_compound_tag_vec("entities")
         .unwrap()
         .iter()
@@ -107,13 +139,13 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
                     .iter()
                     .map(|tag| (*tag).to_owned())
                     .collect();
-                // For some reason, CustomName doesn't work anymore?
+                // CustomName needs json text now, so tags are easier
                 let name = tags
                     .iter()
-                    .find(|tag| tag.starts_with("name:"))
-                    .expect("Unnamed marker")
-                    .strip_prefix("name:")
-                    .unwrap()
+                    .filter_map(|tag| tag.strip_prefix("name:"))
+                    .next()
+                    // usually origin is all we need, so allow it to be anonymous
+                    .unwrap_or("origin")
                     .to_owned();
 
                 let dir = if tags.contains(&String::from("xpos")) {
@@ -127,17 +159,22 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
                 } else {
                     None
                 };
-                Some((name, TemplateMark(pos, dir, tags)))
+                Some((name, TemplateMark { pos, dir, tags }))
             } else {
                 None
             }
         })
-        .collect();
+    {
+        if markers.insert(name.clone(), marker).is_some() {
+            panic!("{prefab_name}: duplicate marker: {name}");
+        }
+    }
 
-    let origin = markers
-        .get("origin")
-        .unwrap_or_else(|| panic!("Failed to load prefab {}: No origin set", name))
-        .0;
+    let origin = if let Some(marker) = markers.get("origin") {
+        marker.pos
+    } else {
+        (size + IVec3::ONE) / 2
+    };
 
     let palette: Vec<Block> = nbt
         .get_compound_tag_vec("palette")
@@ -151,7 +188,6 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
     // }
 
     let mut blocks = VecDeque::new();
-    let mut air = VecDeque::new();
 
     for nbt in nbt
         .get_compound_tag_vec("blocks")
@@ -161,16 +197,8 @@ fn load_from_nbt(nbt: &CompoundTag, name: &str) -> Prefab {
     {
         let pos = read_pos(nbt.get("pos").unwrap());
         let block = palette[nbt.get_i32("state").unwrap() as usize];
-        // TODO: nbt data
-        if block == Air {
-            // Clear out the area first (from top to bottom)
-            air.push_front((pos - origin, Air));
-        } else {
-            // Then do the building (from bottom to top)
-            blocks.push_back((pos - origin, block));
-        }
+        blocks.push_front((pos - origin, block));
     }
-    blocks.extend(air);
 
     Prefab {
         _size: size,

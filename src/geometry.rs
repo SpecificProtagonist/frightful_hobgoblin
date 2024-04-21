@@ -21,6 +21,14 @@ pub struct Rect {
 }
 
 impl Rect {
+    /// Corners don't need to be min/max ones
+    pub fn new(corner_a: IVec2, corner_b: IVec2) -> Rect {
+        Self {
+            min: corner_a.min(corner_b),
+            max: corner_a.max(corner_b),
+        }
+    }
+
     pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
         Rect {
             min: center - size / 2,
@@ -269,6 +277,20 @@ impl HDir {
         }
     }
 
+    pub fn flipped(self, x: bool, y: bool) -> Self {
+        match (self, x, y) {
+            (XNeg, true, _) => XPos,
+            (XPos, true, _) => XNeg,
+            (YNeg, _, true) => YPos,
+            (YPos, _, true) => YNeg,
+            _ => self,
+        }
+    }
+
+    pub fn difference(self, to: Self) -> i32 {
+        (to as i32 - self as i32).rem_euclid(4)
+    }
+
     pub fn to_str(self) -> &'static str {
         match self {
             YNeg => "north",
@@ -320,6 +342,8 @@ pub trait IVec2Ext {
     fn counterclockwise(self) -> Self;
     fn length(self) -> f32;
     fn touch_face(self, other: Self) -> bool;
+    fn rotated(self, steps: i32) -> Self;
+    // fn rotated(self, steps: i32) -> Self;
 }
 
 impl IVec2Ext for IVec2 {
@@ -339,11 +363,21 @@ impl IVec2Ext for IVec2 {
         let diff = (self - other).abs();
         (diff == IVec2::X) | (diff == IVec2::Y)
     }
+
+    /// Clockwise, 90° steps
+    fn rotated(self, steps: i32) -> Self {
+        match steps.rem_euclid(4) {
+            1 => ivec2(-self.y, self.x),
+            2 => ivec2(-self.x, -self.y),
+            3 => ivec2(self.y, -self.x),
+            _ => self,
+        }
+    }
 }
 
 pub trait IVec3Ext {
     fn rotated(self, steps: i32) -> Self;
-    fn mirrord(self, axis: Axis) -> Self;
+    fn mirrored(self, axis: Axis) -> Self;
     fn add(self, offset: impl Into<IVec2>) -> Self;
 }
 
@@ -358,7 +392,7 @@ impl IVec3Ext for IVec3 {
         }
     }
 
-    fn mirrord(self, axis: Axis) -> Self {
+    fn mirrored(self, axis: Axis) -> Self {
         match axis {
             Axis::X => ivec3(-self.x, self.y, self.z),
             Axis::Y => ivec3(self.x, -self.y, self.z),

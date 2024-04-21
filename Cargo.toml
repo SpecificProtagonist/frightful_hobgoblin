@@ -32,7 +32,8 @@ bevy_derive = "0.13"
 bevy_utils = "0.13"
 bitflags = "2"
 enum-iterator = "2"
-nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs.git" }
+# git points to pull request that fixes off-by-one error
+nanorand = {version = "0.8", git = "https://github.com/StT191/nanorand-rs.git" }
 flate2 = "1"
 argh = "0.1"
 float-ord = "0.3.2"

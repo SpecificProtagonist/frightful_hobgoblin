@@ -20,6 +20,7 @@ pub mod remove_foliage;
 pub mod replay;
 pub mod roof;
 pub mod sim;
+pub mod stall;
 pub mod test_house;
 pub mod trees;
 // pub mod terraform;

@@ -2,7 +2,7 @@
 #![allow(clippy::too_many_arguments)]
 
 pub mod building_plan;
-mod construction;
+pub mod construction;
 mod desire_lines;
 pub mod logistics;
 pub mod lumberjack;
@@ -26,7 +26,7 @@ use logistics::*;
 use lumberjack::LumberjackShack;
 
 use bevy_derive::{Deref, DerefMut};
-use bevy_ecs::prelude::*;
+pub use bevy_ecs::prelude::*;
 use bevy_math::Vec2Swizzles;
 
 use self::storage_pile::{LumberPile, StonePile};
@@ -259,15 +259,17 @@ fn starting_resources(
 
 fn spawn_villagers(
     mut commands: Commands,
+    level: Res<Level>,
     tick: Res<Tick>,
     city_center: Query<&Pos, With<CityCenter>>,
 ) {
-    if tick.0 < 25 {
+    if (tick.0 < 25 * 4) & (tick.0 % 4 == 0) {
+        let column = city_center.single().truncate() + vec2(rand_f32(-3., 3.), rand_f32(-3., 3.));
         commands.spawn((
             Id::default(),
             Villager::default(),
             Jobless,
-            Pos(city_center.single().0 + vec3(rand_f32(-8., 8.), rand_f32(-8., 8.), 1.)),
+            Pos(level.ground(column.block()).as_vec3() + Vec3::Z),
             PrevPos(default()),
         ));
     }

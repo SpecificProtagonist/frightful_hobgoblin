@@ -17,7 +17,7 @@ where
     Number: nanorand::RandomRange<WyRand, 8>,
     Bounds: std::ops::RangeBounds<Number>,
 {
-    let mut rng = RNG.replace(WyRand::new_seed(0));
+    let mut rng = RNG.replace(default());
     let value = Number::random_range(&mut rng, range);
     RNG.set(rng);
     value
