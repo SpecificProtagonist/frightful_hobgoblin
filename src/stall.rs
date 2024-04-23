@@ -3,7 +3,6 @@ use itertools::Itertools;
 use sim::*;
 
 use crate::{
-    prefab::prefab,
     sim::building_plan::{House, Planned},
     sim::CityCenter,
 };
@@ -64,8 +63,19 @@ fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
         |b: Block| if b.soil() | !b.solid() { PackedMud } else { b },
     );
 
-    let stall = prefab(&format!("stall_{}", rand_range(0..=1)));
+    use Biome::*;
+    let cloth_chance = match level.biome[pos] {
+        Beach | Ocean | Desert => 1.,
+        Snowy | Taiga | Forest | BirchForest | Jungles | DarkForest | CherryGrove => 0.2,
+        _ => 0.6,
+    };
+    let stall = prefab(if cloth_chance > rand() {
+        "stall_0"
+    } else {
+        "stall_1"
+    });
     let wares = prefab(&format!("stall_wares_{}", rand_range(0..=5)));
+
     let pos = level.ground(pos) + IVec3::Z;
     let biome = level.biome[pos];
     stall.build(
@@ -94,8 +104,8 @@ fn replace_wool_colors() -> impl Fn(Color) -> Color {
         LightGray, Gray, Orange, Red, Yellow, Purple, Green, Brown, LightBlue, Cyan,
     ];
     let mut replace = [White; 16];
-    for i in 0..16 {
-        replace[i] = *available.choose()
+    for color in &mut replace {
+        *color = *available.choose()
     }
     move |c| replace[c as usize]
 }

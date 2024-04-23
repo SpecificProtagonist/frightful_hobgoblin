@@ -1,7 +1,7 @@
 use argh::FromArgs;
 use config::*;
-use mc_gen::sim::sim;
-use mc_gen::*;
+use e24u::sim::sim;
+use e24u::*;
 use nanorand::*;
 
 /// The config isn't commited to git because it just contains the paths to the world folders

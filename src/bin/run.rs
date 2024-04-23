@@ -1,6 +1,6 @@
 use argh::FromArgs;
-use mc_gen::sim::sim;
-use mc_gen::*;
+use e24u::sim::sim;
+use e24u::*;
 use nanorand::*;
 
 #[derive(FromArgs)]
@@ -9,6 +9,9 @@ struct Config {
     /// path to the world
     #[argh(positional)]
     path: String,
+    /// path to save the world to, defaults to <path>
+    #[argh(option)]
+    out_path: Option<String>,
     /// seed to use. If not set, a random seed is chosen.
     #[argh(option)]
     seed: Option<u64>,
@@ -43,7 +46,11 @@ fn main() {
         ivec2(config.max_x, config.max_y),
     );
 
-    let level = Level::new(&config.path, &config.path, area);
+    let level = Level::new(
+        &config.path,
+        config.out_path.as_ref().unwrap_or(&config.path),
+        area,
+    );
 
     sim(level, config.debug_save);
 }

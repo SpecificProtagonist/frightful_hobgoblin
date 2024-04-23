@@ -1,4 +1,4 @@
-use std::f32::{consts::PI, INFINITY};
+use std::{convert::identity, f32::consts::PI};
 
 use crate::*;
 use bevy_utils::FloatOrd;
@@ -36,7 +36,7 @@ impl Params {
 
 #[derive(Component, PartialEq)]
 pub struct Quarry {
-    params: Params,
+    dir: f32,
     // Reverse order
     to_mine: Vec<IVec2>,
 }
@@ -71,7 +71,7 @@ pub fn plan_quarry(
 
             if !level.unblocked(params.base_area()) || !level.unblocked(params.probed_mining_area())
             {
-                return INFINITY;
+                return f32::INFINITY;
             }
             let mut distance = level.reachability[params.pos] as f32 - 650.;
             // Penalize quarries near city center
@@ -96,7 +96,7 @@ pub fn plan_quarry(
             let avg_stone = stone as f32 / columns as f32;
 
             if avg_stone < 5. {
-                return INFINITY;
+                return f32::INFINITY;
             }
             let area = Rect::new_centered(params.pos, IVec2::splat(7));
             wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5 - avg_stone * 1.
@@ -116,15 +116,21 @@ pub fn plan_quarry(
     });
     to_mine.drain(..(to_mine.len() as f32 * 0.35) as usize);
 
+    let rect = Rect::new_centered(params.pos, ivec2(7, 7));
+    let floor = level.height.average(rect.border()).round() as i32;
+
     commands.spawn((
-        Pos(level.ground(params.pos).as_vec3() + Vec3::Z),
+        Pos(params.pos.extend(floor + 1).as_vec3()),
         Planned(
             params
                 .base_area()
                 .chain(params.probed_mining_area())
                 .collect(),
         ),
-        Quarry { params, to_mine },
+        Quarry {
+            dir: params.dir,
+            to_mine,
+        },
     ));
 }
 
@@ -132,44 +138,46 @@ pub fn test_build_quarry(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,
-    new: Query<(Entity, &Quarry), Added<ToBeBuild>>,
+    new: Query<(Entity, &Pos, &Quarry), Added<ToBeBuild>>,
 ) {
-    for (entity, quarry) in &new {
+    for (entity, pos, quarry) in &new {
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
             .insert(ConstructionSite::new(quarry::make_quarry(
                 &mut level,
                 &mut untree,
-                quarry,
+                pos.block(),
+                quarry.dir,
             )));
     }
 }
 
-pub fn make_quarry(level: &mut Level, untree: &mut Untree, quarry: &Quarry) -> ConsList {
-    let rect = Rect::new_centered(quarry.params.pos, ivec2(7, 7));
-    let floor = level.height.average(rect.border()).round() as i32;
-
+fn make_quarry(level: &mut Level, untree: &mut Untree, pos: IVec3, dir: f32) -> ConsList {
     let cursor = level.recording_cursor();
-    untree.remove_trees(level, rect.grow(1));
-    for column in quarry.params.base_area() {
-        let mut pos = level.ground(column);
-        if pos.z < floor {
-            level.fill_at(Some(column), pos.z..floor, PackedMud)
-        }
-        pos.z = pos.z.min(floor);
-        level.height[column] = pos.z;
-        level(pos, PackedMud)
-    }
-    level.fill_at(quarry.params.base_area(), floor + 1..floor + 5, Air);
+    untree.remove_trees(level, Rect::new_centered(pos.truncate(), ivec2(9, 9)));
 
-    level(
-        quarry.params.pos.extend(floor) + ivec3(rand_range(-2..=2), rand_range(-2..=2), 1),
-        CraftingTable,
-    );
-    level(
-        quarry.params.pos.extend(floor) + ivec3(rand_range(-2..=2), rand_range(-2..=2), 1),
-        Stonecutter(HAxis::X),
+    let params = Params {
+        pos: pos.truncate(),
+        dir,
+    };
+    for column in params.base_area() {
+        let base = level.height[column].min(pos.z - 1);
+        level.fill_at(Some(column), base..pos.z, PackedMud);
+        level.height[column] = pos.z - 1;
+        level.fill_at(Some(column), pos.z..pos.z + 8, Air);
+    }
+
+    prefab("crane").build(
+        level,
+        pos + (params.dir_vec2() * -1.6 * rand::<f32>())
+            .as_ivec2()
+            .extend(0),
+        *[YNeg, YPos, XNeg, XPos].choose(),
+        0.5 > rand(),
+        0.5 > rand(),
+        level.biome[pos].random_tree_species(),
+        identity,
     );
 
     level.pop_recording(cursor).map(ConsItem::Set).collect()
@@ -256,8 +264,16 @@ pub fn work(
             let cursor = level.recording_cursor();
             untree.remove_trees(&mut level, Some(target));
 
-            for z in floor + 1..floor + 8 {
+            const CEILING: i32 = 8;
+            for z in floor..floor + CEILING {
                 level(target.extend(z), Air)
+            }
+            for z in floor + CEILING.. {
+                if level(target.extend(z)).soil() {
+                    level(target.extend(z), Air)
+                } else {
+                    break;
+                }
             }
 
             let rec = level.pop_recording(cursor).collect_vec();

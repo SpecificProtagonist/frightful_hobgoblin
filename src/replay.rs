@@ -134,6 +134,7 @@ impl Replay {
         replay
     }
 
+    #[allow(unused_variables)]
     pub fn dbg(&mut self, msg: &str) {
         #[cfg(debug_assertions)]
         println!("{msg}");
@@ -243,7 +244,7 @@ impl Replay {
             let mut uncompressed = Vec::new();
             write_compound_tag(&mut uncompressed, &nbt).unwrap();
             GzEncoder::new(&mut file, Compression::new(1))
-                .write_all(&mut uncompressed)
+                .write_all(&uncompressed)
                 .unwrap();
 
             arc.fetch_sub(1, Ordering::Relaxed);

@@ -402,12 +402,11 @@ impl GrowTree {
                         level(pos, |b| b | Fence(Wood(params.species)));
                         prev_pos = pos;
                     }
-                } else {
-                    if ((branch.thickness > 0.6) & (diff != IVec3::ZERO)) | (diff.max_element() > 1)
-                    {
-                        level(pos, Log(params.species, LogType::FullBark));
-                        prev_pos = pos;
-                    }
+                } else if ((branch.thickness > 0.6) & (diff != IVec3::ZERO))
+                    | (diff.max_element() > 1)
+                {
+                    level(pos, Log(params.species, LogType::FullBark));
+                    prev_pos = pos;
                 }
             }
             level(

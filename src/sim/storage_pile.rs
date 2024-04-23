@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use super::*;
 
 #[derive(Component, Eq, PartialEq, Copy, Clone)]
@@ -58,14 +56,14 @@ impl LumberPile {
                 }
                 let area = area(*pos, *params);
 
-                if !level.unblocked(area) | (wateryness(&level, area) > 0.) {
-                    return INFINITY;
+                if !level.unblocked(area) | (wateryness(level, area) > 0.) {
+                    return f32::INFINITY;
                 }
                 let center_distance = target_2.distance(pos.as_vec2()) / 70.;
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = target.distance(pos.as_vec2()) / 20.;
                 let size_bonus = (params.width + params.length) as f32 * 4.;
-                center_distance + worker_distance + unevenness(&level, area) * 1. - size_bonus
+                center_distance + worker_distance + unevenness(level, area) * 1. - size_bonus
             },
             100,
         )
@@ -181,13 +179,13 @@ impl StonePile {
                         rand_range(-max_move..=max_move),
                     );
                 }
-                if !level.unblocked(*area) | (wateryness(&level, *area) > 0.) {
-                    return INFINITY;
+                if !level.unblocked(*area) | (wateryness(level, *area) > 0.) {
+                    return f32::INFINITY;
                 }
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
                 let worker_distance = target.distance(area.center_vec2()) / 20.;
                 let size_bonus = area.total() as f32 * 4.;
-                worker_distance + unevenness(&level, *area) * 1. - size_bonus
+                worker_distance + unevenness(level, *area) * 1. - size_bonus
             },
             100,
         )

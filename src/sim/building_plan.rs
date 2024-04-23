@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
@@ -43,7 +41,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
             );
 
             if !level.area().has_subrect(*area) {
-                return INFINITY;
+                return f32::INFINITY;
             }
             // TODO: try place near river
             // TODO: Take biomes into account
@@ -88,7 +86,7 @@ pub fn plan_house(
             }
 
             if !level.unblocked(*area) {
-                return INFINITY;
+                return f32::INFINITY;
             }
             let distance = level.reachability[area.center()] as f32;
             // TODO: try to minimize the amount of trees in the footprint

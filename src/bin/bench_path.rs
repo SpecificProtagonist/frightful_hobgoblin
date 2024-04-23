@@ -4,8 +4,8 @@ use std::time::Instant;
 #[path = "../../config_local.rs"]
 mod config;
 use config::*;
-use mc_gen::pathfind::{pathfind, reachability_2d_from, reachability_from};
-use mc_gen::*;
+use e24u::pathfind::{pathfind, reachability_2d_from, reachability_from};
+use e24u::*;
 
 fn main() {
     let area = Rect::new_centered(ivec2(AREA[0], AREA[1]), ivec2(AREA[2], AREA[3]));

@@ -28,7 +28,7 @@ pub struct Prefab {
 }
 
 impl Prefab {
-    /// Flip is applied after rotation
+    /// Flip is applied before rotation
     pub fn build(
         &self,
         level: &mut Level,
@@ -50,8 +50,8 @@ impl Prefab {
             level(
                 pos + offset.rotated(rotation),
                 block
-                    .rotated(rotation)
                     .flipped(flip_x, flip_y)
+                    .rotated(rotation)
                     .swap_wood_type(wood)
                     .swap_wool_color(&wool),
             );
@@ -170,11 +170,18 @@ fn load_from_nbt(nbt: &CompoundTag, prefab_name: &str) -> Prefab {
         }
     }
 
-    let origin = if let Some(marker) = markers.get("origin") {
-        marker.pos
-    } else {
-        (size + IVec3::ONE) / 2
-    };
+    // Allow implicit origin
+    if !markers.contains_key("origin") {
+        markers.insert(
+            "origin".to_owned(),
+            TemplateMark {
+                pos: ((size.truncate() + IVec2::ONE) / 2).extend(0),
+                dir: Some(YPos),
+                tags: default(),
+            },
+        );
+    }
+    let origin = markers.get("origin").unwrap().pos;
 
     let palette: Vec<Block> = nbt
         .get_compound_tag_vec("palette")
@@ -182,10 +189,6 @@ fn load_from_nbt(nbt: &CompoundTag, prefab_name: &str) -> Prefab {
         .iter()
         .map(|nbt| Block::from_nbt(nbt))
         .collect();
-
-    // for block in &palette {
-    //     println!("{}", block.blockstate(&UNKNOWN_BLOCKS.read().unwrap()));
-    // }
 
     let mut blocks = VecDeque::new();
 
@@ -197,7 +200,11 @@ fn load_from_nbt(nbt: &CompoundTag, prefab_name: &str) -> Prefab {
     {
         let pos = read_pos(nbt.get("pos").unwrap());
         let block = palette[nbt.get_i32("state").unwrap() as usize];
-        blocks.push_front((pos - origin, block));
+        if block.needs_support() {
+            blocks.push_back((pos - origin, block));
+        } else {
+            blocks.push_front((pos - origin, block));
+        }
     }
 
     Prefab {

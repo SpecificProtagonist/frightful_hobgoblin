@@ -2,9 +2,9 @@
 #[path = "../../config_local.rs"]
 mod config;
 use config::*;
-use mc_gen::pathfind::reachability_from;
-use mc_gen::sim::building_plan::choose_starting_area;
-use mc_gen::*;
+use e24u::pathfind::reachability_from;
+use e24u::sim::building_plan::choose_starting_area;
+use e24u::*;
 use nanorand::*;
 use num_traits::FromPrimitive;
 

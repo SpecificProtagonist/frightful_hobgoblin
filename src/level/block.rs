@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     cell::RefCell,
+    convert::identity,
     fmt::{Display, Write},
     mem::size_of,
     str::FromStr,
@@ -27,6 +28,7 @@ pub enum Block {
     Slab(BlockMaterial, Half),
     Stair(BlockMaterial, HDir, Half),
     Fence(BlockMaterial),
+    FenceGate(BlockMaterial, HDir, GateState),
     Ladder(HDir),
     Water,
     Lava,
@@ -67,6 +69,7 @@ pub enum Block {
     Trapdoor(TreeSpecies, HDir, DoorMeta),
     Door(TreeSpecies, HDir, DoorMeta),
     Bell(HDir, BellAttachment),
+    Button(BlockMaterial, FullDir),
     Repeater(HDir, u8),
     Rail(HAxis),
     Barrier,
@@ -264,6 +267,13 @@ pub enum Half {
 pub use Half::*;
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum GateState {
+    Open,
+    Closed,
+}
+pub use GateState::*;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BlockMaterial {
     Stone,
     SmoothStone,
@@ -371,7 +381,7 @@ impl Block {
         match self {
             Air => "air".into(),
             Full(material) => match material {
-                Wood(species) => format!("{}_planks", species).into(),
+                Wood(species) => format!("{species}_planks").into(),
                 Brick => "bricks".into(),
                 StoneBrick => "stone_bricks".into(),
                 MudBrick => "mud_bricks".into(),
@@ -394,31 +404,31 @@ impl Block {
             Log(species, log_type) => match log_type {
                 LogType::Normal(axis) => Blockstate(
                     match species {
-                        Warped | Crimson => format!("{}_stem", species),
-                        _ => format!("{}_log", species),
+                        Warped | Crimson => format!("{species}_stem"),
+                        _ => format!("{species}_log"),
                     }
                     .into(),
                     vec![("axis".into(), axis.to_str().into())],
                 ),
                 LogType::FullBark => Blockstate(
                     match species {
-                        Warped | Crimson => format!("{}_hyphae", species),
-                        _ => format!("{}_wood", species),
+                        Warped | Crimson => format!("{species}_hyphae"),
+                        _ => format!("{species}_wood"),
                     }
                     .into(),
                     vec![],
                 ),
                 LogType::Stripped(axis) => Blockstate(
                     match species {
-                        Warped | Crimson => format!("{}_stem", species),
-                        _ => format!("stripped_{}_log", species),
+                        Warped | Crimson => format!("{species}_stem"),
+                        _ => format!("stripped_{species}_log"),
                     }
                     .into(),
                     vec![("axis".into(), axis.to_str().into())],
                 ),
             },
             Leaves(species, distance) => Blockstate(
-                format!("{}_leaves", species).into(),
+                format!("{species}_leaves").into(),
                 if let Some(distance) = distance {
                     vec![
                         ("persistent".into(), "false".into()),
@@ -467,7 +477,7 @@ impl Block {
                 )],
             ),
             GroundPlant(plant) => match plant {
-                GroundPlant::Sapling(species) => format!("{}_sapling", species).into(),
+                GroundPlant::Sapling(species) => format!("{species}_sapling").into(),
                 GroundPlant::Cactus => "cactus".into(),
                 GroundPlant::Reeds => "sugar_cane".into(),
                 GroundPlant::Pumpkin => "pumpkin".into(),
@@ -481,16 +491,30 @@ impl Block {
                 },
             },
             Fence(material) => match material {
-                Wood(species) => format!("{}_fence", species).into(),
-                material => format!("{}_wall", material).into(),
+                Wood(species) => format!("{species}_fence").into(),
+                material => format!("{material}_wall").into(),
             },
+            FenceGate(material, dir, state) => Blockstate(
+                format!("{material}_fence_gate").into(),
+                vec![
+                    ("facing".into(), dir.to_str().into()),
+                    (
+                        "open".into(),
+                        match state {
+                            Open => "true",
+                            Closed => "false",
+                        }
+                        .into(),
+                    ),
+                ],
+            ),
             Ladder(dir) => Blockstate(
                 "ladder".into(),
                 vec![("facing".into(), dir.to_str().into())],
             ),
-            Wool(color) => format!("{}_wool", color).into(),
-            Carpet(color) => format!("{}_carpet", color).into(),
-            Terracotta(Some(color)) => format!("{}_terracotta", color).into(),
+            Wool(color) => format!("{color}_wool").into(),
+            Carpet(color) => format!("{color}_carpet").into(),
+            Terracotta(Some(color)) => format!("{color}_terracotta").into(),
             Terracotta(None) => "terracotta".into(),
             MushroomStem => "mushroom_stem".into(),
             MangroveRoots => "mangrove_roots".into(),
@@ -501,18 +525,18 @@ impl Block {
             Glowstone => "glowstone".into(),
             GlassPane(color) => {
                 if let Some(color) = color {
-                    format!("{}_stained_glass_pane", color).into()
+                    format!("{color}_stained_glass_pane").into()
                 } else {
                     "glass_pane".into()
                 }
             }
             WallBanner(facing, color) => Blockstate(
-                format!("{}_wall_banner", color).into(),
+                format!("{color}_wall_banner").into(),
                 vec![("facing".into(), facing.to_str().into())],
             ),
             Hay => "hay_block".into(),
             Slab(material, half) => Blockstate(
-                format!("{}_slab", material).into(),
+                format!("{material}_slab").into(),
                 vec![(
                     "type".into(),
                     match half {
@@ -523,7 +547,7 @@ impl Block {
                 )],
             ),
             Stair(material, dir, half) => Blockstate(
-                format!("{}_stairs", material).into(),
+                format!("{material}_stairs").into(),
                 vec![
                     (
                         "half".into(),
@@ -545,13 +569,13 @@ impl Block {
                         1 => "1".into(),
                         2 => "2".into(),
                         3 => "3".into(),
-                        _ => panic!("Cauldron water level {}", water),
+                        _ => panic!(),
                     },
                 )],
             ),
             Barrel => "barrel".into(),
             Trapdoor(species, dir, meta) => Blockstate(
-                format!("{}_trapdoor", species).into(),
+                format!("{species}_trapdoor").into(),
                 vec![
                     ("facing".into(), dir.to_str().into()),
                     (
@@ -570,7 +594,7 @@ impl Block {
                 ],
             ),
             Door(species, dir, meta) => Blockstate(
-                format!("{}_door", species).into(),
+                format!("{species}_door").into(),
                 vec![
                     ("facing".into(), dir.to_str().into()),
                     (
@@ -599,6 +623,30 @@ impl Block {
                             BellAttachment::Ceiling => "ceiling",
                             BellAttachment::DoubleWall => "double_wall",
                             BellAttachment::SingleWall => "single_wall",
+                        }
+                        .into(),
+                    ),
+                ],
+            ),
+            Button(material, dir) => Blockstate(
+                format!("{material}_button").into(),
+                vec![
+                    (
+                        "face".into(),
+                        match dir {
+                            FullDir::ZPos => "ceiling",
+                            FullDir::ZNeg => "floor",
+                            _ => "wall",
+                        }
+                        .into(),
+                    ),
+                    (
+                        "facing".into(),
+                        match dir {
+                            FullDir::YNeg => "north",
+                            FullDir::XPos => "east",
+                            FullDir::YPos => "south",
+                            _ => "west",
                         }
                         .into(),
                     ),
@@ -644,7 +692,7 @@ impl Block {
                     .into(),
                 )],
             ),
-            Other(index) => unknown.states[*index as usize].clone(), // Unneccesary clone?
+            Other(index) => unknown.states[*index as usize].clone(),
         }
     }
 
@@ -746,6 +794,33 @@ impl Block {
             )
         }
 
+        fn button(material: BlockMaterial, props: &CompoundTag) -> Block {
+            Button(
+                material,
+                if props.get_str("face").unwrap() == "ceiling" {
+                    FullDir::ZPos
+                } else if props.get_str("face").unwrap() == "floor" {
+                    FullDir::ZNeg
+                } else {
+                    HDir::from_str(props.get_str("facing").unwrap())
+                        .unwrap()
+                        .into()
+                },
+            )
+        }
+
+        fn fence_gate(material: BlockMaterial, props: &CompoundTag) -> Block {
+            FenceGate(
+                material,
+                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                if props.get_str("open").unwrap() == "true" {
+                    Open
+                } else {
+                    Closed
+                },
+            )
+        }
+
         fn half(props: &CompoundTag) -> Half {
             if matches!(props.get_str("half").unwrap(), "upper" | "top") {
                 Top
@@ -828,7 +903,8 @@ impl Block {
                 // "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
                 "snow" => SnowLayer, // Todo: store layer
                 "snow_block" => SnowBlock,
-                "fence" => Fence(Wood(Oak)),
+                "oak_fence" => Fence(Wood(Oak)),
+                "oak_fence_gate" => fence_gate(Wood(Oak), props),
                 "cobblestone_wall" => Fence(MossyCobble),
                 "mossy_cobblestone_wall" => Fence(MossyCobble),
                 "oak_slab" => slab(Wood(Oak), props),
@@ -939,6 +1015,7 @@ impl Block {
                         _ => BellAttachment::DoubleWall,
                     },
                 ),
+                "polished_blackstone_button" => button(PolishedBlackstone, props),
                 "ladder" => Ladder(HDir::from_str(props.get_str("facing").unwrap()).unwrap()),
                 _ => return None,
             })
@@ -1052,6 +1129,10 @@ impl Block {
         )
     }
 
+    pub fn needs_support(self) -> bool {
+        matches!(self, Button(..))
+    }
+
     pub fn no_pathing(self) -> bool {
         matches!(self, Water | Lava | GroundPlant(Cactus))
     }
@@ -1060,28 +1141,53 @@ impl Block {
         matches!(self, Ladder(..))
     }
 
-    pub fn rotated(self, turns: i32) -> Self {
+    fn map_orientation(
+        self,
+        map_axis: impl Fn(Axis) -> Axis,
+        hdir: &impl Fn(HDir) -> HDir,
+    ) -> Block {
+        let fdir = move |dir: FullDir| match dir {
+            FullDir::XPos => hdir(XPos).into(),
+            FullDir::XNeg => hdir(XNeg).into(),
+            FullDir::YPos => hdir(YPos).into(),
+            FullDir::YNeg => hdir(YNeg).into(),
+            _ => dir,
+        };
         match self {
-            Log(species, LogType::Normal(Axis::X)) => Log(species, LogType::Normal(Axis::Y)),
-            Log(species, LogType::Normal(Axis::Y)) => Log(species, LogType::Normal(Axis::X)),
-            Stair(material, facing, flipped) => Stair(material, facing.rotated(turns), flipped),
-            WallBanner(facing, color) => WallBanner(facing.rotated(turns), color),
-            Repeater(dir, delay) => Repeater(dir.rotated(turns), delay),
-            Trapdoor(species, dir, meta) => Trapdoor(species, dir.rotated(turns), meta),
-            Door(species, dir, meta) => Door(species, dir.rotated(turns), meta),
+            Log(species, LogType::Normal(axis)) => Log(species, LogType::Normal(map_axis(axis))),
+            Log(species, LogType::Stripped(axis)) => {
+                Log(species, LogType::Stripped(map_axis(axis)))
+            }
+            Stair(material, facing, flipped) => Stair(material, hdir(facing), flipped),
+            WallBanner(facing, color) => WallBanner(hdir(facing), color),
+            Repeater(dir, delay) => Repeater(hdir(dir), delay),
+            Trapdoor(species, dir, meta) => Trapdoor(species, hdir(dir), meta),
+            Door(species, dir, meta) => Door(species, hdir(dir), meta),
+            Button(material, dir) => Button(material, fdir(dir)),
+            FenceGate(material, dir, state) => FenceGate(material, hdir(dir), state),
             _ => self,
         }
     }
 
+    pub fn rotated(self, turns: i32) -> Self {
+        self.map_orientation(
+            |axis| {
+                if turns % 2 == 1 {
+                    match axis {
+                        Axis::X => Axis::Y,
+                        Axis::Y => Axis::X,
+                        Axis::Z => Axis::Z,
+                    }
+                } else {
+                    axis
+                }
+            },
+            &|dir| dir.rotated(turns),
+        )
+    }
+
     pub fn flipped(self, x: bool, y: bool) -> Self {
-        match self {
-            Stair(material, facing, flipped) => Stair(material, facing.flipped(x, y), flipped),
-            WallBanner(facing, color) => WallBanner(facing.flipped(x, y), color),
-            Repeater(dir, delay) => Repeater(dir.flipped(x, y), delay),
-            Trapdoor(species, dir, meta) => Trapdoor(species, dir.flipped(x, y), meta),
-            Door(species, dir, meta) => Door(species, dir.flipped(x, y), meta),
-            _ => self,
-        }
+        self.map_orientation(identity, &|dir| dir.flipped(x, y))
     }
 
     pub fn swap_wood_type(self, species: TreeSpecies) -> Self {
@@ -1090,6 +1196,7 @@ impl Block {
             Slab(Wood(Oak), flipped) => Slab(Wood(species), flipped),
             Stair(Wood(Oak), dir, flipped) => Stair(Wood(species), dir, flipped),
             Fence(Wood(Oak)) => Fence(Wood(species)),
+            FenceGate(Wood(Oak), dir, state) => FenceGate(Wood(species), dir, state),
             Log(Oak, typ) => Log(species, typ),
             Leaves(Oak, dist) => Leaves(species, dist),
             Trapdoor(Oak, dir, meta) => Trapdoor(species, dir, meta),

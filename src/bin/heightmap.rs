@@ -1,4 +1,4 @@
-use mc_gen::{debug_image::*, *};
+use e24u::{debug_image::*, *};
 #[path = "../../config_local.rs"]
 mod config;
 use config::*;

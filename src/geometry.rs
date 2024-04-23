@@ -326,6 +326,17 @@ pub enum FullDir {
     ZNeg,
 }
 
+impl From<HDir> for FullDir {
+    fn from(value: HDir) -> Self {
+        match value {
+            YPos => Self::YPos,
+            XNeg => Self::XNeg,
+            YNeg => Self::YNeg,
+            XPos => Self::XPos,
+        }
+    }
+}
+
 pub const NEIGHBORS_2D: [IVec2; 4] = [ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1)];
 
 pub const NEIGHBORS_3D: [IVec3; 6] = [

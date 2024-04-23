@@ -287,32 +287,36 @@ fn try_pos(
             return None;
         }
     } else {
-        if off.z < 0 {
-            // Ladder downwards taken
-            if !level(new_pos).climbable() {
-                return None;
-            }
-            stairs_taken = true;
-        } else if off.z > 0 {
-            // Ladder upwards taken
-            if !level(node.pos).climbable() | level(node.pos + IVec3::Z * 2).solid() {
-                return None;
-            }
-            stairs_taken = true;
-        } else {
-            if level(node.pos).climbable() {
-            } else if level(new_pos).solid() {
-                if level(node.pos + IVec3::Z).solid() {
+        match off.z.cmp(&0) {
+            Ordering::Less => {
+                // Ladder downwards taken
+                if !level(new_pos).climbable() {
                     return None;
                 }
-                new_pos += IVec3::Z;
                 stairs_taken = true;
-            } else if !level(new_pos - IVec3::Z).walkable() {
-                if level(node.pos + IVec3::Z).solid() {
+            }
+            Ordering::Greater => {
+                // Ladder upwards taken
+                if !level(node.pos).climbable() | level(node.pos + IVec3::Z * 2).solid() {
                     return None;
                 }
-                new_pos -= IVec3::Z;
                 stairs_taken = true;
+            }
+            Ordering::Equal => {
+                if level(node.pos).climbable() {
+                } else if level(new_pos).solid() {
+                    if level(node.pos + IVec3::Z).solid() {
+                        return None;
+                    }
+                    new_pos += IVec3::Z;
+                    stairs_taken = true;
+                } else if !level(new_pos - IVec3::Z).walkable() {
+                    if level(node.pos + IVec3::Z).solid() {
+                        return None;
+                    }
+                    new_pos -= IVec3::Z;
+                    stairs_taken = true;
+                }
             }
         }
         // TODO: clean this up

@@ -360,6 +360,31 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
+name = "e24u"
+version = "0.1.0"
+dependencies = [
+ "anvil-region",
+ "argh",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_utils",
+ "bitflags 2.5.0",
+ "bresenham",
+ "copy_dir",
+ "enum-iterator",
+ "flate2",
+ "float-ord",
+ "image",
+ "itertools",
+ "named-binary-tag",
+ "nanorand",
+ "num-derive",
+ "num-traits",
+ "rayon",
+]
+
+[[package]]
 name = "either"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -573,31 +598,6 @@ name = "log"
 version = "0.4.21"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90ed8c1e510134f979dbc4f070f87d4313098b704861a105fe34231c70a3901c"
-
-[[package]]
-name = "mc-gen"
-version = "0.1.0"
-dependencies = [
- "anvil-region",
- "argh",
- "bevy_derive",
- "bevy_ecs",
- "bevy_math",
- "bevy_utils",
- "bitflags 2.5.0",
- "bresenham",
- "copy_dir",
- "enum-iterator",
- "flate2",
- "float-ord",
- "image",
- "itertools",
- "named-binary-tag",
- "nanorand",
- "num-derive",
- "num-traits",
- "rayon",
-]
 
 [[package]]
 name = "memchr"

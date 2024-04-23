@@ -1,5 +1,5 @@
 [package]
-name = "mc-gen"
+name = "e24u"
 version = "0.1.0"
 authors = ["Vincent Junge <vincentjunge@posteo.net>"]
 edition = "2021"
@@ -11,8 +11,9 @@ opt-level = 1
 [profile.dev.package."*"]
 opt-level = 3
 
-# For profiling
 [profile.release]
+lto = "fat"
+# For profiling
 debug = true
 
 [dependencies]

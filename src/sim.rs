@@ -1,6 +1,3 @@
-#![allow(clippy::type_complexity)]
-#![allow(clippy::too_many_arguments)]
-
 pub mod building_plan;
 pub mod construction;
 mod desire_lines;
@@ -10,8 +7,6 @@ mod personal_name;
 pub mod quarry;
 mod sim_schedule;
 mod storage_pile;
-
-pub use sim_schedule::sim;
 
 use std::collections::VecDeque;
 
@@ -24,12 +19,12 @@ use building_plan::*;
 use construction::*;
 use logistics::*;
 use lumberjack::LumberjackShack;
+pub use sim_schedule::sim;
+use storage_pile::{LumberPile, StonePile};
 
 use bevy_derive::{Deref, DerefMut};
 pub use bevy_ecs::prelude::*;
 use bevy_math::Vec2Swizzles;
-
-use self::storage_pile::{LumberPile, StonePile};
 
 #[derive(Resource, Default, Deref, DerefMut)]
 pub struct Tick(pub i32);

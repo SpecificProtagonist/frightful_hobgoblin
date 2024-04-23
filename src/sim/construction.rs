@@ -73,7 +73,7 @@ pub fn build(
         else {
             continue;
         };
-        match building.todo.get(0).copied() {
+        match building.todo.front().copied() {
             Some(ConsItem::Goto(goto)) => {
                 commands.entity(builder).insert(goto);
                 building.todo.pop_front();

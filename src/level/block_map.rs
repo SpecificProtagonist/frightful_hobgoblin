@@ -2,29 +2,24 @@ use crate::*;
 
 pub type Section<T> = [T; 16 * 16 * 16];
 
-pub struct BlockMap<T: Default> {
+pub struct BlockMap<T> {
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
-    /// Sections in Z->X->Y order
+    default: T,
+    /// Sections in minecraft Z->X->Y order
     pub(super) sections: Vec<Option<Box<Section<T>>>>,
 }
 
-impl<T: Copy + Default> BlockMap<T> {
-    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex) -> Self {
+impl<T: Copy> BlockMap<T> {
+    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex, default: T) -> Self {
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
         Self {
             chunk_min,
             chunk_max,
+            default,
             sections: vec![None; chunk_count * 24],
         }
-    }
-
-    pub fn get_mut(&mut self, pos: IVec3) -> &mut T {
-        let index = self.section_index(pos);
-        let section =
-            self.sections[index].get_or_insert_with(|| Box::new([default(); 16 * 16 * 16]));
-        &mut section[Self::block_in_section_index(pos)]
     }
 
     fn block_in_section_index(pos: IVec3) -> usize {
@@ -51,41 +46,24 @@ impl<T: Copy + Default> BlockMap<T> {
     }
 }
 
-impl<T: Copy + Default> FnOnce<(IVec3,)> for BlockMap<T> {
+impl<T: Copy> std::ops::Index<IVec3> for BlockMap<T> {
     type Output = T;
 
-    extern "rust-call" fn call_once(self, pos: (IVec3,)) -> Self::Output {
-        self.call(pos)
-    }
-}
-
-impl<T: Copy + Default> FnMut<(IVec3,)> for BlockMap<T> {
-    extern "rust-call" fn call_mut(&mut self, pos: (IVec3,)) -> Self::Output {
-        self.call(pos)
-    }
-}
-
-impl<T: Copy + Default> Fn<(IVec3,)> for BlockMap<T> {
-    extern "rust-call" fn call(&self, (pos,): (IVec3,)) -> Self::Output {
-        let section_index = self.section_index(pos);
-        if let Some(section) = &self.sections[section_index] {
-            section[Self::block_in_section_index(pos)]
+    fn index(&self, pos: IVec3) -> &Self::Output {
+        let index = self.section_index(pos);
+        if let Some(section) = &self.sections[index] {
+            &section[Self::block_in_section_index(pos)]
         } else {
-            default()
+            &self.default
         }
     }
 }
 
-impl<T: Copy + Default> FnOnce<(IVec3, T)> for BlockMap<T> {
-    type Output = ();
-
-    extern "rust-call" fn call_once(mut self, args: (IVec3, T)) -> Self::Output {
-        self.call_mut(args)
-    }
-}
-
-impl<T: Copy + Default> FnMut<(IVec3, T)> for BlockMap<T> {
-    extern "rust-call" fn call_mut(&mut self, (pos, block): (IVec3, T)) {
-        *self.get_mut(pos) = block;
+impl<T: Copy> std::ops::IndexMut<IVec3> for BlockMap<T> {
+    fn index_mut(&mut self, pos: IVec3) -> &mut Self::Output {
+        let index = self.section_index(pos);
+        let section =
+            self.sections[index].get_or_insert_with(|| Box::new([self.default; 16 * 16 * 16]));
+        &mut section[Self::block_in_section_index(pos)]
     }
 }

@@ -65,7 +65,7 @@ impl Level {
         let chunk_min = ChunkIndex::from(area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
         let chunk_max = ChunkIndex::from(area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
 
-        let mut blocks = BlockMap::new(chunk_min, chunk_max);
+        let mut blocks = BlockMap::new(chunk_min, chunk_max, Air);
         let mut biome = ColumnMap::new(chunk_min, chunk_max);
         let mut height = ColumnMap::new(chunk_min, chunk_max);
         let mut water = ColumnMap::new(chunk_min, chunk_max);
@@ -88,7 +88,7 @@ impl Level {
                     heightmap,
                     watermap,
                 )
-                .expect(&format!("Failed to load chunk ({},{}): ", index.0, index.1))
+                .unwrap_or_else(|| panic!("Failed to load chunk ({},{}): ", index.0, index.1))
             });
 
         Self {
@@ -139,9 +139,17 @@ impl Level {
             nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
         let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
 
-        let name: &mut String = data.get_mut("LevelName").expect("Corrupt level.dat");
-        // TODO: adjust if multiple invocations ("[2 settlements generated]")
-        name.push_str(" [generated]");
+        let name: &mut String = data.get_mut("LevelName").unwrap();
+        if !name.contains("[e24u]") {
+            name.push_str(" [e24u]");
+        } else if let Some((start, Ok(count))) = name
+            .rsplit_once(' ')
+            .map(|(start, count)| (start, count.parse::<i32>()))
+        {
+            *name = format!("{start} {}", count + 1);
+        } else {
+            name.push_str(" 2");
+        }
 
         data.insert(
             "LastPlayed",
@@ -171,7 +179,7 @@ impl Level {
 
     fn block_mut(&mut self, pos: IVec3) -> &mut Block {
         self.dirty_chunks[pos] = true;
-        self.blocks.get_mut(pos)
+        &mut self.blocks[pos]
     }
 
     pub fn chunk_min(&self) -> ChunkIndex {
@@ -246,6 +254,7 @@ impl Level {
         }
     }
 
+    // TODO: return +IVec3::Z
     pub fn ground(&self, column: IVec2) -> IVec3 {
         column.extend(self.height[column])
     }

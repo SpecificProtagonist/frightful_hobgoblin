@@ -56,8 +56,8 @@ pub fn sim(mut level: Level, debug_save: bool) {
         (
             spawn_villagers,
             (grow_trees, spawn_trees),
-            assign_work,
             (
+                assign_work,
                 place,
                 walk,
                 build,
@@ -80,19 +80,18 @@ pub fn sim(mut level: Level, debug_save: bool) {
             ),
             (plan_house, plan_lumberjack, plan_quarry, plan_stalls),
             assign_builds,
-            new_construction_site,
             (
                 test_build_house,
                 test_build_lumberjack,
                 test_build_quarry,
                 upgrade_plaza,
             ),
+            new_construction_site,
             desire_lines,
             personal_name::name,
             tick_replay,
-            // remove_outdated,
             |mut tick: ResMut<Tick>| tick.0 += 1,
-            |world: &mut World| world.clear_trackers(),
+            World::clear_trackers,
         )
             .chain(),
     );

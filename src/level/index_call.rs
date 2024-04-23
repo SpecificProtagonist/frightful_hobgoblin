@@ -20,7 +20,7 @@ impl FnMut<(IVec3,)> for Level {
 
 impl Fn<(IVec3,)> for Level {
     extern "rust-call" fn call(&self, (pos,): (IVec3,)) -> Self::Output {
-        (self.blocks)(pos)
+        self.blocks[pos]
     }
 }
 

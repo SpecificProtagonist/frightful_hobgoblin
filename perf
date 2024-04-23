@@ -2,7 +2,7 @@ Capture:
 perf stat -r 10 target/release/test
 
 Record:
-perf record -e L1-dcache-loads,LLC-load-misses --call-graph dwarf -- target/release/test 11
+perf record --call-graph dwarf -- target/release/test 11
 
 Show in perf:
 perf report -F+srcline

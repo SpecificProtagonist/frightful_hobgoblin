@@ -1,5 +1,3 @@
-use std::f32::INFINITY;
-
 use crate::*;
 use itertools::Itertools;
 use sim::*;
@@ -70,7 +68,7 @@ pub fn plan_lumberjack(
             }
 
             if !level.unblocked(*area) {
-                return INFINITY;
+                return f32::INFINITY;
             }
             let center_distance = level.reachability[area.center()].max(150) as f32;
             let tree_access = trees

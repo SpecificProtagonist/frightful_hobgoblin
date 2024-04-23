@@ -4,6 +4,9 @@
 // Feeling cute, might delete later
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]
+// Mostly for bevy stuff
+#![allow(clippy::type_complexity)]
+#![allow(clippy::too_many_arguments)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;
@@ -31,6 +34,7 @@ use std::cell::Cell;
 use bevy_utils::FixedState;
 pub use geometry::*;
 pub use level::*;
+pub use prefab::prefab;
 pub use rand::*;
 pub use trees::Untree;
 
