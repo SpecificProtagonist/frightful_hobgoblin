@@ -309,15 +309,12 @@ impl Replay {
 
         let tag_path = pack_path.join("data/minecraft/tags/functions/");
         create_dir_all(&tag_path).unwrap();
-        // TODO: add instead of override!
         write(
             tag_path.join("load.json"),
             format!("{{values:[\"sim_{}:check_setup\"]}}", self.invocation),
         )
         .unwrap();
 
-        // For now just start automatically
-        // TODO: add instead of override!
         write(
             tag_path.join("tick.json"),
             format!("{{values:[\"sim_{}:check_tick\"]}}", self.invocation),
@@ -370,8 +367,9 @@ impl Replay {
             format!(
                 "
                 tag @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] add sim_{4}_in_area
-                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, replay resumed\",\"color\":\"gray\"}}
                 tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, replay paused\",\"color\":\"gray\"}}
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, replay resumed\",\"color\":\"gray\"}}
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] [{{\"text\":\"Click to set replay speed: \",\"color\":\"gray\"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"pause\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"1×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"3×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"5×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"10×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}}]
                 tag @a remove sim_{4}_previous_in_area
                 execute if entity @p[tag=sim_{4}_in_area] run function sim_{}:game_tick
                 tag @p[tag=sim_{4}_in_area] add sim_{4}_previous_in_area

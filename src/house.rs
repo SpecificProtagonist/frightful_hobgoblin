@@ -208,10 +208,7 @@ fn foundation(level: &mut Level, untree: &mut Untree, area: Rect) -> (i32, ConsL
     for col in area.border() {
         // TODO: if ground is too far down, try to make supports against the nearest wall instead
         let mut pos = col.extend(floor);
-        loop {
-            if level(pos).solid() & !level(pos).soil() {
-                break;
-            }
+        while level(pos).soil() | !level(pos).soil() {
             level(pos, Full(Cobble));
             if NEIGHBORS_2D.iter().all(|dir| level(pos.add(*dir)).solid()) {
                 break;

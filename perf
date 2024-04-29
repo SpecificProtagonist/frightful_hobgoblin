@@ -7,7 +7,7 @@ perf record --call-graph dwarf -- target/release/test 11
 Show in perf:
 perf report -F+srcline
 
-Show in flamegraph:
+Show as flamegraph:
 perf script -F+srcline | inferno-collapse-perf | inferno-flamegraph > profile.svg
 
 Show in Firefox profiler:
