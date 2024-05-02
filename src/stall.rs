@@ -74,7 +74,7 @@ fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
     } else {
         "stall_1"
     });
-    let wares = prefab(&format!("stall_wares_{}", rand_range(0..=5)));
+    let wares = prefab(&format!("stall_wares_{}", rand_range(0..=6)));
 
     let pos = level.ground(pos) + IVec3::Z;
     let biome = level.biome[pos];

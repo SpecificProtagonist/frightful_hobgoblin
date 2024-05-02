@@ -3,6 +3,7 @@ use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
 use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
 use self::{
+    detect_existing_buildings::detect_existing_buildings,
     lumberjack::{plan_lumberjack, test_build_lumberjack},
     make_name::make_town_name,
     quarry::{plan_quarry, test_build_quarry},
@@ -45,6 +46,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     world.init_resource::<DesireLines>();
 
+    world.run_system_once(detect_existing_buildings);
     world.run_system_once(init_trees);
     world.run_system_once(starting_resources);
     world.run_system_once(init_stalls);

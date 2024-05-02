@@ -10,6 +10,7 @@
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;
+pub mod detect_existing_buildings;
 mod geometry;
 pub mod goods;
 pub mod house;
