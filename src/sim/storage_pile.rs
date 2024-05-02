@@ -56,7 +56,7 @@ impl LumberPile {
                 }
                 let area = area(*pos, *params);
 
-                if !level.unblocked(area) | (wateryness(level, area) > 0.) {
+                if !level.free(area) | (wateryness(level, area) > 0.) {
                     return f32::INFINITY;
                 }
                 let center_distance = target_2.distance(pos.as_vec2()) / 70.;
@@ -73,7 +73,7 @@ impl LumberPile {
 
         let z = level.height.average(area.border()) as i32;
         (level.height)(area, z);
-        (level.blocked)(area, true);
+        (level.blocked)(area, Blocked);
         (pos.extend(z + 1), area, params)
     }
 }
@@ -179,7 +179,7 @@ impl StonePile {
                         rand_range(-max_move..=max_move),
                     );
                 }
-                if !level.unblocked(*area) | (wateryness(level, *area) > 0.) {
+                if !level.free(*area) | (wateryness(level, *area) > 0.) {
                     return f32::INFINITY;
                 }
                 // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
@@ -196,7 +196,7 @@ impl StonePile {
         let z = level.height.average(area.border()) as i32 + 1;
         (level.height)(area, z - 1);
         level.fill_at(area, z - 1, PackedMud);
-        (level.blocked)(area, true);
+        (level.blocked)(area, Blocked);
         (
             area.center_vec2().extend(z as f32),
             area,

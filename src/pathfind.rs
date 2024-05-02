@@ -5,6 +5,25 @@ use std::{
 
 use crate::*;
 
+const WALK_COST_PER_BLOCK: u32 = 3;
+const ROAD_COST_PER_BLOCK: u32 = 2;
+const BOATING_COST_PER_BLOCK: u32 = 2;
+const STAIR_COOLDOWN: i8 = 7;
+const BOAT_TOGGLE_COST: u32 = 40 * WALK_COST_PER_BLOCK;
+
+#[derive(Debug)]
+pub struct PathSearch {
+    pub path: VecDeque<PathingNode>,
+    pub success: bool,
+    pub cost: u32,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct PathingNode {
+    pub pos: IVec3,
+    pub boat: bool,
+}
+
 #[derive(Eq, PartialEq)]
 struct Node {
     pos: IVec3,
@@ -31,24 +50,6 @@ impl PartialOrd for Node {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
-}
-
-const WALK_COST_PER_BLOCK: u32 = 3;
-const BOATING_COST_PER_BLOCK: u32 = 2;
-const STAIR_COOLDOWN: i8 = 7;
-const BOAT_TOGGLE_COST: u32 = 40 * WALK_COST_PER_BLOCK;
-
-#[derive(Debug)]
-pub struct PathSearch {
-    pub path: VecDeque<PathingNode>,
-    pub success: bool,
-    pub cost: u32,
-}
-
-#[derive(Debug, Clone, Copy)]
-pub struct PathingNode {
-    pub pos: IVec3,
-    pub boat: bool,
 }
 
 // TODO: Make walking on paths faster; make stairs reduce stair cost
@@ -130,7 +131,7 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             }
 
             // Can be reduced for performance
-            let exploration_limit_reached = path.len() > 10000;
+            let exploration_limit_reached = path.len() > 30000;
 
             // Arrived at target
             if heuristic <= range_to_end {
@@ -338,7 +339,11 @@ fn try_pos(
     path.insert(new_pos, (node.pos, boat));
 
     let new_cost = node.cost
-        + WALK_COST_PER_BLOCK
+        + if level.blocked[new_pos.truncate()] == Street {
+            ROAD_COST_PER_BLOCK
+        } else {
+            WALK_COST_PER_BLOCK
+        }
         + if stairs_taken {
             node.stair_cooldown as u32
         } else {

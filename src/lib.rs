@@ -13,6 +13,7 @@ pub mod debug_image;
 mod geometry;
 pub mod goods;
 pub mod house;
+pub mod house2;
 mod level;
 pub mod make_name;
 pub mod optimize;

@@ -124,7 +124,7 @@ pub fn pickup(
             pile.remove(task.stack);
             if let Some(area) = pile.despawn_when_empty {
                 if pile.iter().all(|(_, &amount)| amount <= 0.) {
-                    (level.blocked)(area, false);
+                    (level.blocked)(area, Free);
                     commands.entity(task.from).despawn();
                 }
             }

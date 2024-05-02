@@ -130,7 +130,10 @@ pub fn spawn_trees(
         }
 
         let ground = level.ground(column);
-        if level.blocked[column] | level.water[column].is_some() | !level(ground).dirtsoil() {
+        if (level.blocked[column] != Free)
+            | level.water[column].is_some()
+            | !level(ground).dirtsoil()
+        {
             continue;
         }
 

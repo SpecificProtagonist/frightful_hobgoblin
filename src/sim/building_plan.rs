@@ -85,12 +85,14 @@ pub fn plan_house(
                 *area = Rect::new_centered(area.center(), area.size().yx())
             }
 
-            if !level.unblocked(*area) {
+            if !level.free(*area) {
                 return f32::INFINITY;
             }
             let distance = level.reachability[area.center()] as f32;
             // TODO: try to minimize the amount of trees in the footprint
-            wateryness(&level, *area) * 20. + unevenness(&level, *area) + (distance / 100.).powf(2.)
+            wateryness(&level, *area) * 30.
+                + unevenness(&level, *area)
+                + (distance / 100.).powf(1.6)
         },
         200,
     ) else {
@@ -172,10 +174,10 @@ pub fn assign_builds(
         plans.extend(&planned_quarries);
     }
     if let Some(&(selected, area)) = plans.try_choose() {
-        if area.iter().any(|c| level.blocked[*c]) {
+        if !level.free(area.iter().copied()) {
             commands.entity(selected).despawn();
         } else {
-            (level.blocked)(area.iter().copied(), true);
+            (level.blocked)(area.iter().copied(), Blocked);
             commands
                 .entity(selected)
                 .remove::<Planned>()

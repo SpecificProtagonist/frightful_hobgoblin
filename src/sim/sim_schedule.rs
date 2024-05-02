@@ -6,6 +6,7 @@ use self::{
     lumberjack::{plan_lumberjack, test_build_lumberjack},
     make_name::make_town_name,
     quarry::{plan_quarry, test_build_quarry},
+    roads::init_roads,
     stall::{init_stalls, plan_stalls},
     storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals},
     trees::{init_trees, spawn_trees},
@@ -29,7 +30,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
-    (level.blocked)(city_center, true);
+    (level.blocked)(city_center, Street);
     world.spawn((Pos(city_center_pos.as_vec3()), CityCenter(city_center)));
     level.reachability = reachability_2d_from(&level, city_center.center());
     replay.command(format!(
@@ -47,6 +48,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
     world.run_system_once(init_trees);
     world.run_system_once(starting_resources);
     world.run_system_once(init_stalls);
+    world.run_system_once(init_roads);
 
     let mut sched = Schedule::default();
     // Because the systems are extremely lightweight, running them on a single thread
@@ -96,7 +98,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
             .chain(),
     );
 
-    for _ in 0..30000 {
+    for _ in 0..40000 {
         sched.run(&mut world);
     }
 

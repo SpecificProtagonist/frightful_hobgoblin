@@ -69,8 +69,7 @@ pub fn plan_quarry(
             );
             params.dir += (rand_f32(-1., 1.)) * 2. * PI * temperature.min(0.5);
 
-            if !level.unblocked(params.base_area()) || !level.unblocked(params.probed_mining_area())
-            {
+            if !level.free(params.base_area()) || !level.free(params.probed_mining_area()) {
                 return f32::INFINITY;
             }
             let mut distance = level.reachability[params.pos] as f32 - 650.;

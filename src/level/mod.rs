@@ -37,7 +37,7 @@ pub struct Level {
     pub height: ColumnMap<i32>,
     pub water: ColumnMap<Option<i32>>,
     // This might store a Option<Entity> later
-    pub blocked: ColumnMap<bool>,
+    pub blocked: ColumnMap<ColumnUse>,
     // Pathfinding cost from center (may not be up to date)
     pub reachability: ColumnMap<u32>,
     dirty_chunks: ColumnMap<bool, 16>,
@@ -204,9 +204,9 @@ impl Level {
         .shrink(crate::LOAD_MARGIN)
     }
 
-    pub fn unblocked(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
+    pub fn free(&self, area: impl IntoIterator<Item = IVec2>) -> bool {
         area.into_iter()
-            .all(|column| self.area().contains(column) && !self.blocked[column])
+            .all(|column| self.area().contains(column) && (self.blocked[column]) == Free)
     }
 
     pub fn recording_cursor(&self) -> RecordingCursor {
@@ -552,3 +552,13 @@ pub struct SetBlock {
 
 #[derive(Default, Clone)]
 pub struct RecordingCursor(usize);
+
+#[derive(Copy, Clone, Default, Eq, PartialEq)]
+pub enum ColumnUse {
+    #[default]
+    Free,
+    Street,
+    Blocked,
+}
+
+pub use ColumnUse::*;
