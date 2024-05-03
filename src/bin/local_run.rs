@@ -1,5 +1,6 @@
 use argh::FromArgs;
 use config::*;
+use e24u::roof::roof;
 use e24u::sim::sim;
 use e24u::*;
 use nanorand::*;

@@ -11,10 +11,15 @@ pub fn roof(
 ) -> ConsList {
     let cursor = level.recording_cursor();
 
-    let shape = roof_shape(level.biome[area.center()], base_z, area.size().as_vec2());
+    let rot = area.size().y > area.size().x;
+    let shape = roof_shape(
+        level.biome[area.center()],
+        base_z,
+        if rot { area.size().yx() } else { area.size() }.as_vec2(),
+    );
 
     let center = area.center_vec2() - Vec2::splat(0.5);
-    let shape: Shape = if area.size().y > area.size().x {
+    let shape: Shape = if rot {
         Box::new(move |pos: Vec2| shape((pos - center).yx()))
     } else {
         Box::new(move |pos: Vec2| shape(pos - center))
