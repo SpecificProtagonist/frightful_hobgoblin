@@ -9,6 +9,8 @@ use crate::{
 
 use self::construction::ConstructionSite;
 
+// TODO: Generate villagers visiting stalls
+
 #[derive(Component)]
 pub struct MarketStall {
     pos: IVec2,

@@ -1,13 +1,11 @@
 use crate::*;
 use roof::roof;
 
-use self::{
-    roof::roof_material,
-    sim::{logistics::MoveTask, ConsItem, ConsList},
-};
+use self::sim::{logistics::MoveTask, ConsItem, ConsList};
 
 pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let inner = area.shrink(1);
+    let biome = level.biome[area.center()];
 
     let (floor, mut rec) = foundation(level, untree, area);
 
@@ -27,16 +25,16 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let second_floor = floor + 3;
 
     // Roof build now so we know how high the walls have to be
-    let roof_mat = roof_material(level.biome[area.center()]);
-    let roof_rec = roof(level, area.grow(1), second_floor + 3, roof_mat);
+    let roof_rec = roof(level, area.grow(1), second_floor + 3, roof::palette(biome));
 
     // Second story
 
+    let species = biome.random_tree_species();
     for y in [area.min.y, area.max.y] {
         for x in inner.min.x..=inner.max.x {
             level(
                 ivec3(x, y, second_floor),
-                Log(Oak, LogType::Normal(Axis::X)),
+                Log(species, LogType::Normal(Axis::X)),
             )
         }
     }
@@ -44,7 +42,7 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
         for y in inner.min.y..=inner.max.y {
             level(
                 ivec3(x, y, second_floor),
-                Log(Oak, LogType::Normal(Axis::Y)),
+                Log(species, LogType::Normal(Axis::Y)),
             )
         }
     }
@@ -60,8 +58,8 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
             match level(pos) {
                 Log(..) => (),
                 Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
-                Slab(..) | Stair(..) => {
-                    roof_fixup.push(pos);
+                Slab(mat, ..) | Stair(mat, ..) => {
+                    roof_fixup.push((pos, mat));
                     return;
                 }
                 _ => level(pos, block),
@@ -70,7 +68,7 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     };
 
     for pos in area.corners() {
-        column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)));
+        column_till_roof(level, pos, Log(species, LogType::Normal(Axis::Z)));
     }
 
     // Wattle
@@ -96,7 +94,9 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     }
 
     let cursor = level.recording_cursor();
-    level.fill(roof_fixup, Full(roof_mat));
+    for (pos, mat) in roof_fixup {
+        level(pos, Full(mat))
+    }
 
     // Daub
     'outer: for pos in area.border() {
@@ -113,21 +113,17 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let cursor = level.recording_cursor();
 
     // Paint/Whitewash
-    let paint = if 0.5 > rand() {
-        MushroomStem
-    } else {
-        *[
-            Terracotta(Some(White)),
-            Terracotta(Some(Red)),
-            Terracotta(Some(Orange)),
-            Terracotta(Some(Lime)),
-            Terracotta(Some(Green)),
-            Terracotta(Some(LightBlue)),
-            Terracotta(Some(Magenta)),
-            Terracotta(Some(Pink)),
-        ]
-        .choose()
-    };
+    let paint = rand_weighted(&[
+        (8., MushroomStem),
+        (1., Terracotta(Some(White))),
+        (1., Terracotta(Some(Red))),
+        (1., Terracotta(Some(Orange))),
+        (1., Terracotta(Some(Lime))),
+        (1., Terracotta(Some(Green))),
+        (1., Terracotta(Some(LightBlue))),
+        (1., Terracotta(Some(Magenta))),
+        (1., Terracotta(Some(Pink))),
+    ]);
     'outer: for pos in area.border() {
         for z in second_floor + 1.. {
             let pos = pos.extend(z);
@@ -145,8 +141,11 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
 pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let (floor, mut rec) = foundation(level, untree, area);
 
+    let biome = level.biome[area.center()];
+    let species = biome.random_tree_species();
+
     // Roof build now so we know how high the walls have to be
-    let roof_rec = roof(level, area.grow(1), floor + 3, Wood(Oak));
+    let roof_rec = roof(level, area.grow(1), floor + 3, roof::palette(biome));
 
     let cursor = level.recording_cursor();
     let mut roof_fixup = Vec::new();
@@ -158,8 +157,8 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
             match level(pos) {
                 Log(..) => (),
                 Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
-                Slab(..) | Stair(..) => {
-                    roof_fixup.push(pos);
+                Slab(mat, ..) | Stair(mat, ..) => {
+                    roof_fixup.push((pos, mat));
                     return;
                 }
                 _ => level(pos, block),
@@ -171,7 +170,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
 
     if let Wood(_) = wall_mat {
         for pos in area.corners() {
-            column_till_roof(level, pos, Log(Oak, LogType::Normal(Axis::Z)))
+            column_till_roof(level, pos, Log(species, LogType::Normal(Axis::Z)))
         }
     }
 
@@ -183,7 +182,9 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     rec.extend(roof_rec);
 
     let cursor = level.recording_cursor();
-    level.fill(roof_fixup, Full(Wood(Oak)));
+    for (pos, mat) in roof_fixup {
+        level(pos, Full(mat))
+    }
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec

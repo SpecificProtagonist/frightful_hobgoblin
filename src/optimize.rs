@@ -1,4 +1,5 @@
 /// Smaller score is better
+// TODO: Handle failure better
 pub fn optimize<T: PartialEq + Clone>(
     mut value: T,
     fun: impl Fn(&mut T, f32) -> f32,

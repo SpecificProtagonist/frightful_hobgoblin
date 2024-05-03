@@ -296,7 +296,13 @@ pub enum BlockMaterial {
     Blackstone,
     PolishedBlackstone,
     PolishedBlackstoneBrick,
+    CobbledDeepslate,
+    PolishedDeepslate,
+    DeepslateBrick,
+    DeepslateTile,
     MudBrick,
+    Prismarine,
+    DarkPrismarine,
 }
 
 impl Display for BlockMaterial {
@@ -329,7 +335,13 @@ impl BlockMaterial {
             Blackstone => "blackstone",
             PolishedBlackstone => "polished_blackstone",
             PolishedBlackstoneBrick => "polished_blackstone_brick",
+            CobbledDeepslate => "cobbled_deepslate",
+            PolishedDeepslate => "polished_deepslate",
+            DeepslateBrick => "deepslate_brick",
+            DeepslateTile => "deepslate_tile",
             MudBrick => "mud_brick",
+            Prismarine => "prismarine",
+            DarkPrismarine => "dark_prismarine",
         }
     }
 }
@@ -386,6 +398,8 @@ impl Block {
                 StoneBrick => "stone_bricks".into(),
                 MudBrick => "mud_bricks".into(),
                 PolishedBlackstoneBrick => "polished_blackstone_bricks".into(),
+                DeepslateBrick => "deepslate_bricks".into(),
+                DeepslateTile => "deepslate_tiles".into(),
                 material => material.to_str().into(),
             },
             Grass => "grass_block".into(),

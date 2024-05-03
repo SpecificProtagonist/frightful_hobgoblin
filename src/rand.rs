@@ -47,18 +47,22 @@ pub fn rand_3(prob: f32) -> IVec3 {
     ivec3(rand_1(prob), rand_1(prob), rand_1(prob))
 }
 
-pub fn rand_weighted<T: Copy>(items: &[(f32, T)]) -> T {
-    let total_weight = items.iter().fold(0., |acc, (weight, _)| acc + *weight);
-    let mut rng = total_weight * rand::<f32>();
-    let mut chosen = items[0].1;
+pub fn select<T: Clone>(items: &[(f32, T)], mut selector: f32) -> T {
+    let mut chosen = items[0].1.clone();
     for (weight, item) in items {
-        chosen = *item;
-        rng -= weight;
-        if rng < 0. {
+        chosen = item.clone();
+        selector -= weight;
+        if selector < 0. {
             break;
         }
     }
     chosen
+}
+
+pub fn rand_weighted<T: Clone>(items: &[(f32, T)]) -> T {
+    let total_weight = items.iter().fold(0., |acc, &(weight, _)| acc + weight);
+    let rng = total_weight * rand::<f32>();
+    select(items, rng)
 }
 
 pub trait ChooseExt {

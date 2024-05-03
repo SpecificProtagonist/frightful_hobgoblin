@@ -97,6 +97,12 @@ pub fn goods_for_block(block: Block) -> Option<Stack> {
             | Blackstone
             | PolishedBlackstone
             | PolishedBlackstoneBrick
+            | CobbledDeepslate
+            | PolishedDeepslate
+            | DeepslateBrick
+            | DeepslateTile
+            | Prismarine
+            | DarkPrismarine
             | Sandstone
             | SmoothSandstone
             | RedSandstone

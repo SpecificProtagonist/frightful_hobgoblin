@@ -1,9 +1,14 @@
-use crate::{sim::ConsList, *};
+use crate::{noise::noise2d, sim::ConsList, *};
 use bevy_math::Vec2Swizzles;
 
 use self::sim::ConsItem;
 
-pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> ConsList {
+pub fn roof(
+    level: &mut Level,
+    area: Rect,
+    base_z: i32,
+    palette: impl Fn(f32, i32) -> BlockMaterial,
+) -> ConsList {
     let cursor = level.recording_cursor();
 
     let shape = roof_shape(level.biome[area.center()], base_z, area.size().as_vec2());
@@ -13,6 +18,16 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
         Box::new(move |pos: Vec2| shape((pos - center).yx()))
     } else {
         Box::new(move |pos: Vec2| shape(pos - center))
+    };
+
+    let mat = |column: IVec2| -> BlockMaterial {
+        let mut val = noise2d(column) + 1.5;
+        val -= (shape(column.as_vec2()) - base_z as f32) / 5.;
+        let distance = (column - area.min)
+            .abs()
+            .min((column - area.max).abs())
+            .min_element();
+        palette(val, distance)
     };
 
     // Basic structure
@@ -26,6 +41,7 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
             (shape(pos.as_vec2() + vec2(0., -0.5)), YNeg),
         ];
         grad.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap());
+        let mat = mat(pos);
         let block = if grad[3].0 >= z + 0.5 {
             Stair(mat, grad[3].1, Bottom)
         } else if z >= z_block {
@@ -39,10 +55,14 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
     // Fix-ups
     for pos in area {
         let z_block = shape(pos.as_vec2()).round() as i32;
+        let mat = mat(pos);
         for dir in HDir::ALL {
             // Fix-up outer corners
-            if (level((pos + dir).extend(z_block)) == Stair(mat, dir.rotated(1), Bottom))
-                & (level((pos + dir.rotated(1)).extend(z_block)) == Stair(mat, dir, Bottom))
+            if matches!(level((pos + dir).extend(z_block)), Stair(_, f_dir, Bottom) if f_dir== dir.rotated(1))
+                & matches!(
+                    level((pos + dir.rotated(1)).extend(z_block)),
+                    Stair(_, f_dir, Bottom) if f_dir == dir
+                )
             {
                 level(pos, z_block, Stair(mat, dir, Bottom))
             }
@@ -80,41 +100,67 @@ pub fn roof(level: &mut Level, area: Rect, base_z: i32, mat: BlockMaterial) -> C
     list.into_iter().map(ConsItem::Set).collect()
 }
 
-pub fn roof_material(biome: Biome) -> BlockMaterial {
+pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
+    // This function is kinda ugly but it was a pain to get working
+    type C = (&'static [(f32, BlockMaterial)], bool, bool);
+    const SLATE: C = (
+        &[
+            (0., PolishedBlackstoneBrick),
+            (0.5, DeepslateTile),
+            (1.0, PolishedDeepslate),
+            (0., CobbledDeepslate),
+        ],
+        true,
+        true,
+    );
+    const BRICK: C = (&[(0., Brick), (0., Granite)], true, true);
+    const OAK: C = (&[(-0.5, Wood(Spruce)), (0., Wood(Oak))], false, true);
+    const SPRUCE: C = (&[(-0.5, Wood(DarkOak)), (0., Wood(Spruce))], false, true);
+    const DARK_OAK: C = (&[(-0.5, DeepslateTile), (0., Wood(DarkOak))], false, true);
+    const MANGROVE: C = (&[(1., Wood(Mangrove)), (0., Wood(Crimson))], true, true);
+    const ANDESITE: C = (&[(-0.5, PolishedAndesite), (0., Andesite)], false, true);
+    const CRIMSON: C = (&[(0., Wood(Crimson))], false, false);
+    const WARPED: C = (&[(1., Wood(Warped)), (0., DarkPrismarine)], true, true);
+    const BIRCH: C = (&[(-0.2, Sandstone), (0., Wood(Birch))], true, false);
+    const JUNGLE: C = (&[(0., Wood(Jungle))], false, false);
+    const ACACIA: C = (&[(0., Wood(Acacia))], false, false);
+    const CHERRY: C = (&[(0., Wood(Cherry))], false, false);
+    const MUDBRICK: C = (&[(0., MudBrick)], false, false);
     use Biome::*;
-    rand_weighted(match biome {
-        Plain | Forest | River | Ocean | Beach => &[
-            (1., Wood(Spruce)),
-            (0.3, Blackstone),
-            (0.1, Wood(Mangrove)),
-            (0.1, Wood(DarkOak)),
-        ],
-        Snowy => &[(1.0, Blackstone), (0.5, Wood(Spruce)), (0.5, Wood(DarkOak))],
-        Desert => &[
-            (1.0, Andesite),
-            (0.4, Granite),
-            (0.4, Wood(Spruce)),
-            (0.4, Wood(Birch)),
-        ],
-        Taiga => &[
-            (1., Wood(Spruce)),
-            (0.1, Blackstone),
-            (0.1, Wood(Mangrove)),
-            (0.1, Wood(DarkOak)),
-        ],
-        BirchForest => &[(1., Wood(Birch)), (0.1, Blackstone), (0.1, Wood(Mangrove))],
-        Swamp | MangroveSwamp => &[
-            (1., Wood(Spruce)),
-            (1., Wood(Mangrove)),
-            (0.3, Wood(Crimson)),
-            (0.3, Wood(Warped)),
-        ],
-        Jungles => &[(1., Wood(Jungle)), (0.2, Wood(Acacia))],
-        Mesa => &[(1., Wood(Spruce)), (0.5, Brick)],
-        Savanna => &[(1., Wood(Acacia)), (0.2, Granite), (0.2, MudBrick)],
-        DarkForest => &[(1., Wood(DarkOak)), (0.7, Blackstone)],
-        CherryGrove => &[(1., Wood(Cherry)), (0.2, Wood(Birch)), (0.2, Diorite)],
-    })
+    let (items, use_val, use_distance): (&[(f32, BlockMaterial)], bool, bool) =
+        rand_weighted(match biome {
+            Plain | Forest | River | Ocean | Beach => {
+                &[(0.4, OAK), (0.4, SPRUCE), (0.4, SLATE), (0.1, MANGROVE)]
+            }
+            Snowy => &[(1.0, SLATE), (0.5, SPRUCE), (0.5, DARK_OAK)],
+            Desert => &[
+                (1., MUDBRICK),
+                (1., BRICK),
+                (0.4, ANDESITE),
+                (0.4, SPRUCE),
+                (0.4, BIRCH),
+            ],
+            Taiga => &[(1., SPRUCE), (0.1, SLATE), (0.1, MANGROVE), (0.1, DARK_OAK)],
+            BirchForest => &[(1., BIRCH), (0.1, ANDESITE), (0.1, MANGROVE)],
+            Swamp | MangroveSwamp => &[(1., SPRUCE), (1., MANGROVE), (0.3, CRIMSON), (0.3, WARPED)],
+            Jungles => &[(1., JUNGLE), (0.2, ACACIA), (0.2, BRICK)],
+            Mesa => &[(1., SPRUCE), (0.5, BRICK)],
+            Savanna => &[(1., ACACIA), (0.2, BRICK), (0.2, MUDBRICK)],
+            DarkForest => &[(1., DARK_OAK), (0.7, SLATE)],
+            CherryGrove => &[(1., CHERRY), (0.2, BIRCH), (0.2, ANDESITE)],
+        });
+    let items = Vec::from(items);
+    move |value, distance| {
+        let mut val = if use_val { value } else { 0. };
+        if use_distance {
+            if distance == 0 {
+                val = val * 0.5 - 1.0;
+            } else if distance == 1 {
+                val = val * 0.7 - 0.4;
+            }
+        }
+        select(&items, val)
+    }
 }
 
 fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
