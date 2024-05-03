@@ -7,23 +7,10 @@ pub fn roof(
     level: &mut Level,
     area: Rect,
     base_z: i32,
+    shape: &Shape,
     palette: impl Fn(f32, i32) -> BlockMaterial,
 ) -> ConsList {
     let cursor = level.recording_cursor();
-
-    let rot = area.size().y > area.size().x;
-    let shape = roof_shape(
-        level.biome[area.center()],
-        base_z,
-        if rot { area.size().yx() } else { area.size() }.as_vec2(),
-    );
-
-    let center = area.center_vec2() - Vec2::splat(0.5);
-    let shape: Shape = if rot {
-        Box::new(move |pos: Vec2| shape((pos - center).yx()))
-    } else {
-        Box::new(move |pos: Vec2| shape(pos - center))
-    };
 
     let mat = |column: IVec2| -> BlockMaterial {
         let mut val = noise2d(column) + 1.5;
@@ -168,7 +155,10 @@ pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
     }
 }
 
-fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
+pub fn roof_shape(biome: Biome, mut base_z: i32, area: Rect) -> Shape {
+    let rot = area.size().y > area.size().x;
+    let size = if rot { area.size().yx() } else { area.size() }.as_vec2();
+
     use Biome::*;
     // Hip roofs only work on relatively square footprints
     // TODO: check that they still generate often enough
@@ -239,7 +229,14 @@ fn roof_shape(biome: Biome, mut base_z: i32, size: Vec2) -> Shape {
     if (curve == kerb) | (curve == straight_high) {
         base_z -= 1
     }
-    base_shape(base_z as f32, size, curve)
+    let shape = base_shape(base_z as f32, size, curve);
+
+    let center = area.center_vec2() - Vec2::splat(0.5);
+    if rot {
+        Box::new(move |pos: Vec2| shape((pos - center).yx()))
+    } else {
+        Box::new(move |pos: Vec2| shape(pos - center))
+    }
 }
 
 type Curve = fn(f32) -> f32;

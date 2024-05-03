@@ -1,7 +1,10 @@
 use crate::*;
 use roof::roof;
 
-use self::sim::{logistics::MoveTask, ConsItem, ConsList};
+use self::{
+    roof::roof_shape,
+    sim::{logistics::MoveTask, ConsItem, ConsList},
+};
 
 pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let inner = area.shrink(1);
@@ -25,7 +28,9 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let second_floor = floor + 3;
 
     // Roof build now so we know how high the walls have to be
-    let roof_rec = roof(level, area.grow(1), second_floor + 3, roof::palette(biome));
+    let roof_z = second_floor + 3;
+    let roof_area = area.grow(1);
+    let roof_shape = roof_shape(biome, roof_z, roof_area);
 
     // Second story
 
@@ -49,34 +54,28 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
 
     level.fill_at(inner, second_floor, Slab(Wood(Oak), Top));
 
-    let mut roof_fixup = Vec::new();
-    // TODO: Instead return roof height from roof function
-    // to avoid issues if another roof is poking in
-    let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
-        for z in second_floor.. {
-            let pos = col.extend(z);
-            match level(pos) {
-                Log(..) => (),
-                Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
-                Slab(mat, ..) | Stair(mat, ..) => {
-                    roof_fixup.push((pos, mat));
-                    return;
-                }
-                _ => level(pos, block),
-            }
+    for column in area.corners() {
+        for z in second_floor..=(roof_shape(column.as_vec2()) - 0.5) as i32 {
+            level(column, z, Log(species, LogType::Normal(Axis::Z)))
         }
-    };
-
-    for pos in area.corners() {
-        column_till_roof(level, pos, Log(species, LogType::Normal(Axis::Z)));
     }
 
     // Wattle
-    for pos in area.border() {
-        column_till_roof(level, pos, MangroveRoots);
+    let mut wattle = Vec::new();
+    for column in area.border() {
+        for z in second_floor + 1..=(roof_shape(column.as_vec2()) - 0.5) as i32 {
+            let pos = column.extend(z);
+            if !level(pos).solid() {
+                wattle.push(pos);
+            }
+        }
     }
+    wattle.sort_by_key(|p| p.z);
+    level.fill(&wattle, MangroveRoots);
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
+    let roof_rec = roof(level, roof_area, roof_z, &roof_shape, roof::palette(biome));
+    wattle.retain(|p| level(p) == MangroveRoots);
     rec.extend(roof_rec);
 
     // Some movement
@@ -94,20 +93,9 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     }
 
     let cursor = level.recording_cursor();
-    for (pos, mat) in roof_fixup {
-        level(pos, Full(mat))
-    }
 
     // Daub
-    'outer: for pos in area.border() {
-        for z in second_floor + 1.. {
-            let pos = pos.extend(z);
-            match level(pos) {
-                MangroveRoots => level(pos, MuddyMangroveRoots),
-                _ => continue 'outer,
-            }
-        }
-    }
+    level.fill(&wattle, MuddyMangroveRoots);
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     let cursor = level.recording_cursor();
@@ -124,15 +112,7 @@ pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
         (1., Terracotta(Some(Magenta))),
         (1., Terracotta(Some(Pink))),
     ]);
-    'outer: for pos in area.border() {
-        for z in second_floor + 1.. {
-            let pos = pos.extend(z);
-            match level(pos) {
-                MuddyMangroveRoots => level(pos, paint),
-                _ => continue 'outer,
-            }
-        }
-    }
+    level.fill(&wattle, paint);
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec
@@ -145,46 +125,33 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     let species = biome.random_tree_species();
 
     // Roof build now so we know how high the walls have to be
-    let roof_rec = roof(level, area.grow(1), floor + 3, roof::palette(biome));
+    let roof_z = floor + 3;
+    let roof_area = area.grow(1);
+    let roof_shape = roof_shape(biome, roof_z, roof_area);
+    let roof_rec = roof(level, roof_area, roof_z, &roof_shape, roof::palette(biome));
 
     let cursor = level.recording_cursor();
-    let mut roof_fixup = Vec::new();
-    // TODO: Instead return roof height from roof function
-    // to avoid issues if another roof is poking in
-    let mut column_till_roof = |level: &mut Level, col: IVec2, block: Block| {
-        for z in floor + 1.. {
-            let pos = col.extend(z);
-            match level(pos) {
-                Log(..) => (),
-                Full(..) | Slab(_, Bottom) | Stair(_, _, Bottom) => return,
-                Slab(mat, ..) | Stair(mat, ..) => {
-                    roof_fixup.push((pos, mat));
-                    return;
-                }
-                _ => level(pos, block),
-            }
-        }
-    };
 
     let wall_mat = if rand() { Cobble } else { Wood(Oak) };
 
     if let Wood(_) = wall_mat {
-        for pos in area.corners() {
-            column_till_roof(level, pos, Log(species, LogType::Normal(Axis::Z)))
+        for column in area.corners() {
+            for z in floor..=(roof_shape(column.as_vec2()) - 0.5) as i32 {
+                level(column, z, Log(species, LogType::Normal(Axis::Z)))
+            }
         }
     }
 
-    for pos in area.border() {
-        column_till_roof(level, pos, Full(wall_mat));
+    for column in area.border() {
+        for z in floor + 1..=(roof_shape(column.as_vec2()) - 0.5) as i32 {
+            level(column.extend(z), |b| b | Full(wall_mat))
+        }
     }
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec.extend(roof_rec);
 
     let cursor = level.recording_cursor();
-    for (pos, mat) in roof_fixup {
-        level(pos, Full(mat))
-    }
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec

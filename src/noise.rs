@@ -2,7 +2,7 @@ use nanorand::{RandomGen, WyRand};
 
 use crate::*;
 
-// Very high frequency noise for testing
+// Fixed frequency noise for testing
 pub fn noise2d(column: IVec2) -> f32 {
     let mask = &[
         (ivec2(-2, -1), 0.1),

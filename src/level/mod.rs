@@ -235,21 +235,25 @@ impl Level {
         self.setblock_recording[cursor.0..].iter().copied()
     }
 
-    pub fn fill(&mut self, iter: impl IntoIterator<Item = IVec3>, mut block: impl BlockOrFn) {
+    pub fn fill(
+        &mut self,
+        iter: impl IntoIterator<Item = impl MaybeRef<IVec3>>,
+        mut block: impl BlockOrFn,
+    ) {
         for pos in iter {
-            self(pos, |b| block.get(b));
+            self(pos.get_val(), |b| block.get(b));
         }
     }
 
     pub fn fill_at(
         &mut self,
-        iter: impl IntoIterator<Item = IVec2>,
+        iter: impl IntoIterator<Item = impl MaybeRef<IVec2>>,
         z: impl RangeOrSingle,
         mut block: impl BlockOrFn,
     ) {
         for pos in iter {
             for z in z.start()..=z.end() {
-                self(pos.extend(z), |b| block.get(b));
+                self(pos.get_val().extend(z), |b| block.get(b));
             }
         }
     }
@@ -257,6 +261,24 @@ impl Level {
     // TODO: return +IVec3::Z
     pub fn ground(&self, column: IVec2) -> IVec3 {
         column.extend(self.height[column])
+    }
+}
+
+pub trait MaybeRef<T>
+where
+    T: Copy,
+{
+    fn get_val(&self) -> T;
+}
+
+impl<T: Copy> MaybeRef<T> for T {
+    fn get_val(&self) -> T {
+        *self
+    }
+}
+impl<'a, T: Copy> MaybeRef<T> for &'a T {
+    fn get_val(&self) -> T {
+        **self
     }
 }
 

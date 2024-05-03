@@ -5,22 +5,22 @@ use std::mem;
 
 use crate::*;
 
-impl FnOnce<(IVec3,)> for Level {
+impl<P: MaybeRef<IVec3>> FnOnce<(P,)> for Level {
     type Output = Block;
 
-    extern "rust-call" fn call_once(self, pos: (IVec3,)) -> Self::Output {
+    extern "rust-call" fn call_once(self, pos: (P,)) -> Self::Output {
         self.call(pos)
     }
 }
-impl FnMut<(IVec3,)> for Level {
-    extern "rust-call" fn call_mut(&mut self, pos: (IVec3,)) -> Self::Output {
+impl<P: MaybeRef<IVec3>> FnMut<(P,)> for Level {
+    extern "rust-call" fn call_mut(&mut self, pos: (P,)) -> Self::Output {
         self.call(pos)
     }
 }
 
-impl Fn<(IVec3,)> for Level {
-    extern "rust-call" fn call(&self, (pos,): (IVec3,)) -> Self::Output {
-        self.blocks[pos]
+impl<P: MaybeRef<IVec3>> Fn<(P,)> for Level {
+    extern "rust-call" fn call(&self, (pos,): (P,)) -> Self::Output {
+        self.blocks[pos.get_val()]
     }
 }
 
