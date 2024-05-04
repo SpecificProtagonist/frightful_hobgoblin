@@ -1,4 +1,4 @@
-# e24u
+# Frightful Hobgoblin
 
 WIP entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
 

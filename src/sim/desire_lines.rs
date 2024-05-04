@@ -36,7 +36,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
     fn affected(block: Block) -> bool {
         matches!(
             block,
-            Grass | Podzol | Dirt | CoarseDirt | Path | Sand | SnowBlock
+            Grass | Podzol | Dirt | CoarseDirt | Path | Sand | SnowBlock | Slab(Granite, Bottom)
         )
     }
     if !affected(level(pos)) {
@@ -75,6 +75,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
                 level(pos + IVec3::Z, Slab(Granite, Bottom))
             }
             Dirt | CoarseDirt if (wear > 17) & (level(pos + IVec3::Z) == Air) => level(pos, Path),
+            Slab(Granite, Bottom) if wear > 26 => level(pos, Slab(Andesite, Bottom)),
             Path if wear > 24 => {
                 if level(pos - IVec3::Z).solid() {
                     level(pos, Gravel)

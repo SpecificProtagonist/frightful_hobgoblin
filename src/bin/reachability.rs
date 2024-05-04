@@ -2,9 +2,9 @@
 #[path = "../../config_local.rs"]
 mod config;
 use config::*;
-use e24u::pathfind::reachability_from;
-use e24u::sim::building_plan::choose_starting_area;
-use e24u::*;
+use frightful_hobgoblin::pathfind::reachability_from;
+use frightful_hobgoblin::sim::building_plan::choose_starting_area;
+use frightful_hobgoblin::*;
 use nanorand::*;
 use num_traits::FromPrimitive;
 

@@ -1,6 +1,6 @@
 pub mod building_plan;
 pub mod construction;
-mod desire_lines;
+pub mod desire_lines;
 pub mod logistics;
 pub mod lumberjack;
 mod personal_name;

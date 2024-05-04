@@ -1,7 +1,7 @@
 use argh::FromArgs;
 use config::*;
-use e24u::sim::sim;
-use e24u::*;
+use frightful_hobgoblin::sim::sim;
+use frightful_hobgoblin::*;
 use nanorand::*;
 
 /// The config isn't commited to git because it just contains the paths to the world folders

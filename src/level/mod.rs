@@ -140,8 +140,8 @@ impl Level {
         let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
 
         let name: &mut String = data.get_mut("LevelName").unwrap();
-        if !name.contains("[e24u]") {
-            name.push_str(" [e24u]");
+        if !name.contains("[replay]") {
+            name.push_str(" [replay]");
         } else if let Some((start, Ok(count))) = name
             .rsplit_once(' ')
             .map(|(start, count)| (start, count.parse::<i32>()))
@@ -584,3 +584,15 @@ pub enum ColumnUse {
 }
 
 pub use ColumnUse::*;
+
+#[allow(unused)]
+pub fn show_blocked(level: &mut Level) {
+    for column in level.area() {
+        let color = match level.blocked[column] {
+            Free => White,
+            Street => Yellow,
+            Blocked => Red,
+        };
+        level(column.extend(130), Glass(Some(color)))
+    }
+}

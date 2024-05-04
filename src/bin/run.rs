@@ -1,6 +1,6 @@
 use argh::FromArgs;
-use e24u::sim::sim;
-use e24u::*;
+use frightful_hobgoblin::sim::sim;
+use frightful_hobgoblin::*;
 use nanorand::*;
 
 #[derive(FromArgs)]

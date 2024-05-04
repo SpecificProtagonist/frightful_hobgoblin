@@ -28,11 +28,32 @@ impl ConstructionSite {
     }
 }
 
+#[derive(Component)]
+pub struct RemoveWhenBlocked {
+    check_area: Vec<IVec2>,
+    restore: Vec<(IVec3, Block)>,
+}
+
 pub fn new_construction_site(
     mut commands: Commands,
-    new: Query<(Entity, &ConstructionSite, Option<&Pile>), Added<ConstructionSite>>,
+    mut level: ResMut<Level>,
+    mut new: Query<(Entity, &mut ConstructionSite, Option<&Pile>), Added<ConstructionSite>>,
+    check_for_removal: Query<(Entity, &RemoveWhenBlocked)>,
 ) {
-    for (entity, site, existing_pile) in &new {
+    for (entity, mut site, existing_pile) in &mut new {
+        let cursor = level.recording_cursor();
+        for (entity, data) in &check_for_removal {
+            if data.check_area.iter().any(|c| level.blocked[*c] == Blocked) {
+                for &(pos, block) in &data.restore {
+                    level(pos, block)
+                }
+                commands.entity(entity).despawn()
+            }
+        }
+        for item in level.pop_recording(cursor).map(ConsItem::Set) {
+            site.todo.push_front(item);
+        }
+
         let mut stock = existing_pile.cloned().unwrap_or_default();
         let mut requested = Goods::default();
         let mut priority = None;

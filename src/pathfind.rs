@@ -3,6 +3,8 @@ use std::{
     collections::{BinaryHeap, VecDeque},
 };
 
+use itertools::Itertools;
+
 use crate::*;
 
 const WALK_COST_PER_BLOCK: u32 = 3;
@@ -52,13 +54,12 @@ impl PartialOrd for Node {
     }
 }
 
-// TODO: Make walking on paths faster; make stairs reduce stair cost
-// TODO: Acknowledge that boats are wider than one block
+fn heuristic(a: IVec3, b: IVec3) -> i32 {
+    let horizontal_diff = (a - b).abs();
+    (horizontal_diff.x + horizontal_diff.y).max((a.z - b.z).abs())
+}
+
 pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i32) -> PathSearch {
-    fn heuristic(a: IVec3, b: IVec3) -> i32 {
-        let horizontal_diff = (a - b).abs();
-        (horizontal_diff.x + horizontal_diff.y).max((a.z - b.z).abs())
-    }
     if heuristic(start, end) <= range_to_end {
         return PathSearch {
             path: default(),
@@ -66,7 +67,6 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             cost: 0,
         };
     }
-    let area = level.area().shrink(2);
     if range_to_end == 0 {
         for pos in [&mut end, &mut start] {
             while level(*pos).solid() {
@@ -77,11 +77,6 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             }
         }
     }
-    let mut closest_pos = start;
-    let mut closest_heuristic = i32::MAX;
-    let mut closest_cost = 0;
-    let mut success = false;
-    let mut path = HashMap::<IVec3, (IVec3, bool)>::default();
     let mut queue = BinaryHeap::new();
     queue.push(Node {
         pos: start,
@@ -90,6 +85,72 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
         stair_cooldown: 0,
         in_boat: false,
     });
+    pathfind_with(
+        level,
+        queue,
+        try_pos,
+        |_, heuristic| heuristic <= range_to_end,
+        |new_pos| {
+            let horizontal_diff = (new_pos.x - end.x).abs() + (new_pos.y - end.y).abs();
+            horizontal_diff.max((new_pos.z - end.z).abs())
+        },
+    )
+}
+
+pub fn pathfind_street(level: &Level, start: Rect) -> PathSearch {
+    let mut queue = BinaryHeap::new();
+    for column in start.border() {
+        if !start.corners().contains(&column) {
+            queue.push(Node {
+                pos: level.ground(column) + IVec3::Z,
+                cost: 0,
+                cost_with_heuristic: 0,
+                stair_cooldown: 0,
+                in_boat: false,
+            });
+        }
+    }
+    pathfind_with(
+        level,
+        queue,
+        |level, area, path, node, off| {
+            if (-1..=1).cartesian_product(-1..=1).any(|(x_off, y_off)| {
+                level.blocked[(node.pos + off).truncate() + ivec2(x_off, y_off)] == Blocked
+            }) | area.corners().contains(&node.pos.truncate())
+            {
+                return None;
+            }
+            try_pos(level, area, path, node, off)
+        },
+        |pos, _| (level.blocked[pos] == Street) & (pos.z == level.height[pos] + 1),
+        |_| 0,
+    )
+}
+
+// TODO: Make make stairs reduce stair cost
+// TODO: Acknowledge that boats are wider than one block
+fn pathfind_with(
+    level: &Level,
+    mut queue: BinaryHeap<Node>,
+    check_pos: impl Fn(
+        &Level,
+        Rect,
+        &mut HashMap<IVec3, (IVec3, bool)>,
+        &Node,
+        IVec3,
+    ) -> Option<CheckedPos>,
+    check_success: impl Fn(IVec3, i32) -> bool,
+    heuristic: impl Fn(IVec3) -> i32,
+) -> PathSearch {
+    let mut path = HashMap::<IVec3, (IVec3, bool)>::default();
+    for node in &queue {
+        path.insert(node.pos, (node.pos, false));
+    }
+    let area = level.area().shrink(2);
+    let mut closest_pos = queue.peek().unwrap().pos;
+    let mut closest_heuristic = i32::MAX;
+    let mut closest_cost = 0;
+    let mut success = false;
     'outer: while let Some(node) = queue.pop() {
         for off in NEIGHBORS_3D {
             let Some(CheckedPos {
@@ -97,13 +158,13 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
                 new_cost,
                 boat,
                 stairs_taken,
-            }) = try_pos(level, area, &mut path, &node, off)
+            }) = check_pos(level, area, &mut path, &node, off)
             else {
                 continue;
             };
 
-            let horizontal_diff = (new_pos.x - end.x).abs() + (new_pos.y - end.y).abs();
-            let heuristic = horizontal_diff.max((new_pos.z - end.z).abs());
+            let heuristic = heuristic(new_pos);
+
             queue.push(Node {
                 pos: new_pos,
                 cost: new_cost,
@@ -134,8 +195,9 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             let exploration_limit_reached = path.len() > 30000;
 
             // Arrived at target
-            if heuristic <= range_to_end {
+            if check_success(new_pos, heuristic) {
                 success = true;
+                closest_pos = new_pos;
                 break 'outer;
             } else if exploration_limit_reached {
                 break 'outer;
@@ -155,7 +217,7 @@ pub fn pathfind(level: &Level, mut start: IVec3, mut end: IVec3, range_to_end: i
             pos: *next,
             boat: false,
         });
-        if *next == start {
+        if prev == *next {
             break;
         }
         prev = *next;

@@ -38,6 +38,7 @@ pub use geometry::*;
 pub use level::*;
 pub use prefab::prefab;
 pub use rand::*;
+pub use sim::*;
 pub use trees::Untree;
 
 // Replaces SipHash with ahash & disables randomness

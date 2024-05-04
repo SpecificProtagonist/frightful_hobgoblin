@@ -1,12 +1,27 @@
 use crate::*;
+use itertools::Itertools;
 use roof::roof;
 
 use self::{
+    desire_lines::{add_desire_line, DesireLines},
+    pathfind::pathfind_street,
     roof::roof_shape,
     sim::{logistics::MoveTask, ConsItem, ConsList},
 };
 
-pub fn house(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
+pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area: Rect) -> ConsList {
+    (level.blocked)(area, Free);
+    let path = pathfind_street(level, area);
+    for node in path.path {
+        for (x_off, y_off) in (-1..=1).cartesian_product(-1..=1) {
+            level.blocked[node.pos.truncate() + ivec2(x_off, y_off)] = Street;
+        }
+        for _ in 0..30 {
+            add_desire_line(level, dl, node.pos - IVec3::Z);
+        }
+    }
+    (level.blocked)(area, Blocked);
+
     let inner = area.shrink(1);
     let biome = level.biome[area.center()];
 

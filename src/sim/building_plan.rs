@@ -2,7 +2,7 @@ use crate::*;
 use bevy_ecs::prelude::*;
 use sim::*;
 
-use self::quarry::Quarry;
+use self::{desire_lines::DesireLines, quarry::Quarry};
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Planned(pub Vec<IVec2>);
@@ -190,6 +190,7 @@ pub fn assign_builds(
 pub fn test_build_house(
     mut commands: Commands,
     mut level: ResMut<Level>,
+    mut dl: ResMut<DesireLines>,
     mut untree: Untree,
     new: Query<(Entity, &House), With<ToBeBuild>>,
 ) {
@@ -199,6 +200,7 @@ pub fn test_build_house(
             .remove::<ToBeBuild>()
             .insert(ConstructionSite::new(house::house(
                 &mut level,
+                &mut dl,
                 &mut untree,
                 house.area,
             )));

@@ -58,6 +58,7 @@ pub enum Block {
     SnowLayer,
     SnowBlock,
     Glowstone,
+    Glass(Option<Color>),
     GlassPane(Option<Color>),
     WallBanner(HDir, Color),
     Hay,
@@ -537,6 +538,13 @@ impl Block {
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
             SnowBlock => "snow_block".into(),
             Glowstone => "glowstone".into(),
+            Glass(color) => {
+                if let Some(color) = color {
+                    format!("{color}_stained_glass").into()
+                } else {
+                    "glass".into()
+                }
+            }
             GlassPane(color) => {
                 if let Some(color) = color {
                     format!("{color}_stained_glass_pane").into()

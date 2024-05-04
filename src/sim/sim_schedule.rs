@@ -2,16 +2,14 @@ use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
 
 use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
-use self::{
-    detect_existing_buildings::detect_existing_buildings,
-    lumberjack::{plan_lumberjack, test_build_lumberjack},
-    make_name::make_town_name,
-    quarry::{plan_quarry, test_build_quarry},
-    roads::init_roads,
-    stall::{init_stalls, plan_stalls},
-    storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals},
-    trees::{init_trees, spawn_trees},
-};
+use detect_existing_buildings::detect_existing_buildings;
+use lumberjack::{plan_lumberjack, test_build_lumberjack};
+use make_name::make_town_name;
+use quarry::{plan_quarry, test_build_quarry};
+use roads::init_roads;
+use stall::{init_stalls, plan_stalls};
+use storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals};
+use trees::{init_trees, spawn_trees};
 
 use super::*;
 
@@ -104,7 +102,10 @@ pub fn sim(mut level: Level, debug_save: bool) {
         sched.run(&mut world);
     }
 
-    let level = world.remove_resource::<Level>().unwrap();
+    let mut level = world.remove_resource::<Level>().unwrap();
+
+    show_blocked(&mut level);
+
     if debug_save {
         level.debug_save();
     } else {

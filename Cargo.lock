@@ -360,31 +360,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "75b325c5dbd37f80359721ad39aca5a29fb04c89279657cffdda8736d0c0b9d2"
 
 [[package]]
-name = "e24u"
-version = "0.1.0"
-dependencies = [
- "anvil-region",
- "argh",
- "bevy_derive",
- "bevy_ecs",
- "bevy_math",
- "bevy_utils",
- "bitflags 2.5.0",
- "bresenham",
- "copy_dir",
- "enum-iterator",
- "flate2",
- "float-ord",
- "image",
- "itertools",
- "named-binary-tag",
- "nanorand",
- "num-derive",
- "num-traits",
- "rayon",
-]
-
-[[package]]
 name = "either"
 version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -482,6 +457,31 @@ name = "float-ord"
 version = "0.3.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8ce81f49ae8a0482e4c55ea62ebbd7e5a686af544c00b9d090bba3ff9be97b3d"
+
+[[package]]
+name = "frightful_hobgoblin"
+version = "0.1.0"
+dependencies = [
+ "anvil-region",
+ "argh",
+ "bevy_derive",
+ "bevy_ecs",
+ "bevy_math",
+ "bevy_utils",
+ "bitflags 2.5.0",
+ "bresenham",
+ "copy_dir",
+ "enum-iterator",
+ "flate2",
+ "float-ord",
+ "image",
+ "itertools",
+ "named-binary-tag",
+ "nanorand",
+ "num-derive",
+ "num-traits",
+ "rayon",
+]
 
 [[package]]
 name = "futures-core"

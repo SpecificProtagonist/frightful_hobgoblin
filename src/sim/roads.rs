@@ -1,6 +1,7 @@
 use std::f32::consts::PI;
 
 use crate::*;
+use itertools::Itertools;
 use sim::*;
 
 use self::{
@@ -31,15 +32,13 @@ pub fn init_roads(
         //     continue;
         // }
         for node in path.path {
-            for x_off in -1..=1 {
-                for y_off in -1..=1 {
-                    let offset = ivec2(x_off, y_off);
-                    if !node.boat {
-                        level.blocked[node.pos.truncate() + offset] = Street;
-                    }
-                    for _ in 0..10 {
-                        add_desire_line(&mut level, &mut dl, node.pos + offset.extend(-1));
-                    }
+            for (x_off, y_off) in (-1..=1).cartesian_product(-1..=1) {
+                let offset = ivec2(x_off, y_off);
+                if !node.boat {
+                    level.blocked[node.pos.truncate() + offset] = Street;
+                }
+                for _ in 0..10 {
+                    add_desire_line(&mut level, &mut dl, node.pos + offset.extend(-1));
                 }
             }
         }
