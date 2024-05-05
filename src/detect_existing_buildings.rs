@@ -29,6 +29,7 @@ pub fn detect_existing_buildings(mut level: ResMut<Level>) {
             | Slab(..)
             | Fence(..)
             | FenceGate(..)
+            | Glass(..)
             | Hay
             | Rail(..) => {
                 for x_off in -1..=1 {

@@ -212,14 +212,14 @@ fn pathfind_with(
     });
     let mut prev = closest_pos;
     while let Some((next, boat)) = path.get(&prev) {
+        if prev == *next {
+            break;
+        }
         steps.front_mut().unwrap().boat = *boat;
         steps.push_front(PathingNode {
             pos: *next,
             boat: false,
         });
-        if prev == *next {
-            break;
-        }
         prev = *next;
     }
     PathSearch {

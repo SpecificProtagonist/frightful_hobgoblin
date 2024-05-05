@@ -125,6 +125,15 @@ impl Rect {
             .chain(Some(self.max))
             .chain(Some(ivec2(self.max.x, self.min.y)))
     }
+
+    pub fn outside_face(self, column: IVec2) -> HDir {
+        for dir in HDir::ALL {
+            if !self.contains(column + IVec2::from(dir)) {
+                return dir;
+            }
+        }
+        panic!("not on border")
+    }
 }
 
 impl Add<IVec2> for Rect {

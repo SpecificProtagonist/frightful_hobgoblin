@@ -10,9 +10,11 @@ use self::{
 };
 
 pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area: Rect) -> ConsList {
+    let inner = area.shrink(1);
+
     (level.blocked)(area, Free);
     let path = pathfind_street(level, area);
-    for node in path.path {
+    for node in &path.path {
         for (x_off, y_off) in (-1..=1).cartesian_product(-1..=1) {
             level.blocked[node.pos.truncate() + ivec2(x_off, y_off)] = Street;
         }
@@ -21,11 +23,28 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
         }
     }
     (level.blocked)(area, Blocked);
+    let side_columns = (inner.min.x..inner.max.x)
+        .flat_map(|x| [ivec2(x, area.min.y - 1), ivec2(x, area.max.y + 1)])
+        .chain(
+            (inner.min.y..inner.max.y)
+                .flat_map(|y| [ivec2(area.min.x - 1, y), ivec2(area.max.x + 1, y)]),
+        )
+        .map(|c| level.height[c]);
+    let sides_min = side_columns.clone().min().unwrap();
+    let _sides_max = side_columns.max().unwrap();
+    let entrance = path.path[0].pos.truncate().extend(path.path[1].pos.z);
 
-    let inner = area.shrink(1);
+    let floor = if entrance.z > sides_min + 3 {
+        entrance.z - 4
+    } else {
+        entrance.z - 1
+    };
+
+    let no_walls = [entrance, entrance + IVec3::Z];
+
     let biome = level.biome[area.center()];
 
-    let (floor, mut rec) = foundation(level, untree, area);
+    let mut rec = foundation(level, untree, area, floor);
 
     let cursor = level.recording_cursor();
 
@@ -33,12 +52,6 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
     for z in floor + 1..floor + 3 {
         level.fill_at(area.border(), z, Full(Cobble))
     }
-
-    let door_pos = ivec3(rand_range(inner.min.x..=inner.max.x), area.min.y, floor + 1);
-    level(door_pos, Air);
-    level(door_pos + IVec3::Z, Air);
-    level(door_pos.add(HDir::YNeg), Air);
-    level(door_pos.add(HDir::YNeg) + IVec3::Z, Air);
 
     let second_floor = floor + 3;
 
@@ -129,21 +142,36 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
     ]);
     level.fill(&wattle, paint);
 
+    rec.retain(|&s| {
+        if let ConsItem::Set(SetBlock { pos, block, .. }) = s {
+            (block == Air) | !no_walls.contains(&pos)
+        } else {
+            true
+        }
+    });
+
+    let door_dir = area.outside_face(entrance.truncate());
+    let door_type = biome.random_tree_species();
+    level(entrance, Door(door_type, door_dir, DoorMeta::empty()));
+    level(
+        entrance + IVec3::Z,
+        Door(door_type, door_dir, DoorMeta::TOP),
+    );
+
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec
 }
 
 pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
-    let (floor, mut rec) = foundation(level, untree, area);
+    let floor = level.height.average(area.border()).round() as i32;
+    let mut rec = foundation(level, untree, area, floor);
 
     let biome = level.biome[area.center()];
     let species = biome.random_tree_species();
 
-    // Roof build now so we know how high the walls have to be
     let roof_z = floor + 3;
     let roof_area = area.grow(1);
     let roof_shape = roof_shape(biome, roof_z, roof_area);
-    let roof_rec = roof(level, roof_area, roof_z, &roof_shape, roof::palette(biome));
 
     let cursor = level.recording_cursor();
 
@@ -164,6 +192,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     }
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
+    let roof_rec = roof(level, roof_area, roof_z, &roof_shape, roof::palette(biome));
     rec.extend(roof_rec);
 
     let cursor = level.recording_cursor();
@@ -172,9 +201,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     rec
 }
 
-fn foundation(level: &mut Level, untree: &mut Untree, area: Rect) -> (i32, ConsList) {
-    let floor = level.height.average(area.border()).round() as i32;
-
+fn foundation(level: &mut Level, untree: &mut Untree, area: Rect, floor: i32) -> ConsList {
     let cursor = level.recording_cursor();
     untree.remove_trees(level, area.grow(1));
 
@@ -209,5 +236,5 @@ fn foundation(level: &mut Level, untree: &mut Untree, area: Rect) -> (i32, ConsL
     }
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
 
-    (floor, rec)
+    rec
 }
