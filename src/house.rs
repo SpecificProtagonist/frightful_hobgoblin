@@ -13,6 +13,7 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
     let inner = area.shrink(1);
 
     (level.blocked)(area, Free);
+    // TODO: On sides that are wider than ~9 blocks, don't allow starting next to corner
     let path = pathfind_street(level, area);
     for node in &path.path {
         for (x_off, y_off) in (-1..=1).cartesian_product(-1..=1) {

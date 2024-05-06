@@ -53,6 +53,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
             wateryness(level, *area) * 20. + unevenness(level, *area) + distance.powf(2.) / 2.
         },
         300,
+        1,
     )
     .unwrap()
     .shrink(10)
@@ -95,6 +96,7 @@ pub fn plan_house(
                 + (distance / 100.).powf(1.6)
         },
         200,
+        20,
     ) else {
         return;
     };
@@ -128,7 +130,7 @@ pub fn upgrade_plaza(
         let metr = offset.as_vec2().powf(4.);
         if metr.x + metr.y < (rect.size().max_element() as f32 / 2.).powf(4.) + 0.6 {
             let pos = level.ground(rect.center() + offset);
-            level(pos, Path);
+            level(pos, PackedMud);
             if 0.2 > rand() {
                 rec.push_back(ConsItem::Goto(MoveTask {
                     goal: pos + IVec3::Z,

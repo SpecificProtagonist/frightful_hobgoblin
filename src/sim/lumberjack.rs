@@ -83,6 +83,7 @@ pub fn plan_lumberjack(
                 + tree_access * 5.
         },
         200,
+        1,
     ) else {
         return;
     };

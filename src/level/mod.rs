@@ -604,6 +604,6 @@ pub fn show_blocked(level: &mut Level) {
             Street => Yellow,
             Blocked => Red,
         };
-        level(column.extend(130), Glass(Some(color)))
+        level(column.extend(130), |b| b | Glass(Some(color)))
     }
 }

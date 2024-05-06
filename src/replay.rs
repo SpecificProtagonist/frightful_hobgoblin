@@ -70,7 +70,7 @@ impl Command {
                     pos.z,
                     pos.y,
                     nbt.as_deref()
-                        .map(|s| format!("[{s}]"))
+                        .map(|s| format!("{{{s}}}"))
                         .unwrap_or("".to_owned())
                 )
             }

@@ -102,6 +102,7 @@ pub fn plan_quarry(
                 + distance / 100.
         },
         200,
+        1,
     ) else {
         return;
     };
