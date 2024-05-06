@@ -94,12 +94,12 @@ pub fn build(
         else {
             continue;
         };
-        match building.todo.front().copied() {
+        match building.todo.front() {
             Some(ConsItem::Goto(goto)) => {
-                commands.entity(builder).insert(goto);
+                commands.entity(builder).insert(*goto);
                 building.todo.pop_front();
             }
-            Some(ConsItem::Carry(stack)) => villager.carry = stack,
+            Some(ConsItem::Carry(stack)) => villager.carry = *stack,
             Some(ConsItem::Set(set)) => {
                 if let Some(missing) = pile.try_consume(set.block) {
                     building.has_builder = false;
@@ -108,7 +108,7 @@ pub fn build(
                     commands.entity(builder).remove::<BuildTask>();
                 } else {
                     // TODO: check if current block is still the same as when the ConsList was created
-                    replay.block(set.pos, set.block);
+                    replay.block(set.pos, set.block, set.nbt.clone());
                     replay.dust(set.pos);
                     building.todo.pop_front();
                 }
@@ -134,7 +134,7 @@ pub fn check_construction_site_readiness(
 ) {
     for (mut site, pile) in &mut query {
         if !site.has_materials {
-            match site.todo[0] {
+            match &site.todo[0] {
                 ConsItem::Goto(_) | ConsItem::Carry(_) => {
                     site.has_materials = true;
                 }

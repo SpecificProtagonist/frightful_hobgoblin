@@ -63,7 +63,7 @@ pub struct Jobless;
 
 pub type ConsList = VecDeque<ConsItem>;
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub enum ConsItem {
     Set(SetBlock),
     Goto(MoveTask),
@@ -173,7 +173,7 @@ fn place(
     for (entity, mut villager, mut build) in &mut builders {
         match build.0.pop_front() {
             Some(ConsItem::Set(set)) => {
-                replay.block(set.pos, set.block);
+                replay.block(set.pos, set.block, set.nbt);
             }
             Some(ConsItem::Goto(goto)) => {
                 commands.entity(entity).insert(goto);

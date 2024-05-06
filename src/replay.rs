@@ -49,7 +49,7 @@ static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 // Used to offload encoding to gzipped nbt to worker threads
 enum Command {
     Literal(String),
-    Block(IVec3, Block),
+    Block(IVec3, Block, Option<String>),
     Dust(IVec3),
     Tp(Id, Vec3, Vec3),
 }
@@ -58,13 +58,19 @@ impl Command {
     fn format(self, block_cache: &mut HashMap<Block, String>) -> String {
         match self {
             Command::Literal(s) => s,
-            Command::Block(pos, block) => {
+            Command::Block(pos, block, nbt) => {
                 let block_string = block_cache.entry(block).or_insert_with(|| {
                     block
                         .blockstate(&UNKNOWN_BLOCKS.read().unwrap())
                         .to_string()
                 });
-                format!("setblock {} {} {} {block_string}", pos.x, pos.z, pos.y)
+                format!(
+                    "setblock {} {} {} {block_string}[{}]",
+                    pos.x,
+                    pos.z,
+                    pos.y,
+                    nbt.as_deref().unwrap_or("")
+                )
             }
             Command::Dust(pos) => format!(
                 "particle campfire_cosy_smoke {} {} {} 1.3 1.3 1.3 0.006 10",
@@ -155,8 +161,9 @@ impl Replay {
         self.total_commands += 1;
     }
 
-    pub fn block(&mut self, pos: IVec3, block: Block) {
-        self.commands_this_tick.push(Command::Block(pos, block));
+    pub fn block(&mut self, pos: IVec3, block: Block, nbt: Option<String>) {
+        self.commands_this_tick
+            .push(Command::Block(pos, block, nbt));
         self.commands_this_chunk += 1;
         self.total_commands += 1;
     }
@@ -412,7 +419,7 @@ pub fn tick_replay(
     let replay = replay.deref_mut();
     // Blocks
     for set in level.pop_recording(default()) {
-        replay.block(set.pos, set.block);
+        replay.block(set.pos, set.block, set.nbt);
     }
     // New villagers
     for (id, pos, vill) in &new_vills {

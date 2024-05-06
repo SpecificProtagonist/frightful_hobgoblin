@@ -40,6 +40,29 @@ impl FnMut<(IVec3, Block)> for Level {
                 pos,
                 previous,
                 block,
+                nbt: None,
+            });
+        }
+    }
+}
+
+impl FnOnce<(IVec3, Block, String)> for Level {
+    type Output = ();
+
+    extern "rust-call" fn call_once(mut self, args: (IVec3, Block, String)) -> Self::Output {
+        self.call_mut(args)
+    }
+}
+
+impl FnMut<(IVec3, Block, String)> for Level {
+    extern "rust-call" fn call_mut(&mut self, (pos, block, nbt): (IVec3, Block, String)) {
+        let previous = mem::replace(self.block_mut(pos), block);
+        if previous != block {
+            self.setblock_recording.push(SetBlock {
+                pos,
+                previous,
+                block,
+                nbt: Some(nbt),
             });
         }
     }
@@ -63,6 +86,7 @@ impl<F: FnOnce(Block) -> Block> FnMut<(IVec3, F)> for Level {
                 pos,
                 previous,
                 block,
+                nbt: None,
             });
         }
     }

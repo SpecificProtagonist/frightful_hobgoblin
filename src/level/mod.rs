@@ -232,7 +232,7 @@ impl Level {
         &mut self,
         cursor: RecordingCursor,
     ) -> impl Iterator<Item = SetBlock> + '_ {
-        self.setblock_recording[cursor.0..].iter().copied()
+        self.setblock_recording[cursor.0..].iter().cloned()
     }
 
     pub fn fill(
@@ -565,11 +565,12 @@ fn save_chunk(
         .unwrap();
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Clone, Debug)]
 pub struct SetBlock {
     pub pos: IVec3,
     pub block: Block,
     pub previous: Block,
+    pub nbt: Option<String>,
 }
 
 #[derive(Default, Clone)]

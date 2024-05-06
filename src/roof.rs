@@ -155,77 +155,70 @@ pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
     }
 }
 
+#[allow(clippy::fn_address_comparisons)]
 pub fn roof_shape(biome: Biome, mut base_z: i32, area: Rect) -> Shape {
     let rot = area.size().y > area.size().x;
     let size = if rot { area.size().yx() } else { area.size() }.as_vec2();
 
     use Biome::*;
-    // Hip roofs only work on relatively square footprints
-    // TODO: check that they still generate often enough
-    // let hip_base = size.min_element() as f32 / size.max_element() as f32;
-    let hip_base = (1.0 - (size.max_element() - size.min_element()) / 4.).min(0.);
-    let (curve, base_shape): (&[(f32, Curve)], &[(f32, BaseShape)]) = match biome {
-        Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => (
-            &[
-                (1., straight),
-                (1., straight_high),
-                (1., straight_low),
-                (1., kerb),
-                (1., reverse_kerb),
-            ],
-            &[(1., gable), (1., raised_gable), (hip_base, hip)],
-        ),
-        Ocean => (
-            &[
-                (1., straight),
-                (2., straight_high),
-                (1., kerb),
-                (1., reverse_kerb),
-            ],
-            &[(1., gable), (2., raised_gable), (2. * hip_base, hip)],
-        ),
-        Snowy | Taiga => (
-            &[
-                (1., straight),
-                (2., straight_high),
-                (1., kerb),
-                (1., reverse_kerb),
-            ],
-            &[(1., gable), (1., raised_gable), (hip_base, hip)],
-        ),
-        Desert => (
-            // TODO: just use flat roofs
-            &[(1., straight_low)],
-            &[(1., gable), (2. * hip_base, hip)],
-        ),
-        Swamp | MangroveSwamp => (
-            &[
-                (1., straight),
-                (1., straight_low),
-                (1., kerb),
-                (1., reverse_kerb),
-            ],
-            &[(hip_base, hip)],
-        ),
-        Jungles => (
-            &[
-                (1., straight),
-                (1., straight_low),
-                (1., kerb),
-                (1., reverse_kerb),
-            ],
-            &[(1., raised_gable), (2. * hip_base, hip)],
-        ),
-        Mesa | Savanna => (
-            &[(1., straight_low)],
-            &[(1., gable), (1., raised_gable), (1.5 * hip_base, hip)],
-        ),
+    let curve: &[(f32, Curve)] = match biome {
+        Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => &[
+            (1., straight),
+            (1., straight_high),
+            (1., straight_low),
+            (1., kerb),
+            (1., reverse_kerb),
+        ],
+        Ocean => &[
+            (1., straight),
+            (2., straight_high),
+            (1., kerb),
+            (1., reverse_kerb),
+        ],
+        Snowy | Taiga => &[
+            (1., straight),
+            (2., straight_high),
+            (1., kerb),
+            (1., reverse_kerb),
+        ],
+        Desert => &[(1., straight_low)],
+        Swamp | MangroveSwamp => &[
+            (1., straight),
+            (1., straight_low),
+            (1., kerb),
+            (1., reverse_kerb),
+        ],
+        Jungles => &[
+            (1., straight),
+            (1., straight_low),
+            (1., kerb),
+            (1., reverse_kerb),
+        ],
+        Mesa | Savanna => &[(1., straight_low)],
     };
     let curve = rand_weighted(curve);
+
+    let hip_base = if (curve == straight_high) | (curve == reverse_kerb) {
+        0.3
+    } else if curve == kerb {
+        0.
+    } else {
+        1.
+    };
+    let base_shape: &[(f32, BaseShape)] = match biome {
+        Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => {
+            &[(1., gable), (1., raised_gable), (hip_base, hip)]
+        }
+        Ocean => &[(1., gable), (2., raised_gable), (2. * hip_base, hip)],
+        Snowy | Taiga => &[(1., gable), (1., raised_gable), (hip_base, hip)],
+        Desert => &[(1., gable), (2. * hip_base, hip)],
+        Swamp | MangroveSwamp => &[(hip_base, hip)],
+        Jungles => &[(1., raised_gable), (2. * hip_base, hip)],
+        Mesa | Savanna => &[(1., gable), (1., raised_gable), (1.5 * hip_base, hip)],
+    };
     let base_shape = rand_weighted(base_shape);
 
     // TODO: Incorporate this into the curve directly
-    #[allow(clippy::fn_address_comparisons)]
     if (curve == kerb) | (curve == straight_high) {
         base_z -= 1
     }

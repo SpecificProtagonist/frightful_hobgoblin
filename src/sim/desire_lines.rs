@@ -72,7 +72,6 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
                     heigher_neighbor_wear & !lower_neighbors
                 } =>
             {
-                level.height[pos] += 1;
                 level(pos + IVec3::Z, Slab(Granite, Bottom))
             }
             Dirt | CoarseDirt if (wear > 17) & (level(pos + IVec3::Z) == Air) => level(pos, Path),

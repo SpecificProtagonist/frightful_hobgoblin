@@ -142,9 +142,9 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
     ]);
     level.fill(&wattle, paint);
 
-    rec.retain(|&s| {
+    rec.retain(|s| {
         if let ConsItem::Set(SetBlock { pos, block, .. }) = s {
-            (block == Air) | !no_walls.contains(&pos)
+            (*block == Air) | !no_walls.contains(pos)
         } else {
             true
         }
@@ -157,6 +157,11 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
         entrance + IVec3::Z,
         Door(door_type, door_dir, DoorMeta::TOP),
     );
+    level(entrance + IVec2::from(door_dir).extend(0), Air);
+    level(entrance + IVec2::from(door_dir).extend(1), Air);
+    if level(entrance + 2 * IVec2::from(door_dir).extend(0)).solid() {
+        level(entrance + IVec2::from(door_dir).extend(2), Air);
+    }
 
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
     rec
