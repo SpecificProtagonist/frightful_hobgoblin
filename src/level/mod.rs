@@ -24,6 +24,11 @@ pub use column_map::ColumnMap;
 
 use self::block_map::{BlockMap, Section};
 
+// Minecraft sections go from -4 to 19, but we can limit the ones we're interested in to reduce overhead
+const MIN_SECTION: i32 = 2;
+const MAX_SECTION: i32 = 14;
+const SECTION_COUNT: usize = (MAX_SECTION + 1 - MIN_SECTION) as usize;
+
 #[derive(Resource)]
 pub struct Level {
     pub path: PathBuf,
@@ -32,7 +37,7 @@ pub struct Level {
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
     blocks: BlockMap<Block>,
-    /// Minecraft stores biomes in 3d, but we only store 2d (at height 64)
+    /// Minecraft stores biomes in 3d, but we only store 2d (taken from height 64)
     pub biome: ColumnMap<Biome, 4>,
     pub height: ColumnMap<i32>,
     pub water: ColumnMap<Option<i32>>,
@@ -67,7 +72,7 @@ impl Level {
 
         let mut blocks = BlockMap::new(chunk_min, chunk_max, Air);
         let mut biome = ColumnMap::new(chunk_min, chunk_max);
-        let mut height = ColumnMap::new(chunk_min, chunk_max);
+        let mut height = ColumnMap::new_with(chunk_min, chunk_max, MIN_SECTION * 16);
         let mut water = ColumnMap::new(chunk_min, chunk_max);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
@@ -75,7 +80,7 @@ impl Level {
             .flat_map(|z| (chunk_min.0..=chunk_max.0).map(move |x| (x, z)))
             .collect_vec()
             .par_iter()
-            .zip(blocks.sections.par_chunks_exact_mut(24))
+            .zip(blocks.sections.par_chunks_exact_mut(SECTION_COUNT))
             .zip(biome.data.par_chunks_exact_mut(4 * 4))
             .zip(height.data.par_chunks_exact_mut(16 * 16))
             .zip(water.data.par_chunks_exact_mut(16 * 16))
@@ -120,7 +125,7 @@ impl Level {
         // Saving isn't thread safe
         for (index, sections) in (self.chunk_min.1..=self.chunk_max.1)
             .flat_map(|z| (self.chunk_min.0..=self.chunk_max.0).map(move |x| (x, z)))
-            .zip(self.blocks.sections.chunks_exact(24))
+            .zip(self.blocks.sections.chunks_exact(SECTION_COUNT))
         {
             if self.dirty_chunks[ChunkIndex::from(index).area().min] {
                 save_chunk(&chunk_provider, index.into(), sections)
@@ -368,7 +373,12 @@ fn load_chunk(
     let sections_nbt = nbt.get_compound_tag_vec("sections").unwrap();
 
     for section_nbt in sections_nbt {
-        let y_index = section_nbt.get_i8("Y").unwrap();
+        let y_index = section_nbt.get_i8("Y").unwrap() as i32;
+
+        // Discard irrelevant sections
+        if !(MIN_SECTION..=MAX_SECTION).contains(&y_index) {
+            continue;
+        }
 
         // Use a 2d representation of biomes
         if y_index == 5 {
@@ -405,8 +415,8 @@ fn load_chunk(
         let palette = block_states.get_compound_tag_vec("palette").unwrap();
         let palette: Vec<Block> = palette.iter().map(|nbt| Block::from_nbt(nbt)).collect();
 
-        sections[(y_index + 4) as usize] = Some(Box::new([Air; 16 * 16 * 16]));
-        let section = sections[(y_index + 4) as usize].as_mut().unwrap();
+        let section =
+            sections[(y_index - MIN_SECTION) as usize].insert(Box::new([Air; 16 * 16 * 16]));
         let Ok(indices) = block_states.get_i64_vec("data") else {
             continue;
         };
@@ -432,8 +442,8 @@ fn load_chunk(
     // TODO: Ignore (packed)ice
     for x in 0..16 {
         for z in 0..16 {
-            'column: for section_index in (-4..20).rev() {
-                if let Some(section) = &sections[(section_index + 4i32) as usize] {
+            'column: for section_index in (MIN_SECTION..=MAX_SECTION).rev() {
+                if let Some(section) = &sections[(section_index - MIN_SECTION) as usize] {
                     for y in (0..16).rev() {
                         let block = &section[x + z * 16 + y as usize * 16 * 16];
                         let height = section_index * 16 + y;
@@ -488,7 +498,7 @@ fn save_chunk(
                         .iter()
                         .enumerate()
                         .filter_map(|(y_index, section)| {
-                            let y_index = y_index as i32 - 4;
+                            let y_index = y_index as i32 + MIN_SECTION;
                             //https://github.com/rust-lang/rust-clippy/issues/8281
                             #[allow(clippy::question_mark)]
                             let Some(section) = section

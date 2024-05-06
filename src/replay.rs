@@ -65,11 +65,13 @@ impl Command {
                         .to_string()
                 });
                 format!(
-                    "setblock {} {} {} {block_string}[{}]",
+                    "setblock {} {} {} {block_string}{}",
                     pos.x,
                     pos.z,
                     pos.y,
-                    nbt.as_deref().unwrap_or("")
+                    nbt.as_deref()
+                        .map(|s| format!("[{s}]"))
+                        .unwrap_or("".to_owned())
                 )
             }
             Command::Dust(pos) => format!(

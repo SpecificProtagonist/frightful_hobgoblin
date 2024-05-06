@@ -1,5 +1,7 @@
 use crate::*;
 
+use super::{MIN_SECTION, SECTION_COUNT};
+
 pub type Section<T> = [T; 16 * 16 * 16];
 
 pub struct BlockMap<T> {
@@ -18,7 +20,7 @@ impl<T: Copy> BlockMap<T> {
             chunk_min,
             chunk_max,
             default,
-            sections: vec![None; chunk_count * 24],
+            sections: vec![None; chunk_count * SECTION_COUNT],
         }
     }
 
@@ -27,7 +29,7 @@ impl<T: Copy> BlockMap<T> {
     }
 
     fn section_index(&self, pos: IVec3) -> usize {
-        self.chunk_index(pos.into()) * 24 + (pos.z / 16 + 4) as usize
+        self.chunk_index(pos.into()) * SECTION_COUNT + (pos.z / 16 - MIN_SECTION) as usize
     }
 
     // TODO: make fallible?
