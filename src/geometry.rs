@@ -118,6 +118,22 @@ impl Rect {
             )
     }
 
+    pub fn border_no_corners(self) -> impl Iterator<Item = IVec2> {
+        (self.min.x + 1..self.max.x)
+            .map(move |x| ivec2(x, self.min.y))
+            .chain((self.min.y + 1..self.max.y).map(move |y| ivec2(self.max.x, y)))
+            .chain(
+                (self.min.x + 1..self.max.x)
+                    .rev()
+                    .map(move |x| ivec2(x, self.max.y)),
+            )
+            .chain(
+                (self.min.y + 1..self.max.y)
+                    .rev()
+                    .map(move |y| ivec2(self.min.x, y)),
+            )
+    }
+
     pub fn corners(self) -> impl Iterator<Item = IVec2> {
         Some(self.min)
             .into_iter()

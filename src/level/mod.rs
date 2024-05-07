@@ -13,11 +13,12 @@ use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
 use std::{
+    collections::VecDeque,
     ops::{Range, RangeInclusive, Shr},
     path::PathBuf,
 };
 
-use crate::{default, geometry::*, HashMap, DATA_VERSION};
+use crate::{default, geometry::*, ConsItem, HashMap, DATA_VERSION};
 pub use biome::*;
 pub use block::*;
 pub use column_map::ColumnMap;
@@ -231,6 +232,10 @@ impl Level {
         cursor: RecordingCursor,
     ) -> impl Iterator<Item = SetBlock> + '_ {
         self.setblock_recording.drain(cursor.0..)
+    }
+
+    pub fn pop_recording_into(&mut self, rec: &mut VecDeque<ConsItem>, cursor: RecordingCursor) {
+        rec.extend(self.pop_recording(cursor).map(ConsItem::Set));
     }
 
     pub fn get_recording(
@@ -583,7 +588,7 @@ pub struct SetBlock {
     pub nbt: Option<String>,
 }
 
-#[derive(Default, Clone)]
+#[derive(Default, Copy, Clone)]
 pub struct RecordingCursor(usize);
 
 #[derive(Copy, Clone, Default, Eq, PartialEq)]

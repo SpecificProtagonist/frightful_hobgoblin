@@ -7,6 +7,8 @@ use crate::{
     *,
 };
 
+use self::desire_lines::DesireLines;
+
 #[derive(Component)]
 pub struct Tree {
     pub blocks: Vec<(IVec3, Block)>,
@@ -39,7 +41,7 @@ pub fn init_trees(mut commands: Commands, level: Res<Level>) {
     let mut found = HashSet::<IVec3>::default();
     for column in level.area() {
         let pos = level.ground(column) + IVec3::Z;
-        if let Block::Log(species, LogType::Normal(Axis::Z)) = level(pos) {
+        if let Block::Log(species, LogType::Normal, Axis::Z) = level(pos) {
             // Check whether this is a tree instead of part of a man-made structure
             let mut check = pos;
             while let Block::Log(..) = level(check) {
@@ -108,6 +110,7 @@ pub fn spawn_trees(
     noise: ResMut<TreeNoise>,
     level: Res<Level>,
     tick: Res<Tick>,
+    dl: Res<DesireLines>,
     mut tree_map: ResMut<Trees>,
 ) {
     if (tick.0 % 250) != 1 {
@@ -126,6 +129,17 @@ pub fn spawn_trees(
 
         // Stagger spawn
         if 0.02 < rand() {
+            continue;
+        }
+
+        // Don't grow on paths
+        if NEIGHBORS_2D
+            .iter()
+            .map(|&off| dl[column + off])
+            .max()
+            .unwrap()
+            > 8
+        {
             continue;
         }
 
@@ -408,7 +422,7 @@ impl GrowTree {
                 } else if ((branch.thickness > 0.6) & (diff != IVec3::ZERO))
                     | (diff.max_element() > 1)
                 {
-                    level(pos, Log(params.species, LogType::FullBark));
+                    level(pos, Log(params.species, LogType::FullBark, Axis::Z));
                     prev_pos = pos;
                 }
             }
@@ -417,7 +431,7 @@ impl GrowTree {
                 if fence {
                     Fence(Wood(params.species))
                 } else {
-                    Log(params.species, LogType::FullBark)
+                    Log(params.species, LogType::FullBark, Axis::Z)
                 },
             );
 
@@ -448,7 +462,7 @@ impl GrowTree {
 
 // currently unused
 pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
-    let log_block = Log(species, LogType::FullBark);
+    let log_block = Log(species, LogType::FullBark, Axis::Z);
     let leaf_block = Leaves(species, None);
 
     let base_pos = base_pos + ivec3(0, 0, 1);
@@ -489,7 +503,7 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
 
 // currently unused
 pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
-    let log_block = Log(species, LogType::FullBark);
+    let log_block = Log(species, LogType::FullBark, Axis::Z);
     let leaf_block = Leaves(species, None);
 
     let log_height = 5 + rand_1(0.5) + rand_1(0.5);

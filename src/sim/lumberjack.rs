@@ -67,7 +67,7 @@ pub fn plan_lumberjack(
                 *area = Rect::new_centered(area.center(), area.size().yx())
             }
 
-            if !level.free(*area) {
+            if !level.free(area.grow(1)) {
                 return f32::INFINITY;
             }
             let center_distance = level.reachability[area.center()].max(150) as f32;
@@ -97,7 +97,7 @@ pub fn plan_lumberjack(
     commands.spawn((Pos(level.ground(area.center()).as_vec3()), LumberjackFocus));
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
-        Planned(area.into_iter().collect()),
+        Planned(area.grow(1).into_iter().collect()),
         LumberjackShack { area },
     ));
 }

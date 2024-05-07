@@ -42,7 +42,7 @@ pub enum Block {
     CoarseDirt,
     SoulSand,
     PackedMud,
-    Log(TreeSpecies, LogType),
+    Log(TreeSpecies, LogType, Axis),
     // Store distance from log if not persistent
     Leaves(TreeSpecies, Option<i8>),
     SmallPlant(SmallPlant),
@@ -105,13 +105,13 @@ bitflags::bitflags! {
     }
 }
 
-// TODO: Flatten Normal to make this more pleasant to construct
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 #[repr(u8)]
 pub enum LogType {
-    Normal(Axis),
+    Normal,
+    /// Note: Axis irrelevant for FullBark
     FullBark,
-    Stripped(Axis),
+    Stripped,
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash, FromPrimitive, Sequence)]
@@ -416,8 +416,8 @@ impl Block {
             Bedrock => "bedrock".into(),
             Water => "water".into(),
             Lava => "lava".into(),
-            Log(species, log_type) => match log_type {
-                LogType::Normal(axis) => Blockstate(
+            Log(species, log_type, axis) => match log_type {
+                LogType::Normal => Blockstate(
                     match species {
                         Warped | Crimson => format!("{species}_stem"),
                         _ => format!("{species}_log"),
@@ -433,7 +433,7 @@ impl Block {
                     .into(),
                     vec![],
                 ),
-                LogType::Stripped(axis) => Blockstate(
+                LogType::Stripped => Blockstate(
                     match species {
                         Warped | Crimson => format!("{species}_stem"),
                         _ => format!("stripped_{species}_log"),
@@ -882,15 +882,15 @@ impl Block {
                 "dirt" if props.get_str("variant").is_err() => Dirt,
                 "dirt" if matches!(props.get_str("variant"), Ok("coarse_dirt")) => CoarseDirt,
                 "oak_planks" => Full(Wood(Oak)),
-                "oak_log" => Log(Oak, LogType::Normal(log_axis(props))),
-                "spruce_log" => Log(Spruce, LogType::Normal(log_axis(props))),
-                "birch_log" => Log(Birch, LogType::Normal(log_axis(props))),
-                "jungle_log" => Log(Jungle, LogType::Normal(log_axis(props))),
-                "acacia_log" => Log(Acacia, LogType::Normal(log_axis(props))),
-                "dark_oak_log" => Log(DarkOak, LogType::Normal(log_axis(props))),
-                "mangrove_log" => Log(Mangrove, LogType::Normal(log_axis(props))),
-                "cherry_log" => Log(Cherry, LogType::Normal(log_axis(props))),
-                "stripped_oak_log" => Log(Oak, LogType::Stripped(log_axis(props))),
+                "oak_log" => Log(Oak, LogType::Normal, log_axis(props)),
+                "spruce_log" => Log(Spruce, LogType::Normal, log_axis(props)),
+                "birch_log" => Log(Birch, LogType::Normal, log_axis(props)),
+                "jungle_log" => Log(Jungle, LogType::Normal, log_axis(props)),
+                "acacia_log" => Log(Acacia, LogType::Normal, log_axis(props)),
+                "dark_oak_log" => Log(DarkOak, LogType::Normal, log_axis(props)),
+                "mangrove_log" => Log(Mangrove, LogType::Normal, log_axis(props)),
+                "cherry_log" => Log(Cherry, LogType::Normal, log_axis(props)),
+                "stripped_oak_log" => Log(Oak, LogType::Stripped, log_axis(props)),
                 "oak_leaves" => leaves(Oak, props),
                 "spruce_leaves" => leaves(Spruce, props),
                 "birch_leaves" => leaves(Birch, props),
@@ -1176,10 +1176,7 @@ impl Block {
             _ => dir,
         };
         match self {
-            Log(species, LogType::Normal(axis)) => Log(species, LogType::Normal(map_axis(axis))),
-            Log(species, LogType::Stripped(axis)) => {
-                Log(species, LogType::Stripped(map_axis(axis)))
-            }
+            Log(species, log_type, axis) => Log(species, log_type, map_axis(axis)),
             Stair(material, facing, flipped) => Stair(material, hdir(facing), flipped),
             WallBanner(facing, color) => WallBanner(hdir(facing), color),
             Repeater(dir, delay) => Repeater(hdir(dir), delay),
@@ -1219,7 +1216,7 @@ impl Block {
             Stair(Wood(Oak), dir, flipped) => Stair(Wood(species), dir, flipped),
             Fence(Wood(Oak)) => Fence(Wood(species)),
             FenceGate(Wood(Oak), dir, state) => FenceGate(Wood(species), dir, state),
-            Log(Oak, typ) => Log(species, typ),
+            Log(Oak, typ, axis) => Log(species, typ, axis),
             Leaves(Oak, dist) => Leaves(species, dist),
             Trapdoor(Oak, dir, meta) => Trapdoor(species, dir, meta),
             Door(Oak, dir, meta) => Door(species, dir, meta),

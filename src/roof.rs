@@ -3,7 +3,7 @@ use bevy_math::Vec2Swizzles;
 
 use self::sim::ConsItem;
 
-pub fn roof(
+pub fn build_roof(
     level: &mut Level,
     area: Rect,
     base_z: i32,
@@ -234,7 +234,7 @@ pub fn roof_shape(biome: Biome, mut base_z: i32, area: Rect) -> Shape {
 
 type Curve = fn(f32) -> f32;
 type BaseShape = fn(f32, Vec2, Curve) -> Shape;
-type Shape = Box<dyn Fn(Vec2) -> f32>;
+pub type Shape = Box<dyn Fn(Vec2) -> f32>;
 
 fn straight(frac: f32) -> f32 {
     frac

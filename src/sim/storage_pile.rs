@@ -124,7 +124,7 @@ pub fn update_lumber_pile_visuals(
                         + (lumberpile.axis.pos() * along + lumberpile.axis.rotated().pos() * side)
                             .extend(z),
                     if i < logs {
-                        Log(Spruce, LogType::Normal(lumberpile.axis.into()))
+                        Log(Spruce, LogType::Normal, lumberpile.axis.into())
                     } else {
                         Air
                     },

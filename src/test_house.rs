@@ -115,7 +115,7 @@ fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
         let block = if rel_height + offset + rand_f32(-0.3, 0.3) > 0.6 {
             Full(Wood(Birch))
         } else {
-            Log(Birch, LogType::Stripped(Axis::Z))
+            Log(Birch, LogType::Stripped, Axis::Z)
         };
         level(column, z, block);
     }

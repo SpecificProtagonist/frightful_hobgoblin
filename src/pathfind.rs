@@ -115,7 +115,10 @@ pub fn pathfind_street(level: &Level, start: Rect) -> PathSearch {
         queue,
         |level, area, path, node, off| {
             if (-1..=1).cartesian_product(-1..=1).any(|(x_off, y_off)| {
-                level.blocked[(node.pos + off).truncate() + ivec2(x_off, y_off)] == Blocked
+                let pos = node.pos + off;
+                let neighbor = pos.truncate() + ivec2(x_off, y_off);
+                (level.blocked[neighbor] == Blocked)
+                    | ((level.height[pos] - level.height[neighbor]).abs() > 1)
             }) | area.corners().contains(&node.pos.truncate())
             {
                 return None;

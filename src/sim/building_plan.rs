@@ -137,7 +137,7 @@ pub fn upgrade_plaza(
                     distance: 2,
                 }));
             }
-            rec.extend(level.pop_recording(cursor.clone()).map(ConsItem::Set));
+            level.pop_recording_into(&mut rec, cursor);
         }
         if (offset.x == offset.y)
             | (offset.x < 0) & (offset.x == -offset.y)
