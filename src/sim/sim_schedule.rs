@@ -102,9 +102,9 @@ pub fn sim(mut level: Level, debug_save: bool) {
         sched.run(&mut world);
     }
 
-    let mut level = world.remove_resource::<Level>().unwrap();
+    let level = world.remove_resource::<Level>().unwrap();
 
-    show_blocked(&mut level);
+    // show_blocked(&mut level);
 
     if debug_save {
         level.debug_save();

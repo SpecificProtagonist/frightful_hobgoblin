@@ -29,7 +29,7 @@ struct Roof {
 
 impl Roof {
     fn covers(&self, pos: IVec3) -> bool {
-        (self.shape)(pos.truncate().as_vec2()) > pos.z as f32
+        (self.shape)(pos.truncate().as_vec2()) - 0.5 >= pos.z as f32
     }
 }
 
@@ -139,7 +139,7 @@ fn building(
     roof: Roof,
 ) -> ConsList {
     let inner = area.shrink(1);
-    let no_walls = [entrance, entrance + IVec3::Z];
+    let mut no_walls = vec![entrance, entrance + IVec3::Z];
 
     let biome = level.biome[area.center()];
     let species = biome.random_tree_species();
@@ -172,7 +172,41 @@ fn building(
         (1., Terracotta(Some(Pink))),
     ]);
 
+    let mut windows = Vec::new();
     for (i, floor) in floors.iter().enumerate() {
+        // Determine windows
+        // TODO: make more symmetrical
+        let mut prev_window = rand_range(0..3);
+        'windows: for column in area.border_no_corners() {
+            let pos = column.extend(floor.z + 1);
+            let dir = area.outside_face(column);
+            if level(pos + IVec3::from(dir)).solid()
+                | level(pos + IVec2::from(dir).extend(-1)).solid() & (0.7 > rand())
+                | !roof.covers(pos)
+                | !roof.covers(pos - IVec3::from(dir))
+                | !roof.covers(pos + IVec3::from(dir.rotated(1)))
+                | !roof.covers(pos + IVec3::from(dir.rotated(-1)))
+            {
+                continue;
+            }
+            for off in [
+                IVec3::from(dir.rotated(1)),
+                IVec3::ZERO,
+                IVec3::from(dir.rotated(-1)),
+            ] {
+                if no_walls.contains(&(pos + off)) {
+                    continue 'windows;
+                }
+            }
+            if prev_window < 2 {
+                prev_window += 1;
+            } else {
+                prev_window = 0;
+                windows.push((pos, dir));
+                no_walls.push(pos);
+            }
+        }
+
         let ceiling = floors.get(i + 1).map(|f| f.z - 1);
 
         // Determine wall blocks
@@ -188,6 +222,7 @@ fn building(
                 wall.push(column.extend(z));
             }
         }
+        wall.retain(|p| !windows.iter().any(|(w, _)| w == p));
         wall.sort_by_key(|p| p.z);
 
         // Fill wall
@@ -215,6 +250,7 @@ fn building(
                     level.pop_recording_into(&mut rec, cursor);
                     // Paint/Whitewash
                     level.fill(&wall_fill, paint);
+                    level.pop_recording_into(&mut rec, cursor);
                 }
             }
         }
@@ -285,6 +321,21 @@ fn building(
     level(entrance + IVec2::from(door_dir).extend(1), Air);
     if level(entrance + 2 * IVec2::from(door_dir).extend(0)).solid() {
         level(entrance + IVec2::from(door_dir).extend(2), Air);
+    }
+
+    // Windows
+    for (pos, dir) in windows {
+        let glass_color = rand_weighted(&[(1., None), (0.1, Some(LightGray)), (0.1, Some(Brown))]);
+        level(pos, GlassPane(glass_color));
+        let mut shutter_pos = pos + IVec3::from(dir) + IVec3::from(dir.rotated(1));
+        if level(shutter_pos).solid()
+            | area
+                .corners()
+                .contains(&(pos.truncate() + IVec2::from(dir.rotated(1))))
+        {
+            shutter_pos += IVec3::from(dir.rotated(-1)) * 2
+        }
+        level(shutter_pos, |b| b | Trapdoor(species, dir, DoorMeta::OPEN));
     }
 
     level.pop_recording_into(&mut rec, cursor);
