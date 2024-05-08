@@ -92,7 +92,7 @@ pub fn build_roof(
     list.into_iter().map(ConsItem::Set).collect()
 }
 
-pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
+pub fn palette() -> impl Fn(f32, i32) -> BlockMaterial {
     // This function is kinda ugly but it was a pain to get working
     type C = (&'static [(f32, BlockMaterial)], bool, bool);
     const SLATE: C = (
@@ -120,9 +120,9 @@ pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
     const MUDBRICK: C = (&[(0., MudBrick)], false, false);
     use Biome::*;
     let (items, use_val, use_distance): (&[(f32, BlockMaterial)], bool, bool) =
-        rand_weighted(match biome {
+        rand_weighted(match center_biome() {
             Plain | Forest | River | Ocean | Beach => {
-                &[(0.4, OAK), (0.4, SPRUCE), (0.4, SLATE), (0.1, MANGROVE)]
+                &[(0.4, SPRUCE), (0.3, OAK), (0.4, SLATE), (0.1, MANGROVE)]
             }
             Snowy => &[(1.0, SLATE), (0.5, SPRUCE), (0.5, DARK_OAK)],
             Desert => &[
@@ -156,12 +156,12 @@ pub fn palette(biome: Biome) -> impl Fn(f32, i32) -> BlockMaterial {
 }
 
 #[allow(clippy::fn_address_comparisons)]
-pub fn roof_shape(biome: Biome, mut base_z: i32, area: Rect) -> Shape {
+pub fn roof_shape(mut base_z: i32, area: Rect) -> Shape {
     let rot = area.size().y > area.size().x;
     let size = if rot { area.size().yx() } else { area.size() }.as_vec2();
 
     use Biome::*;
-    let curve: &[(f32, Curve)] = match biome {
+    let curve: &[(f32, Curve)] = match center_biome() {
         Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => &[
             (1., straight),
             (1., straight_high),
@@ -205,7 +205,7 @@ pub fn roof_shape(biome: Biome, mut base_z: i32, area: Rect) -> Shape {
     } else {
         1.
     };
-    let base_shape: &[(f32, BaseShape)] = match biome {
+    let base_shape: &[(f32, BaseShape)] = match center_biome() {
         Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => {
             &[(1., gable), (1., raised_gable), (hip_base, hip)]
         }

@@ -14,10 +14,11 @@ struct Floor {
     material: WallMaterial,
 }
 
+#[derive(Clone, Copy, PartialEq, Eq)]
 enum WallMaterial {
     Cobble,
     Wattle,
-    // Logs,
+    Logs,
     Planks,
 }
 
@@ -55,9 +56,14 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
                 .flat_map(|y| [ivec2(area.min.x - 1, y), ivec2(area.max.x + 1, y)]),
         )
         .map(|c| level.height[c]);
-    let sides_min = side_columns.min().unwrap();
+    let mut sides_min = side_columns.clone().min().unwrap();
+    while side_columns.clone().filter(|&h| h <= sides_min).count() < 3 {
+        sides_min += 1
+    }
+
     let entrance = path.path[0].pos.truncate().extend(path.path[1].pos.z);
 
+    let tall_first_floor = entrance.z > sides_min + 5;
     let base = if entrance.z > sides_min + 3 {
         entrance.z - 4
     } else {
@@ -66,26 +72,26 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
 
     let mut floors = vec![
         Floor {
-            z: base + 1,
-            material: WallMaterial::Cobble,
+            z: base + if tall_first_floor { 0 } else { 1 },
+            material: rand_weighted(&[(1.0, WallMaterial::Cobble), (0.4, WallMaterial::Logs)]),
         },
         Floor {
             z: base + 4,
-            material: WallMaterial::Wattle,
+            material: rand_weighted(&[(1.0, WallMaterial::Wattle), (0.4, WallMaterial::Logs)]),
         },
     ];
-
-    let biome = level.biome[area.center()];
 
     // Roof determined now so we know how high the walls have to be
     let roof_z = floors.last().unwrap().z + 2;
     let roof_area = area.grow(1);
-    let roof_shape = roof_shape(biome, roof_z, roof_area);
+    let roof_shape = roof_shape(roof_z, roof_area);
     let roof = Roof {
         z: roof_z,
         area: roof_area,
         shape: roof_shape,
     };
+
+    let upper_floors_keep_material = !roof.covers(area.center().extend(base + 11));
 
     while Rect::new_centered(area.center(), IVec2::splat(4))
         .border()
@@ -93,7 +99,11 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
     {
         floors.push(Floor {
             z: floors.last().unwrap().z + rand_range(3..=4),
-            material: WallMaterial::Wattle,
+            material: if upper_floors_keep_material {
+                floors.last().unwrap().material
+            } else {
+                WallMaterial::Wattle
+            },
         })
     }
 
@@ -110,17 +120,16 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
     }
     let floors = [Floor {
         z: entrance.z,
-        material: if 0.4 > rand() {
-            WallMaterial::Planks
-        } else {
-            WallMaterial::Cobble
-        },
+        material: rand_weighted(&[
+            (1., WallMaterial::Cobble),
+            (0.5, WallMaterial::Planks),
+            (0.3, WallMaterial::Logs),
+        ]),
     }];
 
-    let biome = level.biome[area.center()];
     let roof_z = floors.last().unwrap().z + 2;
     let roof_area = area.grow(1);
-    let roof_shape = roof_shape(biome, roof_z, roof_area);
+    let roof_shape = roof_shape(roof_z, roof_area);
     let roof = Roof {
         z: roof_z,
         area: roof_area,
@@ -213,9 +222,9 @@ fn building(
         let mut wall = Vec::new();
         for column in area.border() {
             for z in floor.z.. {
-                if z >= ceiling
+                if z > ceiling
                     .unwrap_or(i32::MAX)
-                    .min(((roof.shape)(column.as_vec2()) + 0.5) as i32)
+                    .min(((roof.shape)(column.as_vec2()) - 0.5) as i32)
                 {
                     break;
                 }
@@ -253,23 +262,35 @@ fn building(
                     level.pop_recording_into(&mut rec, cursor);
                 }
             }
+            WallMaterial::Logs => {
+                for pos in &wall {
+                    let axis = if area.corners().contains(&pos.truncate()) {
+                        [Axis::X, Axis::Y][(pos.z % 2) as usize]
+                    } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(pos.truncate()))
+                    {
+                        Axis::Y
+                    } else {
+                        Axis::X
+                    };
+                    level(*pos, Log(species, LogType::Stripped, axis));
+                }
+            }
         }
 
         // Ceiling
         if let Some(ceiling) = ceiling {
-            for y in [area.min.y, area.max.y] {
-                for x in area.min.x..=area.max.x {
-                    let pos = ivec3(x, y, ceiling);
+            if floor.material != WallMaterial::Logs {
+                for column in area.border() {
+                    let pos = column.extend(ceiling);
+                    let axis = if area.corners().contains(&column) {
+                        [Axis::X, Axis::Y][(ceiling % 2) as usize]
+                    } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(column)) {
+                        Axis::Y
+                    } else {
+                        Axis::X
+                    };
                     if roof.covers(pos) {
-                        level(pos, Log(species, log_stripped, Axis::X))
-                    }
-                }
-            }
-            for x in [area.min.x, area.max.x] {
-                for y in inner.min.y..=inner.max.y {
-                    let pos = ivec3(x, y, ceiling);
-                    if roof.covers(pos) {
-                        level(pos, Log(species, log_stripped, Axis::Y))
+                        level(pos, Log(species, log_stripped, axis))
                     }
                 }
             }
@@ -283,7 +304,7 @@ fn building(
         }
     }
 
-    let roof_rec = build_roof(level, roof.area, roof.z, &roof.shape, roof::palette(biome));
+    let roof_rec = build_roof(level, roof.area, roof.z, &roof.shape, roof::palette());
     rec.extend(roof_rec);
 
     // Some movement

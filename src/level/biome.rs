@@ -74,7 +74,7 @@ impl Biome {
     pub fn random_tree_species(self) -> TreeSpecies {
         rand_weighted(match self {
             DarkForest => &[(1., DarkOak), (0.3, Oak)],
-            Plain => &[(1., Oak), (0.15, Birch), (0.1, Cherry)],
+            Plain => &[(1., Oak), (0.07, Birch), (0.1, Cherry)],
             BirchForest => &[(1., Birch), (0.15, Oak)],
             _ => return self.default_tree_species(),
         })

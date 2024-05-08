@@ -66,7 +66,7 @@ impl LumberPile {
                 center_distance + worker_distance + unevenness(level, area) * 1. - size_bonus
             },
             100,
-            1,
+            5,
         )
         .unwrap();
         let area = area(pos, params);
@@ -189,8 +189,9 @@ impl StonePile {
                 worker_distance + unevenness(level, *area) * 1. - size_bonus
             },
             100,
-            1,
+            5,
         )
+        // TODO
         .unwrap();
 
         untree.remove_trees(level, area);

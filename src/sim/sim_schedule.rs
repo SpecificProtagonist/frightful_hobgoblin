@@ -29,6 +29,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
+    CENTER_BIOME.get_or_init(|| level.biome[city_center.center()]);
     (level.blocked)(city_center, Street);
     world.spawn((Pos(city_center_pos.as_vec3()), CityCenter(city_center)));
     level.reachability = reachability_2d_from(&level, city_center.center());

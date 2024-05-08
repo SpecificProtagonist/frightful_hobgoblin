@@ -10,6 +10,7 @@ mod sim_schedule;
 mod storage_pile;
 
 use std::collections::VecDeque;
+use std::sync::OnceLock;
 
 use crate::goods::*;
 use crate::optimize::optimize;
@@ -32,6 +33,12 @@ pub struct Tick(pub i32);
 
 #[derive(Component, Deref)]
 pub struct CityCenter(Rect);
+
+/// For convenience
+static CENTER_BIOME: OnceLock<Biome> = OnceLock::new();
+pub fn center_biome() -> Biome {
+    *CENTER_BIOME.get().unwrap()
+}
 
 #[derive(Component, Deref, DerefMut, PartialEq)]
 pub struct Pos(pub Vec3);
@@ -238,6 +245,7 @@ fn starting_resources(
             },
         ));
     }
+    // Temporary, for testing
     let starting_resources = {
         let mut stock = Goods::default();
         stock.add(Stack::new(Good::Soil, 99999999.));
