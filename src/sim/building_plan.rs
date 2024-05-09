@@ -113,6 +113,7 @@ pub fn upgrade_plaza(
     mut level: ResMut<Level>,
     tick: Res<Tick>,
     center: Query<(Entity, &CityCenter)>,
+    mut untree: Untree,
 ) {
     if tick.0 != 1000 {
         return;
@@ -137,6 +138,7 @@ pub fn upgrade_plaza(
                     distance: 2,
                 }));
             }
+            untree.remove_trees(&mut level, Some(pos.truncate()));
             level.pop_recording_into(&mut rec, cursor);
         }
         if (offset.x == offset.y)

@@ -32,6 +32,7 @@ pub enum Block {
     Ladder(HDir),
     Water,
     Lava,
+    Ice,
     Dirt,
     Grass,
     Sand,
@@ -67,6 +68,7 @@ pub enum Block {
     },
     // TODO: Store orientation
     Barrel,
+    IronBars,
     Trapdoor(TreeSpecies, HDir, DoorMeta),
     Door(TreeSpecies, HDir, DoorMeta),
     Bell(HDir, BellAttachment),
@@ -416,6 +418,7 @@ impl Block {
             Bedrock => "bedrock".into(),
             Water => "water".into(),
             Lava => "lava".into(),
+            Ice => "ice".into(),
             Log(species, log_type, axis) => match log_type {
                 LogType::Normal => Blockstate(
                     match species {
@@ -596,6 +599,7 @@ impl Block {
                 )],
             ),
             Barrel => "barrel".into(),
+            IronBars => "iron_bars".into(),
             Trapdoor(species, dir, meta) => Blockstate(
                 format!("{species}_trapdoor").into(),
                 vec![
@@ -864,6 +868,7 @@ impl Block {
                     Ok("0") => Water,
                     _ => Air,
                 },
+                "ice" => Ice,
                 "tall_seagrass" => Water,
                 "stone" => Full(Stone),
                 "granite" => Full(Granite),
@@ -895,9 +900,11 @@ impl Block {
                 "spruce_leaves" => leaves(Spruce, props),
                 "birch_leaves" => leaves(Birch, props),
                 "jungle_leaves" => leaves(Jungle, props),
-                "acacie_leaves" => leaves(Acacia, props),
+                "acacia_leaves" => leaves(Acacia, props),
                 "dark_oak_leaves" => leaves(DarkOak, props),
                 "azalea_leaves" => leaves(Azalea, props),
+                "mangrove_leaves" => leaves(Mangrove, props),
+                "cherry_leaves" => leaves(Cherry, props),
                 "flowering_azalea_leaves" => leaves(FloweringAzalea, props),
                 "grass" => SmallPlant(SmallPlant::Grass),
                 "fern" => SmallPlant(SmallPlant::Fern),
@@ -1024,8 +1031,10 @@ impl Block {
                     water: props.get_str("level").unwrap_or("0").parse().unwrap(),
                 },
                 "barrel" => Barrel,
+                "iron_bars" => IronBars,
                 "oak_trapdoor" => trapdoor(Oak, props),
                 "spruce_trapdoor" => trapdoor(Spruce, props),
+                "mangrove_trapdoor" => trapdoor(Mangrove, props),
                 "oak_door" => door(Oak, props),
                 "spruce_door" => door(Spruce, props),
                 "bell" => Bell(

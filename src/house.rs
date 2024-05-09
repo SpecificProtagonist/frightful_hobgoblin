@@ -1,3 +1,5 @@
+use std::convert::identity;
+
 use crate::*;
 use itertools::Itertools;
 use roof::build_roof;
@@ -8,10 +10,13 @@ use self::{
     roof::{roof_shape, Shape},
     sim::{logistics::MoveTask, ConsItem, ConsList},
 };
+use Biome::*;
 
 struct Floor {
     z: i32,
     material: WallMaterial,
+    /// Applies to Wattle & Planks (move into WallMaterial?)
+    wood_framing: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -70,14 +75,33 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
         entrance.z - 1
     };
 
+    let log_weight_lower = match center_biome() {
+        Desert => 0.,
+        Forest | BirchForest | Jungles | Taiga => 1.3,
+        DarkForest => 2.,
+        _ => 0.4,
+    };
+    let log_weight_upper = match center_biome() {
+        Savanna => 0.,
+        _ => log_weight_lower,
+    };
+    let wood_framing = !matches!(center_biome(), Desert | Savanna);
     let mut floors = vec![
         Floor {
             z: base + if tall_first_floor { 0 } else { 1 },
-            material: rand_weighted(&[(1.0, WallMaterial::Cobble), (0.4, WallMaterial::Logs)]),
+            material: rand_weighted(&[
+                (1.0, WallMaterial::Cobble),
+                (log_weight_lower, WallMaterial::Logs),
+            ]),
+            wood_framing: false,
         },
         Floor {
             z: base + 4,
-            material: rand_weighted(&[(1.0, WallMaterial::Wattle), (0.4, WallMaterial::Logs)]),
+            material: rand_weighted(&[
+                (1.0, WallMaterial::Wattle),
+                (log_weight_upper, WallMaterial::Logs),
+            ]),
+            wood_framing,
         },
     ];
 
@@ -104,10 +128,52 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
             } else {
                 WallMaterial::Wattle
             },
+            wood_framing,
         })
     }
 
-    building(level, untree, area, entrance, &floors, roof)
+    // Chimney
+    let chimney = if match center_biome() {
+        Desert | Savanna => 0.1,
+        Snowy => 1.,
+        _ => 0.8,
+    } > rand()
+    {
+        let possible = area
+            .border_no_corners()
+            .filter_map(|pos| {
+                let dir = area.outside_face(pos);
+                let mut z = i32::MAX;
+                for pos in [
+                    pos + IVec2::from(dir),
+                    pos + IVec2::from(dir) + IVec2::from(dir.rotated(1)),
+                ] {
+                    z = z.min(level.height[pos]);
+                    if level.blocked[pos] != Free {
+                        return None;
+                    }
+                }
+                if (z < base - 3)
+                    | !area
+                        .shrink(1)
+                        .contains(pos + IVec2::from(dir.rotated(1)) - IVec2::from(dir))
+                    | (entrance.truncate() == pos + IVec2::from(dir.rotated(-1)))
+                    | (entrance.truncate() == pos + 2 * IVec2::from(dir.rotated(1)))
+                {
+                    return None;
+                }
+                Some((
+                    1. / ((base - z) as f32 / 2. + area.center_vec2().distance(pos.as_vec2())),
+                    pos,
+                ))
+            })
+            .collect_vec();
+        try_rand_weighted(&possible)
+    } else {
+        None
+    };
+
+    building(level, untree, area, entrance, &floors, roof, chimney)
 }
 
 pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
@@ -125,6 +191,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
             (0.5, WallMaterial::Planks),
             (0.3, WallMaterial::Logs),
         ]),
+        wood_framing: true,
     }];
 
     let roof_z = floors.last().unwrap().z + 2;
@@ -136,7 +203,7 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
         shape: roof_shape,
     };
 
-    building(level, untree, area, entrance, &floors, roof)
+    building(level, untree, area, entrance, &floors, roof, None)
 }
 
 fn building(
@@ -146,9 +213,15 @@ fn building(
     entrance: IVec3,
     floors: &[Floor],
     roof: Roof,
+    chimney: Option<IVec2>,
 ) -> ConsList {
     let inner = area.shrink(1);
     let mut no_walls = vec![entrance, entrance + IVec3::Z];
+
+    let chimney_columns = chimney
+        .iter()
+        .flat_map(|&c| [c, c + IVec2::from(area.outside_face(c).rotated(1))])
+        .collect_vec();
 
     let biome = level.biome[area.center()];
     let species = biome.random_tree_species();
@@ -181,10 +254,19 @@ fn building(
         (1., Terracotta(Some(Pink))),
     ]);
 
+    let wall_log_axis = |pos: IVec3| {
+        if area.corners().contains(&pos.truncate()) {
+            [Axis::X, Axis::Y][(pos.z % 2) as usize]
+        } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(pos.truncate())) {
+            Axis::Y
+        } else {
+            Axis::X
+        }
+    };
+
     let mut windows = Vec::new();
     for (i, floor) in floors.iter().enumerate() {
         // Determine windows
-        // TODO: make more symmetrical
         let mut prev_window = rand_range(0..3);
         'windows: for column in area.border_no_corners() {
             let pos = column.extend(floor.z + 1);
@@ -203,7 +285,9 @@ fn building(
                 IVec3::ZERO,
                 IVec3::from(dir.rotated(-1)),
             ] {
-                if no_walls.contains(&(pos + off)) {
+                if no_walls.contains(&(pos + off))
+                    | chimney_columns.contains(&(pos + off).truncate())
+                {
                     continue 'windows;
                 }
             }
@@ -240,7 +324,7 @@ fn building(
             WallMaterial::Wattle | WallMaterial::Planks => {
                 let mut wall_fill = Vec::new();
                 for pos in &wall {
-                    if area.corners().contains(&pos.truncate()) {
+                    if floor.wood_framing & area.corners().contains(&pos.truncate()) {
                         // Wood frame
                         level(*pos, Log(species, log_stripped, Axis::Z));
                     } else {
@@ -264,37 +348,25 @@ fn building(
             }
             WallMaterial::Logs => {
                 for pos in &wall {
-                    let axis = if area.corners().contains(&pos.truncate()) {
-                        [Axis::X, Axis::Y][(pos.z % 2) as usize]
-                    } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(pos.truncate()))
-                    {
-                        Axis::Y
-                    } else {
-                        Axis::X
-                    };
-                    level(*pos, Log(species, LogType::Stripped, axis));
+                    level(*pos, Log(species, LogType::Stripped, wall_log_axis(*pos)));
+                }
+            }
+        }
+
+        if let Some(below) = floors.get(i.wrapping_sub(1)) {
+            if floor.wood_framing & (below.material != WallMaterial::Logs) {
+                for column in area.border() {
+                    let pos = column.extend(floor.z - 1);
+                    let axis = wall_log_axis(column.extend(floor.z - 1));
+                    if roof.covers(pos) {
+                        level(pos, Log(species, log_stripped, axis))
+                    }
                 }
             }
         }
 
         // Ceiling
         if let Some(ceiling) = ceiling {
-            if floor.material != WallMaterial::Logs {
-                for column in area.border() {
-                    let pos = column.extend(ceiling);
-                    let axis = if area.corners().contains(&column) {
-                        [Axis::X, Axis::Y][(ceiling % 2) as usize]
-                    } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(column)) {
-                        Axis::Y
-                    } else {
-                        Axis::X
-                    };
-                    if roof.covers(pos) {
-                        level(pos, Log(species, log_stripped, axis))
-                    }
-                }
-            }
-
             for column in inner {
                 let pos = column.extend(ceiling);
                 if roof.covers(pos) {
@@ -306,6 +378,47 @@ fn building(
 
     let roof_rec = build_roof(level, roof.area, roof.z, &roof.shape, roof::palette());
     rec.extend(roof_rec);
+
+    if let Some(chimney) = chimney {
+        let dir = area.outside_face(chimney);
+        level.blocked[chimney] = Blocked;
+        level.blocked[chimney + IVec2::from(dir.rotated(1))] = Blocked;
+        // Chimney
+        for z in floors[0].z - 4.. {
+            level((chimney + IVec2::from(dir)).extend(z), Full(Cobble));
+            level(
+                (chimney + IVec2::from(dir) + IVec2::from(dir.rotated(1))).extend(z),
+                Full(Cobble),
+            );
+            if !roof.covers(chimney.extend(z - 1))
+                & !roof.covers((chimney + IVec2::from(dir.rotated(1))).extend(z - 1))
+            {
+                level((chimney + IVec2::from(dir)).extend(z + 1), Fence(Andesite));
+                level(
+                    (chimney + IVec2::from(dir) + IVec2::from(dir.rotated(1))).extend(z + 1),
+                    Fence(Andesite),
+                );
+                break;
+            }
+        }
+        // Hearth
+        'floor: for floor in floors {
+            for i in -1..=2 {
+                if !roof.covers((chimney + i * IVec2::from(dir.rotated(1))).extend(floor.z)) {
+                    break 'floor;
+                }
+            }
+            prefab("hearth").build(
+                level,
+                chimney.extend(floor.z),
+                dir,
+                false,
+                false,
+                Oak,
+                identity,
+            );
+        }
+    }
 
     // Some movement
     for i in 0..rec.len() {

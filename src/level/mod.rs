@@ -25,9 +25,10 @@ pub use column_map::ColumnMap;
 
 use self::block_map::{BlockMap, Section};
 
-// Minecraft sections go from -4 to 19, but we can limit the ones we're interested in to reduce overhead
-const MIN_SECTION: i32 = 2;
-const MAX_SECTION: i32 = 14;
+// We could limit this to the ones we're interested in to reduce overhead,
+// but for that we'd need to make sure we never try to access oob
+const MIN_SECTION: i32 = -4;
+const MAX_SECTION: i32 = 19;
 const SECTION_COUNT: usize = (MAX_SECTION + 1 - MIN_SECTION) as usize;
 
 #[derive(Resource)]
@@ -444,7 +445,6 @@ fn load_chunk(
 
     // Build water- & heightmap
     // There are build in heightmaps, but they don't ignore logs nor do they work on custom-made maps
-    // TODO: Ignore (packed)ice
     for x in 0..16 {
         for z in 0..16 {
             'column: for section_index in (MIN_SECTION..=MAX_SECTION).rev() {
@@ -453,12 +453,12 @@ fn load_chunk(
                         let block = &section[x + z * 16 + y as usize * 16 * 16];
                         let height = section_index * 16 + y;
                         if match block {
-                            Block::Log(..) => false,
+                            Block::Log(..) | Ice => false,
                             _ => block.solid(),
                         } {
                             heightmap[x + z * 16] = height;
                             break 'column;
-                        } else if matches!(block, Block::Water /*TODO: | Block::Ice*/) {
+                        } else if matches!(block, Water | Ice) {
                             watermap[x + z * 16].get_or_insert(section_index * 16 + y);
                         }
                     }

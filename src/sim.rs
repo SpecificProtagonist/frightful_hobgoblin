@@ -249,8 +249,8 @@ fn starting_resources(
     let starting_resources = {
         let mut stock = Goods::default();
         stock.add(Stack::new(Good::Soil, 99999999.));
-        stock.add(Stack::new(Good::Wood, 99999999.));
-        stock.add(Stack::new(Good::Stone, 99999999.));
+        // stock.add(Stack::new(Good::Wood, 99999999.));
+        // stock.add(Stack::new(Good::Stone, 99999999.));
         stock
     };
     commands.entity(center).insert((
