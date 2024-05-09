@@ -11,6 +11,8 @@ use stall::{init_stalls, plan_stalls};
 use storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals};
 use trees::{init_trees, spawn_trees};
 
+use self::loot::chest;
+
 use super::*;
 
 pub fn sim(mut level: Level, debug_save: bool) {

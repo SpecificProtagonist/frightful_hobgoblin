@@ -62,11 +62,11 @@ pub enum Block {
     Glass(Option<Color>),
     GlassPane(Option<Color>),
     WallBanner(HDir, Color),
-    Hay,
     Cauldron {
         water: u8,
     },
     // TODO: Store orientation
+    Hay,
     Barrel,
     IronBars,
     Trapdoor(TreeSpecies, HDir, DoorMeta),

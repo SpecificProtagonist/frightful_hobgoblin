@@ -408,7 +408,7 @@ fn building(
                     break 'floor;
                 }
             }
-            prefab("hearth").build(
+            prefab(&format!("hearth_{}", rand_range(0..=1))).build(
                 level,
                 chimney.extend(floor.z),
                 dir,

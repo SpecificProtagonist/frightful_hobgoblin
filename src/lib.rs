@@ -15,6 +15,7 @@ mod geometry;
 pub mod goods;
 pub mod house;
 mod level;
+pub mod loot;
 pub mod make_name;
 pub mod noise;
 pub mod optimize;
