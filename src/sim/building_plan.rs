@@ -1,8 +1,13 @@
 use crate::*;
 use bevy_ecs::prelude::*;
+use itertools::Itertools;
 use sim::*;
 
-use self::{desire_lines::DesireLines, quarry::Quarry};
+use self::{
+    desire_lines::{add_desire_line, DesireLines},
+    pathfind::pathfind_street,
+    quarry::Quarry,
+};
 
 #[derive(Component, Deref, DerefMut)]
 pub struct Planned(pub Vec<IVec2>);
@@ -106,6 +111,77 @@ pub fn plan_house(
         Planned(area.into_iter().collect()),
         House { area },
     ));
+}
+
+// Needed to delay until the post itself has been placed in MC
+#[derive(Component)]
+pub struct SpawnHitchedHorse(IVec3);
+
+pub fn hitching_post(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    mut dl: ResMut<DesireLines>,
+    mut replay: ResMut<Replay>,
+    tick: Res<Tick>,
+    center: Query<&Pos, With<CityCenter>>,
+    new: Query<&SpawnHitchedHorse, Added<SpawnHitchedHorse>>,
+) {
+    for new in &new {
+        let pos = new.0;
+        replay.command(format!("summon horse {} {} {} {{Tame:1,SaddleItem:{{Count:1,id:\"saddle\"}},Leash:{{X:{0},Y:{3},Z:{2}}}}}", pos.x, pos.z-1, pos.y, pos.z));
+    }
+    if (tick.0 != 20000) & (tick.0 != 30000) {
+        return;
+    }
+    let center = center.single().truncate().block();
+    let Some(area) = optimize(
+        Rect::new_centered(level.area().center(), ivec2(5, 5)),
+        |area, temperature| {
+            let max_move = (60. * temperature) as i32;
+            *area += ivec2(
+                rand_range(-max_move..=max_move),
+                rand_range(-max_move..=max_move),
+            );
+            if !level.free(*area) || area.grow(4).into_iter().all(|b| level.blocked[b] != Street) {
+                return f32::INFINITY;
+            }
+            let path = pathfind_street(&level, *area);
+            if !path.success {
+                return f32::INFINITY;
+            }
+            let distance = center.as_vec2().distance(area.center_vec2());
+            // TODO: try to minimize the amount of trees in the footprint
+            wateryness(&level, *area) * 30. + unevenness(&level, *area) + path.cost as f32
+                - distance / 100.
+        },
+        200,
+        10,
+    ) else {
+        return;
+    };
+
+    for column in area {
+        level.blocked[column] = Street;
+    }
+    for node in pathfind_street(&level, area.shrink(1)).path {
+        for (x_off, y_off) in (-1..=1).cartesian_product(-1..=1) {
+            level.blocked[node.pos.truncate() + ivec2(x_off, y_off)] = Street;
+        }
+        for _ in 0..30 {
+            add_desire_line(&mut level, &mut dl, node.pos - IVec3::Z);
+        }
+    }
+
+    let pos = level.ground(area.center());
+    let species = level.biome[pos].random_tree_species();
+    level(pos, Full(Cobble));
+    level(pos + IVec3::Z, Fence(Wood(species)));
+    level(pos + 2 * IVec3::Z, Fence(Wood(species)));
+
+    let hay = level.ground(area.center() + ivec2(2, 1)) + IVec3::Z;
+    level(hay, Hay);
+
+    commands.spawn(SpawnHitchedHorse(pos + 2 * IVec3::Z));
 }
 
 pub fn upgrade_plaza(
