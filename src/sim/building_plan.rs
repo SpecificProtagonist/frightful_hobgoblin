@@ -275,14 +275,13 @@ pub fn test_build_house(
     new: Query<(Entity, &House), With<ToBeBuild>>,
 ) {
     for (entity, house) in &new {
-        commands
-            .entity(entity)
-            .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::house(
-                &mut level,
-                &mut dl,
-                &mut untree,
-                house.area,
-            )));
+        let site = ConstructionSite::new(house::house(
+            &mut commands,
+            &mut level,
+            &mut dl,
+            &mut untree,
+            house.area,
+        ));
+        commands.entity(entity).remove::<ToBeBuild>().insert(site);
     }
 }

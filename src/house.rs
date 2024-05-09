@@ -5,6 +5,7 @@ use itertools::Itertools;
 use roof::build_roof;
 
 use self::{
+    construction::RemoveWhenBlocked,
     desire_lines::{add_desire_line, DesireLines},
     pathfind::pathfind_street,
     roof::{roof_shape, Shape},
@@ -39,7 +40,13 @@ impl Roof {
     }
 }
 
-pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area: Rect) -> ConsList {
+pub fn house(
+    commands: &mut Commands,
+    level: &mut Level,
+    dl: &mut DesireLines,
+    untree: &mut Untree,
+    area: Rect,
+) -> ConsList {
     let inner = area.shrink(1);
 
     (level.blocked)(area, Free);
@@ -173,10 +180,17 @@ pub fn house(level: &mut Level, dl: &mut DesireLines, untree: &mut Untree, area:
         None
     };
 
-    building(level, untree, area, entrance, &floors, roof, chimney)
+    building(
+        commands, level, untree, area, entrance, &floors, roof, chimney,
+    )
 }
 
-pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
+pub fn shack(
+    commands: &mut Commands,
+    level: &mut Level,
+    untree: &mut Untree,
+    area: Rect,
+) -> ConsList {
     let mut entrance = ivec3(0, 0, i32::MAX);
     for column in area.border_no_corners() {
         let pos = level.ground(column + IVec2::from(area.outside_face(column))) + IVec3::Z;
@@ -203,10 +217,11 @@ pub fn shack(level: &mut Level, untree: &mut Untree, area: Rect) -> ConsList {
         shape: roof_shape,
     };
 
-    building(level, untree, area, entrance, &floors, roof, None)
+    building(commands, level, untree, area, entrance, &floors, roof, None)
 }
 
 fn building(
+    commands: &mut Commands,
     level: &mut Level,
     untree: &mut Untree,
     area: Rect,
@@ -459,8 +474,12 @@ fn building(
 
     // Windows
     for (pos, dir) in windows {
-        let glass_color = rand_weighted(&[(1., None), (0.1, Some(LightGray)), (0.1, Some(Brown))]);
-        level(pos, GlassPane(glass_color));
+        let glass = GlassPane(rand_weighted(&[
+            (1., None),
+            (0.1, Some(LightGray)),
+            (0.1, Some(Brown)),
+        ]));
+        level(pos, glass);
         let mut shutter_pos = pos + IVec3::from(dir) + IVec3::from(dir.rotated(1));
         if level(shutter_pos).solid()
             | area
@@ -470,6 +489,16 @@ fn building(
             shutter_pos += IVec3::from(dir.rotated(-1)) * 2
         }
         level(shutter_pos, |b| b | Trapdoor(species, dir, DoorMeta::OPEN));
+
+        commands.spawn(RemoveWhenBlocked {
+            check_area: vec![pos.truncate() + IVec2::from(dir)],
+            restore: vec![SetBlock {
+                pos,
+                block: level(pos - IVec3::Z),
+                previous: glass,
+                nbt: None,
+            }],
+        });
     }
 
     level.pop_recording_into(&mut rec, cursor);

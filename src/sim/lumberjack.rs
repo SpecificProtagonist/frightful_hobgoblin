@@ -110,14 +110,13 @@ pub fn test_build_lumberjack(
     new: Query<(Entity, &LumberjackShack), With<ToBeBuild>>,
 ) {
     for (entity, lumberjack) in &new {
-        commands
-            .entity(entity)
-            .remove::<ToBeBuild>()
-            .insert(ConstructionSite::new(house::shack(
-                &mut level,
-                &mut untree,
-                lumberjack.area,
-            )));
+        let site = ConstructionSite::new(house::shack(
+            &mut commands,
+            &mut level,
+            &mut untree,
+            lumberjack.area,
+        ));
+        commands.entity(entity).remove::<ToBeBuild>().insert(site);
     }
 }
 
