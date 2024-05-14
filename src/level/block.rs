@@ -958,6 +958,8 @@ impl Block {
                 "cobblestone_stairs" => stair(Cobble, props),
                 "stone_brick_stairs" => stair(StoneBrick, props),
                 "blackstone_stairs" => stair(Blackstone, props),
+                "andesite_stairs" => stair(Blackstone, props),
+                "polished_andesite_stairs" => stair(Blackstone, props),
                 "mud_brick_stairs" => stair(MudBrick, props),
                 "terracotta" => Terracotta(None),
                 "mushroom_stem" => MushroomStem,

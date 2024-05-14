@@ -100,7 +100,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
             .chain(),
     );
 
-    for _ in 0..40000 {
+    for _ in 0..30000 {
         sched.run(&mut world);
     }
 
@@ -111,6 +111,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
     if debug_save {
         level.debug_save();
     } else {
+        world.run_system_once(flush_unfinished_changes);
         let replay = world.remove_resource::<Replay>().unwrap();
         rayon::spawn(move || level.save_metadata());
         replay.finish();

@@ -23,9 +23,9 @@ impl Params {
     /// Area used to determine suitability for quarrying
     fn probed_mining_area(self) -> impl Iterator<Item = IVec2> {
         let off = (self.dir_vec2() * 10.).as_ivec2();
-        Rect::new_centered(self.pos, IVec2::splat(21))
+        Rect::new_centered(self.pos, IVec2::splat(23))
             .into_iter()
-            .filter(move |c| (*c - self.pos).as_vec2().length() < 9.)
+            .filter(move |c| (*c - self.pos).as_vec2().length() < 10.)
             .map(move |c| c + off)
     }
 
@@ -280,7 +280,8 @@ pub fn work(
             let amount = rec
                 .iter()
                 .filter(|set| matches!(set.previous, Full(_)))
-                .count() as f32;
+                .count() as f32
+                * 1.5;
             place.extend(rec.into_iter().map(ConsItem::Set));
             place.push_back(ConsItem::Carry(Some(Stack::new(Good::Stone, amount))));
 

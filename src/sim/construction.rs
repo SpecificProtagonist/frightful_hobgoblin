@@ -53,7 +53,7 @@ pub fn new_construction_site(
             }
         }
         for item in level.pop_recording(cursor).map(ConsItem::Set) {
-            site.todo.push_front(item);
+            site.todo.push_back(item);
         }
 
         let mut stock = existing_pile.cloned().unwrap_or_default();

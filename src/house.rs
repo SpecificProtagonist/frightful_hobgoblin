@@ -391,6 +391,7 @@ fn building(
         }
     }
 
+    level.pop_recording_into(&mut rec, cursor);
     let roof_rec = build_roof(level, roof.area, roof.z, &roof.shape, roof::palette());
     rec.extend(roof_rec);
 

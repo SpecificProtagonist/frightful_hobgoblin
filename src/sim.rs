@@ -278,3 +278,24 @@ fn spawn_villagers(
         ));
     }
 }
+
+fn flush_unfinished_changes(
+    mut replay: ResMut<Replay>,
+    cs: Query<&ConstructionSite>,
+    place_tasks: Query<&PlaceTask>,
+) {
+    for site in &cs {
+        for item in &site.todo {
+            if let ConsItem::Set(block) = item {
+                replay.block(block.pos, block.block, block.nbt.clone());
+            }
+        }
+    }
+    for task in &place_tasks {
+        for item in &task.0 {
+            if let ConsItem::Set(block) = item {
+                replay.block(block.pos, block.block, block.nbt.clone());
+            }
+        }
+    }
+}

@@ -152,7 +152,7 @@ pub fn hitching_post(
             let distance = center.as_vec2().distance(area.center_vec2());
             // TODO: try to minimize the amount of trees in the footprint
             wateryness(&level, *area) * 30. + unevenness(&level, *area) + path.cost as f32
-                - distance / 100.
+                - distance.min(100.) / 100.
         },
         200,
         10,
