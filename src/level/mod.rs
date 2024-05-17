@@ -223,9 +223,15 @@ impl Level {
     pub fn undo_recording(&mut self, cursor: RecordingCursor) -> Vec<SetBlock> {
         let rec = self.setblock_recording.drain(cursor.0..).collect_vec();
         for set in rec.iter().rev() {
-            *self.block_mut(set.pos) = set.block
+            *self.block_mut(set.pos) = set.previous
         }
         rec
+    }
+
+    pub fn apply_recording<'a>(&mut self, rec: impl IntoIterator<Item = &'a SetBlock>) {
+        for set in rec.into_iter() {
+            *self.block_mut(set.pos) = set.block
+        }
     }
 
     pub fn pop_recording(

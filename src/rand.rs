@@ -72,6 +72,7 @@ pub fn try_rand_weighted<T: Clone>(items: &[(f32, T)]) -> Option<T> {
 pub trait ChooseExt {
     type Item;
     fn try_choose(&self) -> Option<&Self::Item>;
+    fn try_choose_mut(&mut self) -> Option<&mut Self::Item>;
     fn choose(&self) -> &Self::Item;
 }
 
@@ -80,6 +81,10 @@ impl<T> ChooseExt for [T] {
 
     fn try_choose(&self) -> Option<&T> {
         self.get(rand_range(0..self.len()))
+    }
+
+    fn try_choose_mut(&mut self) -> Option<&mut T> {
+        self.get_mut(rand_range(0..self.len()))
     }
 
     fn choose(&self) -> &T {

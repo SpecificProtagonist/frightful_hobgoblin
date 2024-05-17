@@ -4,7 +4,7 @@ WIP entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wiki
 
 The aim of GDMC is to take an existing Minecraft map and generate a settlement within it, aiming at adaptability, functionality, evocative narrative and aesthetics. While most generators generate a static instance of a village, this one runs a simulation of the village getting constructed and replays it in Minecraft. Running the replay only requires Minecraft and no mods or external programs. It also aims to be reasonably fast by working with the world directly instead of over an http interface and by using a fast language instead of a interpreted, highly dynamic one.
 
-This code wasn't made with the intent to be useful for anyone else. There is little separation between framework and generator, no documentation/no comments, no focus on maintainability. Most importantly though, the internal representation of blocks only covers what I've needed myself.
+This code wasn't made with the intent to be useful for anyone else! There is little separation between framework and generator, no documentation/no comments, no focus on maintainability or best practices. Perhaps most importantly the internal representation of blocks only covers what I've needed myself.
 
 The simulation works via an ECS. This means that objects such as villagers or trees are composed of components such as `Position` or `Tree`, which only carry data, and are queried by systems which implement behavior. Blocks and some ancillary data are stored in raster format.
 
@@ -18,7 +18,7 @@ Performance-wise I haven't made many optimizations yet, but it world loading is 
 
 ## Running
 
-To run the generator, install [Rust](https://rust-lang.org), switch to the nightly toolchain (e.g. `rustup default nightly`) and run `cargo run`. You can also build without running: `cargo build --release`.
+To run the generator, install [Rust](https://rust-lang.org), switch to the nightly toolchain (e.g. `rustup default nightly`) and run `cargo run --`. Running without any further arguments will tell you what configuration to provide You can also build without running: `cargo build --release`.
 
 Open the world in Minecraft. Each replay only runs while you're in the build area, letting you visit multiple settlements in turn. You can speed up the replay with the following command:
 
@@ -32,5 +32,3 @@ scoreboard players set sim warp <ticks_to_warp>
 ```
 
 Replace `<speed>` and `<ticks_to_warp>` with positive integers. Warping ahead too far at once can cause glitches in the form of missing blocks.
-
-TODO: Set speed/warp for current build area instead of needing to know invocation order

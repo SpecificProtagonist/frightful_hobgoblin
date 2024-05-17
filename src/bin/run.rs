@@ -41,10 +41,10 @@ fn main() {
     println!("Seed: {seed}");
     RNG.set(WyRand::new_seed(seed));
 
-    let area = Rect::new_centered(
-        ivec2(config.min_x, config.min_y),
-        ivec2(config.max_x, config.max_y),
-    );
+    let area = Rect {
+        min: ivec2(config.min_x, config.min_y),
+        max: ivec2(config.max_x, config.max_y),
+    };
 
     let level = Level::new(
         &config.path,

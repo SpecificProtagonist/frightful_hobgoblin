@@ -31,8 +31,8 @@ impl Rect {
 
     pub fn new_centered(center: IVec2, size: IVec2) -> Rect {
         Rect {
-            min: center - size / 2,
-            max: center + (size + IVec2::ONE) / 2,
+            min: center - (size - IVec2::ONE) / 2,
+            max: center + size / 2,
         }
     }
 
@@ -314,6 +314,10 @@ impl HDir {
 
     pub fn difference(self, to: Self) -> i32 {
         (to as i32 - self as i32).rem_euclid(4)
+    }
+
+    pub fn offset(self, forward: i32, right: i32) -> IVec2 {
+        forward * IVec2::from(self) + right * IVec2::from(self.rotated(1))
     }
 
     pub fn to_str(self) -> &'static str {

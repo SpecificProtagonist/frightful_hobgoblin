@@ -124,6 +124,7 @@ pub fn house(
 
     let upper_floors_keep_material = !roof.covers(area.center().extend(base + 11));
 
+    // This sometimes breaks with low roofs?!?
     while Rect::new_centered(area.center(), IVec2::splat(4))
         .border()
         .all(|c| (roof.shape)(c.as_vec2()) > floors.last().unwrap().z as f32 + 4.0)
@@ -151,21 +152,16 @@ pub fn house(
             .filter_map(|pos| {
                 let dir = area.outside_face(pos);
                 let mut z = i32::MAX;
-                for pos in [
-                    pos + IVec2::from(dir),
-                    pos + IVec2::from(dir) + IVec2::from(dir.rotated(1)),
-                ] {
+                for pos in [pos + dir.offset(1, 0), pos + dir.offset(1, 1)] {
                     z = z.min(level.height[pos]);
                     if level.blocked[pos] != Free {
                         return None;
                     }
                 }
                 if (z < base - 3)
-                    | !area
-                        .shrink(1)
-                        .contains(pos + IVec2::from(dir.rotated(1)) - IVec2::from(dir))
-                    | (entrance.truncate() == pos + IVec2::from(dir.rotated(-1)))
-                    | (entrance.truncate() == pos + 2 * IVec2::from(dir.rotated(1)))
+                    | !area.shrink(1).contains(pos + dir.offset(-1, 1))
+                    | (entrance.truncate() == pos + dir.offset(0, -1))
+                    | (entrance.truncate() == pos + dir.offset(0, 2))
                 {
                     return None;
                 }
@@ -235,7 +231,7 @@ fn building(
 
     let chimney_columns = chimney
         .iter()
-        .flat_map(|&c| [c, c + IVec2::from(area.outside_face(c).rotated(1))])
+        .flat_map(|&c| [c, c + area.outside_face(c).offset(0, 1)])
         .collect_vec();
 
     let biome = level.biome[area.center()];
@@ -289,20 +285,15 @@ fn building(
             if level(pos + IVec3::from(dir)).solid()
                 | level(pos + IVec2::from(dir).extend(-1)).solid() & (0.7 > rand())
                 | !roof.covers(pos)
-                | !roof.covers(pos - IVec3::from(dir))
-                | !roof.covers(pos + IVec3::from(dir.rotated(1)))
-                | !roof.covers(pos + IVec3::from(dir.rotated(-1)))
+                | !roof.covers(pos + dir.offset(-1, 0).extend(0))
+                | !roof.covers(pos + dir.offset(0, 1).extend(0))
+                | !roof.covers(pos + dir.offset(0, -1).extend(0))
             {
                 continue;
             }
-            for off in [
-                IVec3::from(dir.rotated(1)),
-                IVec3::ZERO,
-                IVec3::from(dir.rotated(-1)),
-            ] {
-                if no_walls.contains(&(pos + off))
-                    | chimney_columns.contains(&(pos + off).truncate())
-                {
+            for i in -1..=1 {
+                let check = pos + dir.offset(0, i).extend(0);
+                if no_walls.contains(&check) | chimney_columns.contains(&check.truncate()) {
                     continue 'windows;
                 }
             }
@@ -391,36 +382,38 @@ fn building(
         }
     }
 
+    // Roof
     level.pop_recording_into(&mut rec, cursor);
     let roof_rec = build_roof(level, roof.area, roof.z, &roof.shape, roof::palette());
+    let mut roof_underside = HashMap::default();
+    for item in &roof_rec {
+        if let ConsItem::Set(SetBlock { pos, .. }) = item {
+            // Roof already sorted by z
+            roof_underside.entry(pos.truncate()).or_insert(pos.z);
+        }
+    }
     rec.extend(roof_rec);
 
+    // Chimney
     if let Some(chimney) = chimney {
         let dir = area.outside_face(chimney);
-        level.blocked[chimney] = Blocked;
-        level.blocked[chimney + IVec2::from(dir.rotated(1))] = Blocked;
-        // Chimney
+        level.blocked[chimney + dir.offset(1, 0)] = Blocked;
+        level.blocked[chimney + dir.offset(1, 1)] = Blocked;
         for z in floors[0].z - 4.. {
-            level((chimney + IVec2::from(dir)).extend(z), Full(Cobble));
-            level(
-                (chimney + IVec2::from(dir) + IVec2::from(dir.rotated(1))).extend(z),
-                Full(Cobble),
-            );
+            level((chimney + dir.offset(1, 0)).extend(z), Full(Cobble));
+            level((chimney + dir.offset(1, 1)).extend(z), Full(Cobble));
             if !roof.covers(chimney.extend(z - 1))
-                & !roof.covers((chimney + IVec2::from(dir.rotated(1))).extend(z - 1))
+                & !roof.covers((chimney + dir.offset(0, 1)).extend(z - 1))
             {
-                level((chimney + IVec2::from(dir)).extend(z + 1), Fence(Andesite));
-                level(
-                    (chimney + IVec2::from(dir) + IVec2::from(dir.rotated(1))).extend(z + 1),
-                    Fence(Andesite),
-                );
+                level((chimney + dir.offset(1, 0)).extend(z + 1), Fence(Andesite));
+                level((chimney + dir.offset(1, 1)).extend(z + 1), Fence(Andesite));
                 break;
             }
         }
         // Hearth
         'floor: for floor in floors {
             for i in -1..=2 {
-                if !roof.covers((chimney + i * IVec2::from(dir.rotated(1))).extend(floor.z)) {
+                if roof_underside[&(chimney + dir.offset(0, i))] <= floor.z + 1 {
                     break 'floor;
                 }
             }
@@ -450,6 +443,76 @@ fn building(
         }
     }
 
+    // Stairs
+    enum StairSupportStyle {
+        Stair,
+        Fence,
+    }
+    let stair_support_style = [StairSupportStyle::Stair, StairSupportStyle::Fence].choose();
+    let stair_material = Wood(species);
+    let stair_rot_dir = if 0.5 > rand() { 1 } else { -1 };
+    for upper_floor_index in 1..floors.len() {
+        let lower_z = floors[upper_floor_index - 1].z - 1;
+        let upper_z = floors[upper_floor_index].z - 1;
+        let mut choices = Vec::new();
+        'outer: for column in inner.border_no_corners() {
+            if matches!(level(column.extend(lower_z)), Air | Stair(..)) {
+                continue;
+            }
+            let stair_cursor = level.recording_cursor();
+            let mut column = column;
+            let mut dir = inner.outside_face(column).rotated(stair_rot_dir);
+            let mut z = lower_z;
+            let mut prev = (column + dir.offset(-1, 0)).extend(z);
+            if !inner.contains(prev.truncate()) {
+                prev += dir.offset(1, -stair_rot_dir).extend(0)
+            }
+            while z < upper_z {
+                if !inner.contains(column + IVec2::from(dir)) {
+                    dir = dir.rotated(stair_rot_dir);
+                    level(column.extend(z), |b| b | Full(stair_material));
+                } else {
+                    z += 1;
+                    level(column.extend(z), Stair(stair_material, dir, Bottom));
+                    if z - 1 > lower_z {
+                        level(column.extend(z - 1), |b| {
+                            b | match stair_support_style {
+                                StairSupportStyle::Stair => {
+                                    Stair(stair_material, dir.rotated(2), Top)
+                                }
+                                StairSupportStyle::Fence => Fence(stair_material),
+                            }
+                        });
+                    }
+                }
+                level.fill_at(Some(column), z + 1..z + 3, Air);
+                if prev.z < z {
+                    level(prev + 3 * IVec3::Z, Air)
+                }
+                if (roof_underside[&column] <= z + 2)
+                    | ((prev.z != z) & (roof_underside[&prev.truncate()] <= prev.z + 3))
+                    | (0..2)
+                        .map(|z_off| (column + dir.offset(0, -stair_rot_dir)).extend(z + z_off))
+                        .contains(&entrance)
+                    | chimney_columns.contains(&(column + dir.offset(0, -stair_rot_dir)))
+                {
+                    level.undo_recording(stair_cursor);
+                    continue 'outer;
+                }
+                prev = column.extend(z);
+                column += IVec2::from(dir);
+            }
+            choices.push(level.undo_recording(stair_cursor));
+        }
+        if let Some(stair_rec) = choices.try_choose_mut() {
+            level.apply_recording(&*stair_rec);
+            rec.extend(stair_rec.drain(..).map(ConsItem::Set));
+        } else {
+            // TODO ladder
+        }
+        // TODO: Block windows
+    }
+
     // Keep windows/doors free
     rec.retain(|s| {
         if let ConsItem::Set(SetBlock { pos, block, .. }) = s {
@@ -467,10 +530,10 @@ fn building(
         entrance + IVec3::Z,
         Door(door_type, door_dir, DoorMeta::TOP),
     );
-    level(entrance + IVec2::from(door_dir).extend(0), Air);
-    level(entrance + IVec2::from(door_dir).extend(1), Air);
-    if level(entrance + 2 * IVec2::from(door_dir).extend(0)).solid() {
-        level(entrance + IVec2::from(door_dir).extend(2), Air);
+    level(entrance + door_dir.offset(1, 0).extend(0), Air);
+    level(entrance + door_dir.offset(1, 0).extend(1), Air);
+    if level(entrance + door_dir.offset(2, 0).extend(0)).solid() {
+        level(entrance + door_dir.offset(1, 0).extend(2), Air);
     }
 
     // Windows
@@ -503,6 +566,19 @@ fn building(
     }
 
     level.pop_recording_into(&mut rec, cursor);
+
+    // Fill smokers
+    for item in &mut rec {
+        if let ConsItem::Set(SetBlock {
+            block: Smoker(..),
+            nbt,
+            ..
+        }) = item
+        {
+            *nbt = Some(loot::smoker())
+        }
+    }
+
     rec
 }
 

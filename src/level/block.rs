@@ -19,7 +19,7 @@ pub use BlockMaterial::*;
 pub use Color::*;
 pub use TreeSpecies::*;
 
-// TODO: Waterlogged blocks (incl kelp/kelp_plant); piglin head
+// TODO: Waterlogged blocks (incl kelp/kelp_plant); piglin head; button; sign
 #[derive(Debug, Default, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum Block {
     #[default]
@@ -79,6 +79,7 @@ pub enum Block {
     Bedrock,
     CraftingTable,
     Stonecutter(HAxis),
+    Smoker(HDir),
     Other(u16),
 }
 
@@ -718,6 +719,10 @@ impl Block {
                     .into(),
                 )],
             ),
+            Smoker(dir) => Blockstate(
+                "smoker".into(),
+                vec![("facing".into(), dir.to_str().into())],
+            ),
             Other(index) => unknown.states[*index as usize].clone(),
         }
     }
@@ -760,12 +765,12 @@ impl Block {
             }
         }
 
+        fn facing(props: &CompoundTag) -> HDir {
+            HDir::from_str(props.get_str("facing").unwrap()).unwrap()
+        }
+
         fn stair(material: BlockMaterial, props: &CompoundTag) -> Block {
-            Stair(
-                material,
-                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
-                half(props),
-            )
+            Stair(material, facing(props), half(props))
         }
 
         fn leaves(species: TreeSpecies, props: &CompoundTag) -> Block {
@@ -780,44 +785,33 @@ impl Block {
         }
 
         fn wall_banner(color: Color, props: &CompoundTag) -> Block {
-            WallBanner(
-                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
-                color,
-            )
+            WallBanner(facing(props), color)
         }
 
         fn trapdoor(species: TreeSpecies, props: &CompoundTag) -> Block {
-            Trapdoor(
-                species,
-                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
-                {
-                    let mut meta = DoorMeta::empty();
-                    if props.get_str("half").unwrap() == "top" {
-                        meta |= DoorMeta::TOP;
-                    }
-                    if props.get_str("open").unwrap() == "true" {
-                        meta |= DoorMeta::OPEN;
-                    }
-                    meta
-                },
-            )
+            Trapdoor(species, facing(props), {
+                let mut meta = DoorMeta::empty();
+                if props.get_str("half").unwrap() == "top" {
+                    meta |= DoorMeta::TOP;
+                }
+                if props.get_str("open").unwrap() == "true" {
+                    meta |= DoorMeta::OPEN;
+                }
+                meta
+            })
         }
 
         fn door(species: TreeSpecies, props: &CompoundTag) -> Block {
-            Door(
-                species,
-                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
-                {
-                    let mut meta = DoorMeta::empty();
-                    if props.get_str("half").unwrap() == "upper" {
-                        meta |= DoorMeta::TOP;
-                    }
-                    if props.get_str("open").unwrap() == "true" {
-                        meta |= DoorMeta::OPEN;
-                    }
-                    meta
-                },
-            )
+            Door(species, facing(props), {
+                let mut meta = DoorMeta::empty();
+                if props.get_str("half").unwrap() == "upper" {
+                    meta |= DoorMeta::TOP;
+                }
+                if props.get_str("open").unwrap() == "true" {
+                    meta |= DoorMeta::OPEN;
+                }
+                meta
+            })
         }
 
         fn button(material: BlockMaterial, props: &CompoundTag) -> Block {
@@ -828,9 +822,7 @@ impl Block {
                 } else if props.get_str("face").unwrap() == "floor" {
                     FullDir::ZNeg
                 } else {
-                    HDir::from_str(props.get_str("facing").unwrap())
-                        .unwrap()
-                        .into()
+                    facing(props).into()
                 },
             )
         }
@@ -838,7 +830,7 @@ impl Block {
         fn fence_gate(material: BlockMaterial, props: &CompoundTag) -> Block {
             FenceGate(
                 material,
-                HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                facing(props),
                 if props.get_str("open").unwrap() == "true" {
                     Open
                 } else {
@@ -1040,7 +1032,7 @@ impl Block {
                 "oak_door" => door(Oak, props),
                 "spruce_door" => door(Spruce, props),
                 "bell" => Bell(
-                    HDir::from_str(props.get_str("facing").unwrap()).unwrap(),
+                    facing(props),
                     match props.get_str("attachment").unwrap() {
                         "floor" => BellAttachment::Floor,
                         "ceiling" => BellAttachment::Ceiling,
@@ -1049,7 +1041,8 @@ impl Block {
                     },
                 ),
                 "polished_blackstone_button" => button(PolishedBlackstone, props),
-                "ladder" => Ladder(HDir::from_str(props.get_str("facing").unwrap()).unwrap()),
+                "ladder" => Ladder(facing(props)),
+                "smoker" => Smoker(facing(props)),
                 _ => return None,
             })
         }
@@ -1195,6 +1188,7 @@ impl Block {
             Door(species, dir, meta) => Door(species, hdir(dir), meta),
             Button(material, dir) => Button(material, fdir(dir)),
             FenceGate(material, dir, state) => FenceGate(material, hdir(dir), state),
+            Smoker(dir) => Smoker(hdir(dir)),
             _ => self,
         }
     }
