@@ -1,5 +1,7 @@
 # Frightful Hobgoblin
 
+![Example village](screenshot.png)
+
 WIP entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
 
 The aim of GDMC is to take an existing Minecraft map and generate a settlement within it, aiming at adaptability, functionality, evocative narrative and aesthetics. While most generators generate a static instance of a village, this one runs a simulation of the village getting constructed and replays it in Minecraft. Running the replay only requires Minecraft and no mods or external programs. It also aims to be reasonably fast by working with the world directly instead of over an http interface and by using a fast language instead of a interpreted, highly dynamic one.
@@ -18,7 +20,7 @@ Performance-wise I haven't made many optimizations yet, but it world loading is 
 
 ## Running
 
-To run the generator, install [Rust](https://rust-lang.org), switch to the nightly toolchain (e.g. `rustup default nightly`) and run `cargo run --`. Running without any further arguments will tell you what configuration to provide You can also build without running: `cargo build --release`.
+To run the generator, install [Rust](https://rust-lang.org), switch to the nightly toolchain (e.g. `rustup default nightly`) and run `cargo run --`. Running without any further arguments will tell you what configuration to provide. You can also build without running: `cargo build --release`.
 
 Open the world in Minecraft. Each replay only runs while you're in the build area, letting you visit multiple settlements in turn. You can speed up the replay with the following command:
 

@@ -103,6 +103,28 @@ pub fn sim(mut level: Level, debug_save: bool) {
     for _ in 0..30000 {
         sched.run(&mut world);
     }
+    world.run_system_once(flush_unfinished_changes);
+
+    // Testing
+    for track in 1..=5 {
+        world.run_system_once(|mut replay: ResMut<Replay>| replay.begin_next_track());
+        world.insert_resource(Tick(0));
+        let sys = world.register_system(tick_replay);
+        let mut sched = Schedule::default();
+        sched.set_executor_kind(ExecutorKind::SingleThreaded);
+        sched.add_systems((
+            move |mut tick: ResMut<Tick>, mut replay: ResMut<Replay>| {
+                replay.dbg(&format!("track {track} tick {}", tick.0));
+                tick.0 += 1;
+            },
+            tick_replay,
+        ));
+        world.run_system(sys).unwrap();
+        for _ in 0..70 {
+            sched.run(&mut world);
+            world.run_system(sys).unwrap();
+        }
+    }
 
     let level = world.remove_resource::<Level>().unwrap();
 
@@ -110,10 +132,10 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     if debug_save {
         level.debug_save();
-    } else {
-        world.run_system_once(flush_unfinished_changes);
-        let replay = world.remove_resource::<Replay>().unwrap();
-        rayon::spawn(move || level.save_metadata());
-        replay.finish();
+        return;
     }
+
+    let replay = world.remove_resource::<Replay>().unwrap();
+    rayon::spawn(move || level.save_metadata());
+    replay.finish();
 }

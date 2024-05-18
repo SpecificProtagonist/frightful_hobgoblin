@@ -20,7 +20,7 @@ pub struct MarketStall {
 pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) {
     let center = center.single().block().truncate();
     for x in -1..=1 {
-        let offset = || ivec2(x * 7 + rand_range(0..=1), -rand_range(5..=6));
+        let offset = || ivec2(x * 7 + rand_range(0..=1), -rand_range(3..=4));
         commands.spawn(MarketStall {
             pos: center + offset(),
             facing: HDir::YPos,
@@ -54,6 +54,7 @@ pub fn plan_stalls(
 }
 
 fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
+    let pos = pos + facing.offset(-2, 0);
     let cursor = level.recording_cursor();
     let z = level.height[pos];
     level.fill_at(

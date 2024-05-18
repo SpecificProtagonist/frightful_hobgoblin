@@ -104,6 +104,8 @@ pub struct Replay {
     commands: Vec<Vec<Command>>,
     command_chunk: i32,
     commands_this_chunk: i32,
+    track: i32,
+    skip_tick: bool,
     total_commands: u64,
     writes_in_flight: Arc<AtomicU32>,
     carry_ids: Vec<(Id, Id)>,
@@ -130,6 +132,8 @@ impl Replay {
             commands: default(),
             command_chunk: 0,
             commands_this_chunk: 0,
+            track: 0,
+            skip_tick: false,
             total_commands: 0,
             writes_in_flight: default(),
             carry_ids: default(),
@@ -147,7 +151,9 @@ impl Replay {
         #[cfg(debug_assertions)]
         println!("{msg}");
         #[cfg(debug_assertions)]
-        self.say(msg, Gray);
+        self.command(format!(
+            "tellraw @a {{\"text\":\"{msg}\",\"color\":\"grey\"}}",
+        ));
     }
 
     pub fn say(&mut self, msg: &str, color: Color) {
@@ -183,7 +189,7 @@ impl Replay {
     }
 
     fn tick(&mut self) {
-        const MAX_COMMANDS_PER_CHUNK: i32 = 30000;
+        const MAX_COMMANDS_PER_CHUNK: i32 = 40000;
         if self.commands_this_chunk < MAX_COMMANDS_PER_CHUNK {
             let commands = std::mem::take(&mut self.commands_this_tick);
             self.commands.push(commands);
@@ -193,10 +199,12 @@ impl Replay {
     }
 
     fn flush_chunk(&mut self) {
+        // Switch over to the next chunk on the same track
         // This needs to be the last commands to get executed this tick
         self.command(format!(
-            "data modify storage sim_{0}_0:data commands set from storage sim_{0}_{1}:data commands",
+            "data modify storage sim_{0}_track{1}:data commands set from storage sim_{0}_track{1}_chunk{2}:data commands",
             self.invocation,
+            self.track,
             self.command_chunk + 1
         ));
         let tick_commands = std::mem::take(&mut self.commands_this_tick);
@@ -205,6 +213,7 @@ impl Replay {
 
         let data_path = self.level_path.join("data/");
         let invocation = self.invocation;
+        let track = self.track;
         let chunk = self.command_chunk;
         let arc = self.writes_in_flight.clone();
         arc.fetch_add(1, Ordering::Relaxed);
@@ -244,10 +253,11 @@ impl Replay {
                 });
                 nbt
             });
-            let mut file = File::create(
-                data_path.join(format!("command_storage_sim_{invocation}_{chunk}.dat")),
-            )
+            let mut file = File::create(data_path.join(format!(
+                "command_storage_sim_{invocation}_track{track}_chunk{chunk}.dat"
+            )))
             .unwrap();
+            // Write to a buffer first.
             // If writing directly to a GzEncoder and the chunk size is too big, it
             // gets silently trunctated?!?
             let mut uncompressed = Vec::new();
@@ -263,6 +273,23 @@ impl Replay {
         self.commands_this_chunk = 0;
     }
 
+    pub fn begin_next_track(&mut self) -> i32 {
+        self.flush_chunk();
+        self.command_chunk = 0;
+        self.track += 1;
+        self.skip_tick = true;
+        self.track
+    }
+
+    pub fn mcfunction(&self, name: &str, content: &str) {
+        let sim_path = self.level_path.join(format!(
+            "datapacks/sim_{0}/data/sim_{0}/functions/",
+            self.invocation
+        ));
+        create_dir_all(&sim_path).unwrap();
+        write(sim_path.join(format!("{name}.mcfunction")), content).unwrap();
+    }
+
     pub fn finish(mut self) {
         self.say("Replay complete", Gray);
         self.flush_chunk();
@@ -274,45 +301,6 @@ impl Replay {
         write(
             pack_path.join("pack.mcmeta"),
             r#"{"pack": {"pack_format": 10, "description": ""}}"#,
-        )
-        .unwrap();
-
-        let sim_path = pack_path.join(format!("data/sim_{}/functions/", self.invocation));
-        create_dir_all(&sim_path).unwrap();
-
-        // Could also just modify the world directly, but this is easier
-        write(
-            sim_path.join("setup.mcfunction"),
-            format!(
-                "
-            scoreboard players set SIM_{0} sim_tick 0
-            scoreboard objectives setdisplay sidebar sim_tick
-            # How many sim ticks to replay per game tick (0 to stop)
-            scoreboard objectives add speed dummy
-            scoreboard players set SIM_{0} speed 1
-            # Set to X to warp X sim ticks ahead
-            scoreboard objectives add warp dummy
-            scoreboard players set SIM_{0} warp 0
-            gamerule randomTickSpeed 0
-            gamerule doMobSpawning false
-            gamerule mobGriefing false
-            gamerule doFireTick false
-            gamerule doTileDrops false
-            ",
-                self.invocation
-            ),
-        )
-        .unwrap();
-
-        write(
-            sim_path.join("check_setup.mcfunction"),
-            format!(
-                "
-            scoreboard objectives add sim_tick dummy
-            execute unless score SIM_{0} sim_tick matches 0.. run function sim_{0}:setup
-            ",
-                self.invocation
-            ),
         )
         .unwrap();
 
@@ -330,50 +318,121 @@ impl Replay {
         )
         .unwrap();
 
-        write(sim_path.join("eval.mcfunction"), "$$(cmd)").unwrap();
-        write(
-            sim_path.join("run_current_commands.mcfunction"),
-            format!("
-            function sim_{0}:eval with storage sim_{0}_0:data commands[-1][-1]
-            data remove storage sim_{0}_0:data commands[-1][-1]
-            execute if data storage sim_{0}_0:data commands[-1][0] run function sim_{0}:run_current_commands
-            ", self.invocation),
-        )
-        .unwrap();
+        // Args: track
+        self.mcfunction(
+            "play_track",
+            &format!(
+                "
+            $data modify storage sim_{0}:data active_tracks append value $(track)
+            $data modify storage sim_{0}_track$(track):data commands set from storage sim_{0}_track$(track)_chunk0:data commands
+            ",
+                self.invocation
+            ),
+        );
 
-        write(
-            sim_path.join("sim_tick.mcfunction"),
-            format!("
-            function sim_{0}:run_current_commands
-            execute unless data storage sim_{0}_0:data commands[-1][0] run data remove storage sim_{0}_0:data commands[-1]
+        // Could also just modify the world directly, but this is easier
+        self.mcfunction(
+            "setup",
+            &format!(
+                "
+            data modify storage sim_{0}:data active_tracks set value []
+            data modify storage sim_{0}:data track set value {{}}
+            function sim_{0}:play_track {{track:0}}
+            scoreboard players set SIM_{0} sim_tick 0
+            scoreboard objectives setdisplay sidebar sim_tick
+            # How many sim ticks to replay per game tick (0 to stop)
+            scoreboard objectives add speed dummy
+            scoreboard players set SIM_{0} speed 1
+            # Set to X to warp X sim ticks ahead
+            scoreboard objectives add warp dummy
+            scoreboard players set SIM_{0} warp 0
+            gamerule randomTickSpeed 0
+            gamerule doMobSpawning false
+            gamerule mobGriefing false
+            gamerule doFireTick false
+            gamerule doTileDrops false
+            ",
+                self.invocation
+            ),
+        );
+
+        self.mcfunction(
+            "check_setup",
+            &format!(
+                "
+            scoreboard objectives add sim_tick dummy
+            execute unless score SIM_{0} sim_tick matches 0.. run function sim_{0}:setup
+            ",
+                self.invocation
+            ),
+        );
+
+        // Args: cmd
+        self.mcfunction("eval", "$$(cmd)");
+        // Args: track
+        self.mcfunction(
+            "run_current_commands",
+            &format!("
+            $function sim_{0}:eval with storage sim_{0}_track$(track):data commands[-1][-1]
+            $data remove storage sim_{0}_track$(track):data commands[-1][-1]
+            $execute if data storage sim_{0}_track$(track):data commands[-1][0] run function sim_{0}:run_current_commands {{track:$(track)}}
+            ", self.invocation),
+        );
+        // Args: track
+        self.mcfunction("tick_track", &format!("
+            $function sim_{0}:run_current_commands {{track:$(track)}}
+            $execute if data storage sim_{0}_track$(track):data commands[0] run data modify storage sim_{0}:data progressable_tracks append value $(track)
+            $execute unless data storage sim_{0}_track$(track):data commands[-1][0] run data remove storage sim_{0}_track$(track):data commands[-1]
+        ", self.invocation));
+
+        self.mcfunction(
+            "tick_tracks",
+            &format!(
+                "
+            data modify storage sim_{0}:data track.track set from storage sim_{0}:data tracks_to_tick[-1]
+            function sim_{0}:tick_track with storage sim_{0}:data track
+            data remove storage sim_{0}:data tracks_to_tick[-1]
+            execute if data storage sim_{0}:data tracks_to_tick[0] run function sim_{0}:tick_tracks
+            ",
+                self.invocation
+            ),
+        );
+
+        self.mcfunction(
+            "sim_tick",
+            &format!("
+            data modify storage sim_{0}:data tracks_to_tick set from storage sim_{0}:data active_tracks
+            data modify storage sim_{0}:data progressable_tracks set value []
+            function sim_{0}:tick_tracks
+            data modify storage sim_{0}:data active_tracks set from storage sim_{0}:data progressable_tracks
             scoreboard players add SIM_{0} sim_tick 1
             scoreboard players remove SIM_{0} warp 1
             execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
             ", self.invocation),
-        )
-        .unwrap();
-        write(sim_path.join("game_tick.mcfunction"), {
+        );
+
+        self.mcfunction("game_tick", &{
             let mut tick = format!(
                 "
                 execute if score sim speed matches 0.. run scoreboard players operation SIM_{0} speed = sim speed
                 scoreboard players set sim speed -1
-                execute if score sim warp matches 0.. run scoreboard players operation SIM_{0} speed = sim warp
+                execute if score sim warp matches 0.. run scoreboard players operation SIM_{0} warp = sim warp
                 scoreboard players set sim warp -1
                 scoreboard players operation SIM_{0} warp += SIM_{0} speed
                 execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
             ",
                 self.invocation
             );
-            for (vill, carry) in self.carry_ids {
+            for (vill, carry) in &self.carry_ids {
                 writeln!(tick, "tp {carry} {vill}").unwrap();
             }
             writeln!(tick, "execute as @e[tag=carry] at @s run tp ~ ~0.8 ~").unwrap();
             tick
-        })
-        .unwrap();
-        write(
-            sim_path.join("check_tick.mcfunction"),
-            format!(
+        });
+
+        self.mcfunction(
+            "check_tick",
+            &format!(
                 "
                 tag @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] add sim_{4}_in_area
                 tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, replay paused\",\"color\":\"gray\"}}
@@ -389,8 +448,7 @@ impl Replay {
                 self.area.size().y,
                 self.invocation
             ),
-        )
-        .unwrap();
+        );
 
         // Could have used a condvar instead
         while self.writes_in_flight.load(Ordering::Relaxed) > 0 {
@@ -419,6 +477,12 @@ pub fn tick_replay(
     masons: Query<&Id, Added<Mason>>,
 ) {
     let replay = replay.deref_mut();
+    // Hack needed to ignore changes from older tracks (can't set system change tick)
+    if replay.skip_tick {
+        replay.skip_tick = false;
+        return;
+    }
+
     // Blocks
     for set in level.pop_recording(default()) {
         replay.block(set.pos, set.block, set.nbt);

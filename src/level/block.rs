@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     cell::RefCell,
     convert::identity,
-    fmt::{Display, Write},
+    fmt::Display,
     mem::size_of,
     str::FromStr,
     sync::{LazyLock, RwLock},
@@ -375,13 +375,9 @@ impl Display for Blockstate {
 }
 
 impl Blockstate {
+    /// Doesn't set BlockStateTag because that shows an enchantment glint
     pub fn item_snbt(&self) -> String {
-        let mut str = format!("{{id:\"{}\",Count:1,tag:{{BlockStateTag:{{", self.0);
-        for (prop, value) in &self.1 {
-            write!(str, "{prop}:\"{value}\",").unwrap();
-        }
-        str.push_str("}}}");
-        str
+        format!("{{id:\"{}\",Count:1}}", self.0)
     }
 }
 
