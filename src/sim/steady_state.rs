@@ -6,7 +6,7 @@ use self::stall::MarketStall;
 // TODO: walk around; turn chimney smoke on/off
 
 /// Animations to be perpetually run after the replay is done
-pub fn animate(
+pub fn _animate(
     level: Res<Level>,
     houses: Query<&Pos, (With<House>, Without<Planned>)>,
     stalls: Query<&Pos, With<MarketStall>>,

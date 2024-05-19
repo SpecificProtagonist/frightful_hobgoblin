@@ -39,6 +39,11 @@ pub struct Quarry {
     dir: f32,
     // Reverse order
     to_mine: Vec<IVec2>,
+    crane_species: TreeSpecies,
+    crane_pos: IVec3,
+    crane_rot: i32,
+    crane_rot_cooldown: i32,
+    crane_rot_target: i32,
 }
 
 #[derive(Component)]
@@ -119,8 +124,9 @@ pub fn plan_quarry(
     let rect = Rect::new_centered(params.pos, ivec2(7, 7));
     let floor = level.height.average(rect.border()).round() as i32;
 
+    let pos = params.pos.extend(floor + 1);
     commands.spawn((
-        Pos(params.pos.extend(floor + 1).as_vec3()),
+        Pos(pos.as_vec3()),
         Planned(
             params
                 .base_area()
@@ -130,6 +136,14 @@ pub fn plan_quarry(
         Quarry {
             dir: params.dir,
             to_mine,
+            crane_species: level.biome[params.pos].random_tree_species(),
+            crane_pos: pos
+                + (params.dir_vec2() * -1.6 * rand::<f32>())
+                    .as_ivec2()
+                    .extend(0),
+            crane_rot: 0,
+            crane_rot_cooldown: 0,
+            crane_rot_target: 0,
         },
     ));
 }
@@ -148,35 +162,34 @@ pub fn test_build_quarry(
                 &mut level,
                 &mut untree,
                 pos.block(),
-                quarry.dir,
+                quarry,
             )));
     }
 }
 
-fn make_quarry(level: &mut Level, untree: &mut Untree, pos: IVec3, dir: f32) -> ConsList {
+fn make_quarry(level: &mut Level, untree: &mut Untree, pos: IVec3, quarry: &Quarry) -> ConsList {
     let cursor = level.recording_cursor();
     untree.remove_trees(level, Rect::new_centered(pos.truncate(), ivec2(9, 9)));
 
-    let params = Params {
+    for column in (Params {
         pos: pos.truncate(),
-        dir,
-    };
-    for column in params.base_area() {
+        dir: quarry.dir,
+    })
+    .base_area()
+    {
         let base = level.height[column].min(pos.z - 1);
         level.fill_at(Some(column), base..pos.z, PackedMud);
         level.height[column] = pos.z - 1;
         level.fill_at(Some(column), pos.z..pos.z + 8, Air);
     }
 
-    prefab("crane").build(
+    prefab("crane_rot_a").build(
         level,
-        pos + (params.dir_vec2() * -1.6 * rand::<f32>())
-            .as_ivec2()
-            .extend(0),
-        *[YNeg, YPos, XNeg, XPos].choose(),
-        0.5 > rand(),
-        0.5 > rand(),
-        level.biome[pos].random_tree_species(),
+        quarry.crane_pos,
+        YNeg,
+        false,
+        false,
+        quarry.crane_species,
         identity,
     );
 
@@ -205,6 +218,66 @@ pub fn make_stone_piles(
             },
             StoragePile,
         ));
+    }
+}
+
+pub fn quarry_rotation(
+    mut quarries: Query<&mut Quarry, (Without<Planned>, Without<ConstructionSite>)>,
+) {
+    for mut quarry in &mut quarries {
+        if 0.005 < rand() {
+            continue;
+        }
+        quarry.crane_rot_target = rand_range(0..16);
+    }
+}
+
+pub fn update_quarry_rotation(
+    mut level: ResMut<Level>,
+    mut quarries: Query<&mut Quarry, (Without<Planned>, Without<ConstructionSite>)>,
+) {
+    for mut quarry in &mut quarries {
+        if quarry.crane_rot_cooldown > 0 {
+            quarry.crane_rot_cooldown -= 1
+        } else {
+            quarry.crane_rot_cooldown = 20;
+            let diff = quarry.crane_rot_target - quarry.crane_rot;
+            if diff != 0 {
+                let dir = if diff.abs() < 8 {
+                    diff.signum()
+                } else {
+                    -diff.signum()
+                };
+                quarry.crane_rot = (quarry.crane_rot + dir).rem_euclid(16);
+                let (name, rot, flip_x) = [
+                    ("crane_rot_a", YNeg, false),
+                    ("crane_rot_c", YNeg, false),
+                    ("crane_rot_a", YNeg, true),
+                    ("crane_rot_b", YNeg, true),
+                    ("crane_rot_a", XPos, false),
+                    ("crane_rot_c", XPos, false),
+                    ("crane_rot_a", XPos, true),
+                    ("crane_rot_b", XPos, true),
+                    ("crane_rot_a", YPos, false),
+                    ("crane_rot_c", YPos, false),
+                    ("crane_rot_a", YPos, true),
+                    ("crane_rot_b", YPos, true),
+                    ("crane_rot_a", XNeg, false),
+                    ("crane_rot_c", XNeg, false),
+                    ("crane_rot_a", XNeg, true),
+                    ("crane_rot_b", XNeg, true),
+                ][quarry.crane_rot as usize];
+                prefab(name).build(
+                    &mut level,
+                    quarry.crane_pos,
+                    rot,
+                    flip_x,
+                    false,
+                    quarry.crane_species,
+                    identity,
+                );
+            }
+        }
     }
 }
 
