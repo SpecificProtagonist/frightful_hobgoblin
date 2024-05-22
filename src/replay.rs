@@ -295,12 +295,12 @@ impl Replay {
     }
 
     pub fn mcfunction(&self, name: &str, content: &str) {
-        let sim_path = self.level_path.join(format!(
-            "datapacks/sim_{0}/data/sim_{0}/functions/",
+        let path = self.level_path.join(format!(
+            "datapacks/sim_{0}/data/sim_{0}/functions/{name}.mcfunction",
             invocation()
         ));
-        create_dir_all(&sim_path).unwrap();
-        write(sim_path.join(format!("{name}.mcfunction")), content).unwrap();
+        create_dir_all(path.parent().unwrap()).unwrap();
+        write(path, content).unwrap();
     }
 
     pub fn finish(mut self) {
@@ -333,17 +333,6 @@ impl Replay {
         )
         .unwrap();
 
-        // Args: track
-        self.mcfunction(
-            "play_track",
-            &format!(
-                "
-            $data modify storage sim_{0}:data newly_queued_tracks append value $(track)
-            ",
-                invocation()
-            ),
-        );
-
         // Could also just modify the world directly, but this is easier
         self.mcfunction(
             "setup",
@@ -352,7 +341,9 @@ impl Replay {
             data modify storage sim_{0}:data active_tracks set value []
             data modify storage sim_{0}:data newly_queued_tracks set value []
             data modify storage sim_{0}:data track set value {{}}
-            function sim_{0}:play_track {{track:0}}
+            scoreboard objectives add rand dummy
+            scoreboard objectives add sim_{0}_sleep dummy
+            function sim_{0}:play_track_global {{track:0}}
             scoreboard players set SIM_{0} sim_tick 0
             scoreboard objectives setdisplay sidebar sim_tick
             # How many sim ticks to replay per game tick (0 to stop)
@@ -414,6 +405,18 @@ impl Replay {
         );
 
         // Args: track
+        // TODO: Can this be removed now that there is play_track_on_self?
+        self.mcfunction(
+            "play_track_global",
+            &format!(
+                "
+            $data modify storage sim_{0}:data newly_queued_tracks append value $(track)
+            ",
+                invocation()
+            ),
+        );
+
+        // Args: track
         self.mcfunction(
             "add_newly_queued_track",
             &format!(
@@ -437,6 +440,25 @@ impl Replay {
             ),
         );
 
+        // Args: track
+        self.mcfunction("tick_track_on_self", &format!("
+            $function sim_{0}:run_current_commands {{track:$(track)}}
+            $execute unless data storage sim_{0}_track$(track):data commands[-1][0] run data remove storage sim_{0}_track$(track):data commands[-1]
+            $execute unless data storage sim_{0}_track$(track):data commands[0] run data remove entity @s data.track
+            $execute unless data storage sim_{0}_track$(track):data commands[0] run data modify storage sim_{0}_track$(track):data commands set from storage sim_{0}_track$(track)_chunk0:data commands
+        ", invocation()));
+
+        // Args: on_idle
+        self.mcfunction(
+            "on_tick",
+            &format!(
+                "
+            execute if data entity @s data.track run function sim_{0}:tick_track_on_self with entity @s data
+            $execute unless data entity @s data.track run function sim_{0}:on_idle/$(on_idle)",
+                invocation()
+            ),
+        );
+
         self.mcfunction(
             "sim_tick",
             &format!("
@@ -445,6 +467,8 @@ impl Replay {
             function sim_{0}:tick_tracks
             data modify storage sim_{0}:data active_tracks set from storage sim_{0}:data progressable_tracks
             function sim_{0}:add_newly_queued_tracks
+            execute as @e[tag=sim_{0}_tick] unless score @s sim_{0}_sleep matches 1.. run function sim_{0}:on_tick with entity @s data
+            scoreboard players remove @e[scores={{sim_{0}_sleep=1..}}] sim_{0}_sleep 1
             scoreboard players add SIM_{0} sim_tick 1
             scoreboard players remove SIM_{0} warp 1
             execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
