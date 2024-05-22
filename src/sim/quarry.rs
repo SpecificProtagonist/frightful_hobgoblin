@@ -41,9 +41,15 @@ pub struct Quarry {
     to_mine: Vec<IVec2>,
     crane_species: TreeSpecies,
     crane_pos: IVec3,
-    crane_rot: i32,
+    pub crane_rot: i32,
     crane_rot_cooldown: i32,
-    crane_rot_target: i32,
+    pub crane_rot_target: i32,
+}
+
+impl Quarry {
+    pub fn rotating(&self) -> bool {
+        (self.crane_rot != self.crane_rot_target) | (self.crane_rot_cooldown != 0)
+    }
 }
 
 #[derive(Component)]
