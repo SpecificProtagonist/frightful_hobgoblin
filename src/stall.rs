@@ -17,18 +17,27 @@ pub struct MarketStall {
     facing: HDir,
 }
 
+#[derive(Component)]
+pub struct StallNotYetPlanned;
+
 pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) {
     let center = center.single().block().truncate();
     for x in -1..=1 {
         let offset = || ivec2(x * 7 + rand_range(0..=1), -rand_range(3..=4));
-        commands.spawn(MarketStall {
-            pos: center + offset(),
-            facing: HDir::YPos,
-        });
-        commands.spawn(MarketStall {
-            pos: center - offset(),
-            facing: HDir::YNeg,
-        });
+        commands.spawn((
+            MarketStall {
+                pos: center + offset(),
+                facing: HDir::YPos,
+            },
+            StallNotYetPlanned,
+        ));
+        commands.spawn((
+            MarketStall {
+                pos: center - offset(),
+                facing: HDir::YNeg,
+            },
+            StallNotYetPlanned,
+        ));
     }
 }
 
@@ -36,7 +45,7 @@ pub fn plan_stalls(
     mut commands: Commands,
     mut level: ResMut<Level>,
     houses: Query<(), (With<House>, Without<Planned>, Without<ConstructionSite>)>,
-    possible_stalls: Query<(Entity, &MarketStall)>,
+    possible_stalls: Query<(Entity, &MarketStall), With<StallNotYetPlanned>>,
 ) {
     let houses = houses.iter().count();
     let stalls = 6 - possible_stalls.iter().count();
@@ -46,10 +55,13 @@ pub fn plan_stalls(
         let Some((entity, params)) = possible.try_choose() else {
             return;
         };
-        commands.entity(*entity).remove::<MarketStall>().insert((
-            Pos(level.ground(params.pos).as_vec3() + Vec3::Z),
-            ConstructionSite::new(stall(&mut level, params.pos, params.facing)),
-        ));
+        commands
+            .entity(*entity)
+            .remove::<StallNotYetPlanned>()
+            .insert((
+                Pos(level.ground(params.pos).as_vec3() + Vec3::Z),
+                ConstructionSite::new(stall(&mut level, params.pos, params.facing)),
+            ));
     }
 }
 

@@ -442,10 +442,10 @@ impl Replay {
 
         // Args: track
         self.mcfunction("tick_track_on_self", &format!("
+            $execute if data entity @s data.play run data modify storage sim_{0}_track$(track):data commands set from storage sim_{0}_track$(track)_chunk0:data commands
             $function sim_{0}:run_current_commands {{track:$(track)}}
             $execute unless data storage sim_{0}_track$(track):data commands[-1][0] run data remove storage sim_{0}_track$(track):data commands[-1]
             $execute unless data storage sim_{0}_track$(track):data commands[0] run data remove entity @s data.track
-            $execute unless data storage sim_{0}_track$(track):data commands[0] run data modify storage sim_{0}_track$(track):data commands set from storage sim_{0}_track$(track)_chunk0:data commands
         ", invocation()));
 
         // Args: on_idle
@@ -453,7 +453,9 @@ impl Replay {
             "on_tick",
             &format!(
                 "
+            data modify entity @s data.track set from entity @s data.play
             execute if data entity @s data.track run function sim_{0}:tick_track_on_self with entity @s data
+            data remove entity @s data.play
             $execute unless data entity @s data.track run function sim_{0}:on_idle/$(on_idle)",
                 invocation()
             ),

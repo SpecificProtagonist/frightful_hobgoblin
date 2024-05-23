@@ -2,18 +2,24 @@ use bevy_ecs::schedule::ExecutorKind;
 use itertools::Itertools;
 use std::fmt::Write;
 
-use self::quarry::Quarry;
+use self::{
+    quarry::Quarry,
+    stall::{MarketStall, StallNotYetPlanned},
+};
 use crate::*;
 use sim::*;
 
 // TODO: walk around; turn chimney smoke on/off
 
+/// Animations to be perpetually run after the replay is done
 pub fn generate(world: &mut World) {
     let mut handlers = 0;
     let tick = world.register_system(tick_replay);
     // Ugh, ugly hack because you can't set the change ticks of a system
     world.resource_mut::<Replay>().skip_changes_once = true;
     world.run_system(tick).unwrap();
+
+    // Quarry crane
     let mut quarries = world.query_filtered::<&mut Quarry, With<Built>>();
     for mut quarry in quarries.iter_mut(world) {
         quarry.crane_rot_target = quarry.crane_rot;
@@ -61,7 +67,7 @@ pub fn generate(world: &mut World) {
             for (i, track) in tracks.iter().enumerate() {
                 writeln!(
                     str,
-                    "execute if score @s rand matches {i} run data modify entity @s data.track set value {track}",
+                    "execute if score @s rand matches {i} run data modify entity @s data.play set value {track}",
                 )
                 .unwrap();
             }
@@ -77,48 +83,103 @@ pub fn generate(world: &mut World) {
             handler_name
         ));
     }
-}
 
-// /// Animations to be perpetually run after the replay is done
-// pub fn _animate(
-//     level: Res<Level>,
-//     houses: Query<&Pos, (With<House>, Without<Planned>)>,
-//     stalls: Query<&Pos, With<MarketStall>>,
-//     quarries: Query<&Quarry, Without<Planned>>,
-// ) {
-//     for quarry in &quarries {
-//         world.run_system_once(|mut replay: ResMut<Replay>| replay.begin_next_track());
-//         world.insert_resource(Tick(0));
-//         let sys = world.register_system(tick_replay);
-//         let mut sched = Schedule::default();
-//         sched.set_executor_kind(ExecutorKind::SingleThreaded);
-//         sched.add_systems((
-//             move |mut tick: ResMut<Tick>, mut replay: ResMut<Replay>| {
-//                 replay.dbg(&format!("track {track} tick {}", tick.0));
-//                 tick.0 += 1;
-//             },
-//             tick_replay,
-//         ));
-//         world.run_system(sys).unwrap();
-//         for _ in 0..70 {
-//             sched.run(&mut world);
-//             world.run_system(sys).unwrap();
-//         }
-//     }
-//     // for start in &houses {
-//     //     let mut prev_total = 0;
-//     //     let mut paths = Vec::new();
-//     //     for (weight, end) in houses
-//     //         .iter()
-//     //         .map(|p| (1, p))
-//     //         .chain(stalls.iter().map(|p| (4, p)))
-//     //     {
-//     //         if start == end {
-//     //             continue;
-//     //         }
-//     //         let path = pathfind(&level, start.block(), end.block(), 2);
-//     //         paths.push((prev_total..prev_total + weight, path));
-//     //         prev_total += weight;
-//     //     }
-//     // }
-// }
+    // Walking
+    let houses = world
+        .query_filtered::<Entity, (With<House>, Without<Planned>)>()
+        .iter(world)
+        .collect_vec();
+    let mut assignable = houses.clone();
+    let villagers = world
+        .query_filtered::<Entity, With<Villager>>()
+        .iter(world)
+        .collect_vec();
+    for &villager in &villagers {
+        world
+            .entity_mut(villager)
+            .remove::<(MoveTask, MovePath, InBoat)>();
+    }
+    for villager in villagers {
+        world.get_mut::<Villager>(villager).unwrap().carry = None;
+        if assignable.is_empty() {
+            assignable.clone_from(&houses);
+        }
+        let home = assignable.swap_remove(rand_range(0..assignable.len()));
+        let mut destinations = world
+            .query_filtered::<Entity, (With<MarketStall>, Without<StallNotYetPlanned>)>()
+            .iter(world)
+            .collect_vec();
+        for _ in 0..6 {
+            let house = *houses.choose();
+            if house != home {
+                destinations.push(house);
+            }
+        }
+
+        let walk = world.register_system(walk);
+        let returning = world.resource_mut::<Replay>().begin_next_track();
+        let home = world.get::<Pos>(home).unwrap().block();
+        world.entity_mut(villager).insert(MoveTask::new(home));
+        while world.get::<MoveTask>(villager).is_some() {
+            world.run_system(walk).unwrap();
+            world.run_system(tick).unwrap();
+        }
+
+        let mut tracks = Vec::new();
+        for destination in destinations {
+            tracks.push(world.resource_mut::<Replay>().begin_next_track());
+            let goal = world.get::<Pos>(destination).unwrap().block()
+                + ivec3(rand_range(-1..=1), rand_range(-1..=1), 0);
+            world
+                .entity_mut(villager)
+                .insert(MoveTask { goal, distance: 1 });
+            while world.get::<MoveTask>(villager).is_some() {
+                world.run_system(walk).unwrap();
+                world.run_system(tick).unwrap();
+            }
+            for _ in 0..rand_range(20..200) {
+                world.run_system(tick).unwrap();
+            }
+            world.entity_mut(villager).insert(MoveTask::new(home));
+            while world.get::<MoveTask>(villager).is_some() {
+                world.run_system(walk).unwrap();
+                world.run_system(tick).unwrap();
+            }
+        }
+        let mut replay = world.resource_mut::<Replay>();
+        let handler_name = format!("villager_{handlers}");
+        handlers += 1;
+        replay.mcfunction(
+            &format!("on_idle/{handler_name}"),
+            &{
+                let mut str = format!(
+                    "
+                    data modify entity @s[tag=!returned] data.play set value {returning}
+                    execute store result score @s[tag=returned] sim_{0}_sleep run random value 100..600
+                    execute store result score @s[tag=returned] rand run random value 0..{1}
+                    tag @s add returned
+                    ",
+                    invocation(),
+                    tracks.len()
+                );
+                for (i, track) in tracks.iter().enumerate() {
+                    writeln!(
+                        str,
+                        "execute if score @s rand matches {i} run data modify entity @s data.play set value {track}",
+                    )
+                    .unwrap();
+                }
+                str
+            }
+        );
+        replay.track = 0;
+        replay.command(format!(
+            "summon marker {} {} {} {{Tags:[\"sim_{3}_tick\"],data:{{on_idle:\"{4}\"}}}}",
+            home.x,
+            home.z,
+            home.y,
+            invocation(),
+            handler_name,
+        ));
+    }
+}

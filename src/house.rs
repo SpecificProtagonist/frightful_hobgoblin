@@ -491,7 +491,7 @@ fn building(
                 }
                 if (roof_underside[&column] <= z + 2)
                     | ((prev.z != z) & (roof_underside[&prev.truncate()] <= prev.z + 3))
-                    | (0..2)
+                    | (0..3)
                         .map(|z_off| (column + dir.offset(0, -stair_rot_dir)).extend(z + z_off))
                         .contains(&entrance)
                     | chimney_columns.contains(&(column + dir.offset(0, -stair_rot_dir)))

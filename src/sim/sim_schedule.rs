@@ -102,7 +102,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
             .chain(),
     );
 
-    for _ in 0..20000 {
+    for _ in 0..30000 {
         sched.run(&mut world);
     }
     world.resource_mut::<Replay>().say("Replay complete", Gray);
