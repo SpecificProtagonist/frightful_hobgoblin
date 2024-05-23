@@ -3,7 +3,7 @@ use itertools::Itertools;
 use sim::*;
 
 use crate::{
-    sim::building_plan::{House, Planned},
+    sim::building_plan::{HousePlan, Planned},
     sim::CityCenter,
 };
 
@@ -44,7 +44,7 @@ pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>
 pub fn plan_stalls(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    houses: Query<(), (With<House>, Without<Planned>, Without<ConstructionSite>)>,
+    houses: Query<(), (With<HousePlan>, Without<Planned>, Without<ConstructionSite>)>,
     possible_stalls: Query<(Entity, &MarketStall), With<StallNotYetPlanned>>,
 ) {
     let houses = houses.iter().count();

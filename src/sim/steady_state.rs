@@ -9,8 +9,6 @@ use self::{
 use crate::*;
 use sim::*;
 
-// TODO: walk around; turn chimney smoke on/off
-
 /// Animations to be perpetually run after the replay is done
 pub fn generate(world: &mut World) {
     let mut handlers = 0;
@@ -37,8 +35,9 @@ pub fn generate(world: &mut World) {
             let mut sched = Schedule::default();
             sched.set_executor_kind(ExecutorKind::SingleThreaded);
             sched.add_systems((quarry::update_quarry_rotation,));
-            let start_rot = quarries.get(world, quarry).unwrap().crane_rot;
-            quarries.get_mut(world, quarry).unwrap().crane_rot_target = rand_range(0..16);
+            let mut data = quarries.get_mut(world, quarry).unwrap();
+            data.crane_rot_target = (data.crane_rot + rand_range(4..12)) % 16;
+            let start_rot = data.crane_rot;
             while quarries.get(world, quarry).unwrap().rotating() {
                 sched.run(world);
                 world.run_system(tick).unwrap();
@@ -86,9 +85,24 @@ pub fn generate(world: &mut World) {
 
     // Walking
     let houses = world
-        .query_filtered::<Entity, (With<House>, Without<Planned>)>()
+        .query_filtered::<Entity, With<House>>()
         .iter(world)
         .collect_vec();
+    let mut chimneys = HashMap::default();
+    world.resource_mut::<Replay>().track = 0;
+    for &house in &houses {
+        if let Some(pos) = world.get::<House>(house).unwrap().chimney {
+            let id = Id::default();
+            chimneys.insert(house, id);
+            world.resource_mut::<Replay>().command(format!(
+                "summon marker {} {} {} {{{}}}",
+                pos.x,
+                pos.z,
+                pos.y,
+                id.snbt()
+            ));
+        }
+    }
     let mut assignable = houses.clone();
     let villagers = world
         .query_filtered::<Entity, With<Villager>>()
@@ -118,8 +132,8 @@ pub fn generate(world: &mut World) {
 
         let walk = world.register_system(walk);
         let returning = world.resource_mut::<Replay>().begin_next_track();
-        let home = world.get::<Pos>(home).unwrap().block();
-        world.entity_mut(villager).insert(MoveTask::new(home));
+        let home_pos = world.get::<Pos>(home).unwrap().block();
+        world.entity_mut(villager).insert(MoveTask::new(home_pos));
         while world.get::<MoveTask>(villager).is_some() {
             world.run_system(walk).unwrap();
             world.run_system(tick).unwrap();
@@ -140,12 +154,13 @@ pub fn generate(world: &mut World) {
             for _ in 0..rand_range(20..200) {
                 world.run_system(tick).unwrap();
             }
-            world.entity_mut(villager).insert(MoveTask::new(home));
+            world.entity_mut(villager).insert(MoveTask::new(home_pos));
             while world.get::<MoveTask>(villager).is_some() {
                 world.run_system(walk).unwrap();
                 world.run_system(tick).unwrap();
             }
         }
+        let biome = world.resource::<Level>().biome[home_pos];
         let mut replay = world.resource_mut::<Replay>();
         let handler_name = format!("villager_{handlers}");
         handlers += 1;
@@ -160,14 +175,31 @@ pub fn generate(world: &mut World) {
                     tag @s add returned
                     ",
                     invocation(),
-                    tracks.len()
+                    tracks.len(),
                 );
                 for (i, track) in tracks.iter().enumerate() {
                     writeln!(
                         str,
-                        "execute if score @s rand matches {i} run data modify entity @s data.play set value {track}",
+                        "execute if score @s[tag=returned] rand matches {i} run data modify entity @s data.play set value {track}",
                     )
                     .unwrap();
+                }
+                if let Some(&chimney) = chimneys.get(&home) {
+                    use Biome::*;
+                    let chance = match biome {
+                        Snowy => 3,
+                        Taiga => 2,
+                        Desert |
+                        Mesa |
+                        Savanna => 0,
+                        _ => 1
+                    };
+                    writeln!(str, "
+                        execute store result score @s[tag=returned] rand run random value 0..1
+                        execute if score @s[tag=returned] rand matches 0 run tag {chimney} remove sim_{0}_smoke
+                        execute store result score @s[tag=returned] rand run random value 0..10
+                        execute if score @s[tag=returned] rand matches 0..{chance} run tag {chimney} add sim_{0}_smoke
+                    ", invocation()).unwrap();
                 }
                 str
             }
@@ -175,9 +207,9 @@ pub fn generate(world: &mut World) {
         replay.track = 0;
         replay.command(format!(
             "summon marker {} {} {} {{Tags:[\"sim_{3}_tick\"],data:{{on_idle:\"{4}\"}}}}",
-            home.x,
-            home.z,
-            home.y,
+            home_pos.x,
+            home_pos.z,
+            home_pos.y,
             invocation(),
             handler_name,
         ));

@@ -1,6 +1,6 @@
 use std::convert::identity;
 
-use crate::*;
+use crate::{building_plan::House, *};
 use itertools::Itertools;
 use roof::build_roof;
 
@@ -46,7 +46,7 @@ pub fn house(
     dl: &mut DesireLines,
     untree: &mut Untree,
     area: Rect,
-) -> ConsList {
+) -> (ConsList, House) {
     let inner = area.shrink(1);
 
     (level.blocked)(area, Free);
@@ -213,7 +213,7 @@ pub fn shack(
         shape: roof_shape,
     };
 
-    building(commands, level, untree, area, entrance, &floors, roof, None)
+    building(commands, level, untree, area, entrance, &floors, roof, None).0
 }
 
 fn building(
@@ -225,7 +225,9 @@ fn building(
     floors: &[Floor],
     roof: Roof,
     chimney: Option<IVec2>,
-) -> ConsList {
+) -> (ConsList, House) {
+    let mut output = House { chimney: None };
+
     let inner = area.shrink(1);
     let mut no_walls = vec![entrance, entrance + IVec3::Z];
 
@@ -407,6 +409,11 @@ fn building(
             {
                 level((chimney + dir.offset(1, 0)).extend(z + 1), Fence(Andesite));
                 level((chimney + dir.offset(1, 1)).extend(z + 1), Fence(Andesite));
+                output.chimney = Some(
+                    (chimney + dir.offset(1, 0))
+                        .as_vec2()
+                        .extend(z as f32 + 1.5),
+                );
                 break;
             }
         }
@@ -579,7 +586,7 @@ fn building(
         }
     }
 
-    rec
+    (rec, output)
 }
 
 fn foundation(level: &mut Level, untree: &mut Untree, area: Rect, floor: i32) -> ConsList {

@@ -13,8 +13,13 @@ use self::{
 pub struct Planned(pub Vec<IVec2>);
 
 #[derive(Component)]
-pub struct House {
+pub struct HousePlan {
     area: Rect,
+}
+
+#[derive(Component)]
+pub struct House {
+    pub chimney: Option<Vec3>,
 }
 
 #[derive(Component)]
@@ -67,7 +72,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
 pub fn plan_house(
     mut commands: Commands,
     level: Res<Level>,
-    planned: Query<(), (With<House>, With<Planned>)>,
+    planned: Query<(), (With<HousePlan>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
 ) {
     if planned.iter().len() > 0 {
@@ -109,7 +114,7 @@ pub fn plan_house(
     commands.spawn((
         Pos(level.ground(area.center()).as_vec3()),
         Planned(area.into_iter().collect()),
-        House { area },
+        HousePlan { area },
     ));
 }
 
@@ -233,8 +238,8 @@ pub fn assign_builds(
     mut commands: Commands,
     mut level: ResMut<Level>,
     construction_sites: Query<(), With<ConstructionSite>>,
-    houses: Query<(), (With<House>, Without<Planned>)>,
-    planned_houses: Query<(Entity, &Planned), With<House>>,
+    houses: Query<(), (With<HousePlan>, Without<Planned>)>,
+    planned_houses: Query<(Entity, &Planned), With<HousePlan>>,
     lumberjacks: Query<(), (With<LumberjackShack>, Without<Planned>)>,
     planned_lumberjacks: Query<(Entity, &Planned), With<LumberjackShack>>,
     quarries: Query<(), (With<Quarry>, Without<Planned>)>,
@@ -272,16 +277,15 @@ pub fn test_build_house(
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,
     mut untree: Untree,
-    new: Query<(Entity, &House), With<ToBeBuild>>,
+    new: Query<(Entity, &HousePlan), With<ToBeBuild>>,
 ) {
     for (entity, house) in &new {
-        let site = ConstructionSite::new(house::house(
-            &mut commands,
-            &mut level,
-            &mut dl,
-            &mut untree,
-            house.area,
-        ));
-        commands.entity(entity).remove::<ToBeBuild>().insert(site);
+        let (rec, house) =
+            house::house(&mut commands, &mut level, &mut dl, &mut untree, house.area);
+        let site = ConstructionSite::new(rec);
+        commands
+            .entity(entity)
+            .remove::<ToBeBuild>()
+            .insert((site, house));
     }
 }

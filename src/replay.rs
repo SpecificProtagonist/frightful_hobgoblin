@@ -343,6 +343,7 @@ impl Replay {
             data modify storage sim_{0}:data track set value {{}}
             scoreboard objectives add rand dummy
             scoreboard objectives add sim_{0}_sleep dummy
+            scoreboard objectives add sim_{0}_particle dummy
             function sim_{0}:play_track_global {{track:0}}
             scoreboard players set SIM_{0} sim_tick 0
             scoreboard objectives setdisplay sidebar sim_tick
@@ -486,6 +487,11 @@ impl Replay {
                 scoreboard players set sim warp -1
                 scoreboard players operation SIM_{0} warp += SIM_{0} speed
                 execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
+
+                execute as @e[tag=sim_{0}_smoke] run scoreboard players remove @s sim_{0}_particle 1
+                execute as @e[tag=sim_{0}_smoke,scores={{sim_{0}_particle=..0}}] store result score @s sim_{0}_particle run random value 0..10
+                execute as @e[tag=sim_{0}_smoke,scores={{sim_{0}_particle=..0}}] at @s run particle minecraft:campfire_signal_smoke ~ ~1 ~ 0 0.2 0 0.003 1
+                execute as @e[tag=sim_{0}_smoke,scores={{sim_{0}_particle=..0}}] at @s run particle minecraft:campfire_signal_smoke ~ ~3 ~ 0 1 0 0.003 1
             ",
                 invocation()
             );
