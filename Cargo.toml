@@ -36,5 +36,5 @@ enum-iterator = "2"
 # git points to pull request that fixes off-by-one error
 nanorand = {version = "0.8", git = "https://github.com/StT191/nanorand-rs.git" }
 flate2 = "1"
-argh = "0.1"
+argh = {path="argh/argh"}
 float-ord = "0.3.2"
