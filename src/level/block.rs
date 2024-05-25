@@ -58,6 +58,7 @@ pub enum Block {
     SmoothQuartz,
     SnowLayer,
     SnowBlock,
+    PowderedSnow,
     Glowstone,
     Glass(Option<Color>),
     GlassPane(Option<Color>),
@@ -537,6 +538,7 @@ impl Block {
             SmoothQuartz => "smooth_quartz".into(),
             SnowLayer => Blockstate("snow".into(), vec![("layers".into(), "1".into())]),
             SnowBlock => "snow_block".into(),
+            PowderedSnow => "powdered_snow".into(),
             Glowstone => "glowstone".into(),
             Glass(color) => {
                 if let Some(color) = color {
@@ -920,6 +922,7 @@ impl Block {
                 // "tall_seagrass" => TallPlant(TallPlant::Seagrass, half(props)),
                 "snow" => SnowLayer, // Todo: store layer
                 "snow_block" => SnowBlock,
+                "powdered_snow" => PowderedSnow,
                 "oak_fence" => Fence(Wood(Oak)),
                 "oak_fence_gate" => fence_gate(Wood(Oak), props),
                 "cobblestone_wall" => Fence(MossyCobble),
@@ -1141,6 +1144,8 @@ impl Block {
                 | CoarseDirt
                 | SoulSand
                 | PackedMud
+                | SnowBlock
+                | PowderedSnow
         )
     }
 

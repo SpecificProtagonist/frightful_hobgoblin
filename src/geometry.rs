@@ -98,6 +98,27 @@ impl Rect {
         }
     }
 
+    pub fn extend(self, dir: HDir, amount: i32) -> Self {
+        match dir {
+            YPos => Self {
+                min: self.min,
+                max: self.max + IVec2::Y * amount,
+            },
+            XNeg => Self {
+                min: self.min - IVec2::X * amount,
+                max: self.max,
+            },
+            YNeg => Self {
+                min: self.min - IVec2::Y * amount,
+                max: self.max,
+            },
+            XPos => Self {
+                min: self.min,
+                max: self.max + IVec2::X * amount,
+            },
+        }
+    }
+
     pub fn transposed(self) -> Self {
         Self::new_centered(self.center(), self.size().yx())
     }
@@ -149,6 +170,15 @@ impl Rect {
             }
         }
         panic!("not on border")
+    }
+
+    pub fn left_corner(self, dir: HDir) -> IVec2 {
+        match dir {
+            YPos => ivec2(self.max.x, self.max.y),
+            XNeg => ivec2(self.min.x, self.max.y),
+            YNeg => ivec2(self.min.x, self.min.y),
+            XPos => ivec2(self.max.x, self.min.y),
+        }
     }
 }
 
@@ -236,6 +266,15 @@ impl HAxis {
         match self {
             Self::X => ivec2(1, 0),
             Self::Y => ivec2(0, 1),
+        }
+    }
+}
+
+impl From<HDir> for HAxis {
+    fn from(value: HDir) -> Self {
+        match value {
+            HDir::XPos | HDir::XNeg => HAxis::X,
+            HDir::YPos | HDir::YNeg => HAxis::Y,
         }
     }
 }
@@ -383,7 +422,7 @@ pub trait IVec2Ext {
     fn length(self) -> f32;
     fn touch_face(self, other: Self) -> bool;
     fn rotated(self, steps: i32) -> Self;
-    // fn rotated(self, steps: i32) -> Self;
+    fn axis(self, axis: HAxis) -> i32;
 }
 
 impl IVec2Ext for IVec2 {
@@ -411,6 +450,12 @@ impl IVec2Ext for IVec2 {
             2 => ivec2(-self.x, -self.y),
             3 => ivec2(self.y, -self.x),
             _ => self,
+        }
+    }
+    fn axis(self, axis: HAxis) -> i32 {
+        match axis {
+            HAxis::X => self.x,
+            HAxis::Y => self.y,
         }
     }
 }

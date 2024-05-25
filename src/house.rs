@@ -15,6 +15,7 @@ use Biome::*;
 
 struct Floor {
     z: i32,
+    area: Rect,
     material: WallMaterial,
     /// Applies to Wattle & Planks (move into WallMaterial?)
     wood_framing: bool,
@@ -73,7 +74,7 @@ pub fn house(
         sides_min += 1
     }
 
-    let entrance = path.path[0].pos.truncate().extend(path.path[1].pos.z);
+    let mut entrance = path.path[0].pos.truncate().extend(path.path[1].pos.z);
 
     let tall_first_floor = entrance.z > sides_min + 5;
     let base = if entrance.z > sides_min + 3 {
@@ -96,6 +97,7 @@ pub fn house(
     let mut floors = vec![
         Floor {
             z: base + if tall_first_floor { 0 } else { 1 },
+            area,
             material: rand_weighted(&[
                 (1.0, WallMaterial::Cobble),
                 (log_weight_lower, WallMaterial::Logs),
@@ -104,6 +106,7 @@ pub fn house(
         },
         Floor {
             z: base + 4,
+            area,
             material: rand_weighted(&[
                 (1.0, WallMaterial::Wattle),
                 (log_weight_upper, WallMaterial::Logs),
@@ -131,6 +134,7 @@ pub fn house(
     {
         floors.push(Floor {
             z: floors.last().unwrap().z + rand_range(3..=4),
+            area,
             material: if upper_floors_keep_material {
                 floors.last().unwrap().material
             } else {
@@ -140,6 +144,34 @@ pub fn house(
         })
     }
 
+    // Overhanging floors
+    for dir in HDir::ALL {
+        let depth = area.size().axis(dir.into());
+        let width = area.size().axis(dir.rotated(1).into());
+        let mut occluded = 0;
+        let mut total = 0;
+        let mut border_pos = area.left_corner(dir);
+        while area.contains(border_pos) {
+            if level(border_pos.extend(floors[0].z)).solid() {
+                occluded += 1;
+            }
+            total += 1;
+            border_pos += dir.offset(0, 1);
+        }
+        let occlusion = occluded as f32 / total as f32;
+        if (depth < 9) | (0.5 + (depth - width) as f32 / 12. - occlusion < rand()) {
+            continue;
+        }
+        let shrunk_area = floors[0].area.extend(dir, -1);
+        if !shrunk_area.corners().contains(&entrance.truncate()) {
+            floors[0].area = shrunk_area;
+            let entrance_floor = floors.iter().find(|f| f.z == entrance.z).unwrap().area;
+            while !entrance_floor.contains(entrance.truncate()) {
+                entrance -= IVec3::from(dir);
+            }
+        }
+    }
+
     // Chimney
     let chimney = if match center_biome() {
         Desert | Savanna => 0.1,
@@ -147,10 +179,11 @@ pub fn house(
         _ => 0.8,
     } > rand()
     {
-        let possible = area
+        let possible = floors[0]
+            .area
             .border_no_corners()
             .filter_map(|pos| {
-                let dir = area.outside_face(pos);
+                let dir = floors[0].area.outside_face(pos);
                 let mut z = i32::MAX;
                 for pos in [pos + dir.offset(1, 0), pos + dir.offset(1, 1)] {
                     z = z.min(level.height[pos]);
@@ -167,7 +200,7 @@ pub fn house(
                 }
                 Some((
                     1. / ((base - z) as f32 / 2. + area.center_vec2().distance(pos.as_vec2())),
-                    pos,
+                    (pos, dir),
                 ))
             })
             .collect_vec();
@@ -176,9 +209,7 @@ pub fn house(
         None
     };
 
-    building(
-        commands, level, untree, area, entrance, &floors, roof, chimney,
-    )
+    building(commands, level, untree, entrance, &floors, roof, chimney)
 }
 
 pub fn shack(
@@ -196,6 +227,7 @@ pub fn shack(
     }
     let floors = [Floor {
         z: entrance.z,
+        area,
         material: rand_weighted(&[
             (1., WallMaterial::Cobble),
             (0.5, WallMaterial::Planks),
@@ -213,30 +245,28 @@ pub fn shack(
         shape: roof_shape,
     };
 
-    building(commands, level, untree, area, entrance, &floors, roof, None).0
+    building(commands, level, untree, entrance, &floors, roof, None).0
 }
 
 fn building(
     commands: &mut Commands,
     level: &mut Level,
     untree: &mut Untree,
-    area: Rect,
     entrance: IVec3,
     floors: &[Floor],
     roof: Roof,
-    chimney: Option<IVec2>,
+    chimney: Option<(IVec2, HDir)>,
 ) -> (ConsList, House) {
     let mut output = House { chimney: None };
 
-    let inner = area.shrink(1);
     let mut no_walls = vec![entrance, entrance + IVec3::Z];
 
     let chimney_columns = chimney
         .iter()
-        .flat_map(|&c| [c, c + area.outside_face(c).offset(0, 1)])
+        .flat_map(|&(pos, dir)| [pos, pos + dir.offset(0, 1)])
         .collect_vec();
 
-    let biome = level.biome[area.center()];
+    let biome = level.biome[floors[0].area.center()];
     let species = biome.random_tree_species();
     let floorbords = biome.random_tree_species();
     let log_stripped = if match species {
@@ -251,7 +281,7 @@ fn building(
         LogType::Normal
     };
 
-    let mut rec = foundation(level, untree, area, floors[0].z - 1);
+    let mut rec = foundation(level, untree, floors[0].area, floors[0].z - 1);
 
     let cursor = level.recording_cursor();
 
@@ -267,7 +297,7 @@ fn building(
         (1., Terracotta(Some(Pink))),
     ]);
 
-    let wall_log_axis = |pos: IVec3| {
+    let wall_log_axis = |area: Rect, pos: IVec3| {
         if area.corners().contains(&pos.truncate()) {
             [Axis::X, Axis::Y][(pos.z % 2) as usize]
         } else if [HDir::XNeg, HDir::XPos].contains(&area.outside_face(pos.truncate())) {
@@ -281,9 +311,9 @@ fn building(
     for (i, floor) in floors.iter().enumerate() {
         // Determine windows
         let mut prev_window = rand_range(0..3);
-        'windows: for column in area.border_no_corners() {
+        'windows: for column in floor.area.border_no_corners() {
             let pos = column.extend(floor.z + 1);
-            let dir = area.outside_face(column);
+            let dir = floor.area.outside_face(column);
             if level(pos + IVec3::from(dir)).solid()
                 | level(pos + IVec2::from(dir).extend(-1)).solid() & (0.7 > rand())
                 | !roof.covers(pos)
@@ -312,7 +342,7 @@ fn building(
 
         // Determine wall blocks
         let mut wall = Vec::new();
-        for column in area.border() {
+        for column in floor.area.border() {
             for z in floor.z.. {
                 if z > ceiling
                     .unwrap_or(i32::MAX)
@@ -332,7 +362,7 @@ fn building(
             WallMaterial::Wattle | WallMaterial::Planks => {
                 let mut wall_fill = Vec::new();
                 for pos in &wall {
-                    if floor.wood_framing & area.corners().contains(&pos.truncate()) {
+                    if floor.wood_framing & floor.area.corners().contains(&pos.truncate()) {
                         // Wood frame
                         level(*pos, Log(species, log_stripped, Axis::Z));
                     } else {
@@ -356,18 +386,42 @@ fn building(
             }
             WallMaterial::Logs => {
                 for pos in &wall {
-                    level(*pos, Log(species, LogType::Stripped, wall_log_axis(*pos)));
+                    level(
+                        *pos,
+                        Log(species, LogType::Stripped, wall_log_axis(floor.area, *pos)),
+                    );
                 }
             }
         }
 
-        if let Some(below) = floors.get(i.wrapping_sub(1)) {
-            if floor.wood_framing & (below.material != WallMaterial::Logs) {
-                for column in area.border() {
+        if i > 0 {
+            let below = &floors[i - 1];
+            let mut support_z = floor.z - 1;
+            // Lower wood frame
+            if floor.wood_framing
+                & ((below.material != WallMaterial::Logs) | (floor.area != below.area))
+            {
+                support_z -= 1;
+                for column in floor.area.border() {
                     let pos = column.extend(floor.z - 1);
-                    let axis = wall_log_axis(column.extend(floor.z - 1));
+                    let axis = wall_log_axis(floor.area, column.extend(floor.z - 1));
                     if roof.covers(pos) {
                         level(pos, Log(species, log_stripped, axis))
+                    }
+                }
+            }
+            // Support for overhanging floors
+            for dir in HDir::ALL {
+                for mut pos in [
+                    below.area.left_corner(dir),
+                    below.area.left_corner(dir.rotated(1)),
+                ] {
+                    pos += dir.offset(1, 0);
+                    if floor.area.contains(pos) {
+                        level(
+                            pos.extend(support_z),
+                            Stair(Wood(species), dir.rotated(2), Top),
+                        )
                     }
                 }
             }
@@ -375,7 +429,7 @@ fn building(
 
         // Ceiling
         if let Some(ceiling) = ceiling {
-            for column in inner {
+            for column in floor.area.shrink(1) {
                 let pos = column.extend(ceiling);
                 if roof.covers(pos) {
                     level(pos, Slab(Wood(floorbords), Top));
@@ -397,8 +451,7 @@ fn building(
     rec.extend(roof_rec);
 
     // Chimney
-    if let Some(chimney) = chimney {
-        let dir = area.outside_face(chimney);
+    if let Some((chimney, dir)) = chimney {
         level.blocked[chimney + dir.offset(1, 0)] = Blocked;
         level.blocked[chimney + dir.offset(1, 1)] = Blocked;
         for z in floors[0].z - 4.. {
@@ -442,8 +495,8 @@ fn building(
             rec.insert(
                 i,
                 ConsItem::Goto(MoveTask::new(ivec3(
-                    rand_range(inner.min.x..=inner.max.x),
-                    rand_range(inner.min.y..=inner.max.y),
+                    rand_range(floors[0].area.min.x + 1..floors[0].area.max.x),
+                    rand_range(floors[0].area.min.y + 1..floors[0].area.max.y),
                     entrance.z,
                 ))),
             );
@@ -461,6 +514,7 @@ fn building(
     for upper_floor_index in 1..floors.len() {
         let lower_z = floors[upper_floor_index - 1].z - 1;
         let upper_z = floors[upper_floor_index].z - 1;
+        let inner = floors[upper_floor_index - 1].area.shrink(1);
         let mut choices = Vec::new();
         'outer: for column in inner.border_no_corners() {
             if matches!(level(column.extend(lower_z)), Air | Stair(..)) {
@@ -498,7 +552,7 @@ fn building(
                 }
                 if (roof_underside[&column] <= z + 2)
                     | ((prev.z != z) & (roof_underside[&prev.truncate()] <= prev.z + 3))
-                    | (0..3)
+                    | (-1..3)
                         .map(|z_off| (column + dir.offset(0, -stair_rot_dir)).extend(z + z_off))
                         .contains(&entrance)
                     | chimney_columns.contains(&(column + dir.offset(0, -stair_rot_dir)))
@@ -530,7 +584,12 @@ fn building(
     });
 
     // Door
-    let door_dir = area.outside_face(entrance.truncate());
+    let door_dir = floors
+        .iter()
+        .find(|f| f.z == entrance.z)
+        .unwrap()
+        .area
+        .outside_face(entrance.truncate());
     let door_type = biome.random_tree_species();
     level(entrance, Door(door_type, door_dir, DoorMeta::empty()));
     level(
@@ -552,17 +611,31 @@ fn building(
         ]));
         level(pos, glass);
         let mut shutter_pos = pos + IVec3::from(dir) + IVec3::from(dir.rotated(1));
+        let mut half_open_shutter_rot = 1;
         if level(shutter_pos).solid()
-            | area
+            | floors
+                .iter()
+                .rev()
+                .find(|f| f.z < pos.z)
+                .unwrap()
+                .area
                 .corners()
                 .contains(&(pos.truncate() + IVec2::from(dir.rotated(1))))
         {
-            shutter_pos += IVec3::from(dir.rotated(-1)) * 2
+            shutter_pos += dir.offset(0, -2).extend(0);
+            half_open_shutter_rot = -1;
         }
-        level(shutter_pos, |b| b | Trapdoor(species, dir, DoorMeta::OPEN));
+        let shutter_dir = if 0.1 < rand() {
+            dir
+        } else {
+            dir.rotated(half_open_shutter_rot)
+        };
+        level(shutter_pos, |b| {
+            b | Trapdoor(species, shutter_dir, DoorMeta::OPEN)
+        });
 
         commands.spawn(RemoveWhenBlocked {
-            check_area: vec![pos.truncate() + IVec2::from(dir)],
+            check_area: vec![pos + IVec3::from(dir)],
             restore: vec![SetBlock {
                 pos,
                 block: level(pos - IVec3::Z),
@@ -600,6 +673,7 @@ fn foundation(level: &mut Level, untree: &mut Untree, area: Rect, floor: i32) ->
         for z in (level.height[col] + 1..=floor).rev() {
             level(col, z, Air)
         }
+        level.height[col] = floor;
     }
     let mut rec: ConsList = level.pop_recording(cursor).map(ConsItem::Set).collect();
     let cursor = level.recording_cursor();

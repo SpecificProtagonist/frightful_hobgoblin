@@ -30,7 +30,7 @@ impl ConstructionSite {
 
 #[derive(Component)]
 pub struct RemoveWhenBlocked {
-    pub check_area: Vec<IVec2>,
+    pub check_area: Vec<IVec3>,
     pub restore: Vec<SetBlock>,
 }
 
@@ -43,7 +43,7 @@ pub fn new_construction_site(
     for (entity, mut site, existing_pile) in &mut new {
         let cursor = level.recording_cursor();
         for (entity, data) in &check_for_removal {
-            if data.check_area.iter().any(|c| level.blocked[*c] == Blocked) {
+            if data.check_area.iter().any(|c| level(c).solid()) {
                 for set in &data.restore {
                     if set.previous == level(set.pos) {
                         level(set.pos, set.block)

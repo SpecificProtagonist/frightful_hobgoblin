@@ -178,8 +178,8 @@ pub fn roof_shape(mut base_z: i32, area: Rect) -> Shape {
         Snowy | Taiga => &[
             (1., straight),
             (2., straight_high),
-            (1., kerb),
-            (1., reverse_kerb),
+            (0.4, kerb),
+            (1.3, reverse_kerb),
         ],
         Desert => &[(1., straight_low)],
         Swamp | MangroveSwamp => &[
@@ -205,16 +205,25 @@ pub fn roof_shape(mut base_z: i32, area: Rect) -> Shape {
     } else {
         1.
     };
+    let raised_base = if curve == kerb { 0.3 } else { 1.0 };
     let base_shape: &[(f32, BaseShape)] = match center_biome() {
         Plain | Forest | Beach | River | BirchForest | DarkForest | CherryGrove => {
-            &[(1., gable), (1., raised_gable), (hip_base, hip)]
+            &[(1., gable), (raised_base, raised_gable), (hip_base, hip)]
         }
-        Ocean => &[(1., gable), (2., raised_gable), (2. * hip_base, hip)],
-        Snowy | Taiga => &[(1., gable), (1., raised_gable), (hip_base, hip)],
+        Ocean => &[
+            (1., gable),
+            (2. * raised_base, raised_gable),
+            (2. * hip_base, hip),
+        ],
+        Snowy | Taiga => &[(1., gable), (raised_base, raised_gable), (hip_base, hip)],
         Desert => &[(1., gable), (2. * hip_base, hip)],
         Swamp | MangroveSwamp => &[(hip_base, hip)],
-        Jungles => &[(1., raised_gable), (2. * hip_base, hip)],
-        Mesa | Savanna => &[(1., gable), (1., raised_gable), (1.5 * hip_base, hip)],
+        Jungles => &[(raised_base, raised_gable), (2. * hip_base, hip)],
+        Mesa | Savanna => &[
+            (1., gable),
+            (raised_base, raised_gable),
+            (1.5 * hip_base, hip),
+        ],
     };
     let base_shape = rand_weighted(base_shape);
 

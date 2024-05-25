@@ -43,6 +43,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
                 | PackedMud
                 | Sand
                 | SnowBlock
+                | PowderedSnow
                 | Slab(Granite, Bottom)
         )
     }
@@ -93,7 +94,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
                 }
             }
             Sand if wear > 17 => level(pos, PackedMud),
-            SnowBlock if (wear > 9) & (0.3 < rand()) => {
+            SnowBlock | PowderedSnow if (wear > 9) & (0.3 < rand()) => {
                 if level(pos - IVec3::Z).solid() {
                     level(pos, Gravel)
                 } else {

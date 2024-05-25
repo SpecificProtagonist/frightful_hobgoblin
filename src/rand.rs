@@ -66,7 +66,7 @@ pub fn rand_weighted<T: Clone>(items: &[(f32, T)]) -> T {
 pub fn try_rand_weighted<T: Clone>(items: &[(f32, T)]) -> Option<T> {
     let total_weight = items.iter().fold(0., |acc, &(weight, _)| acc + weight);
     let rng = total_weight * rand::<f32>();
-    (total_weight > 0.).then_some(select(items, rng))
+    (total_weight > 0.).then(|| select(items, rng))
 }
 
 pub trait ChooseExt {
