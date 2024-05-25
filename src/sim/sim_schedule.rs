@@ -106,6 +106,9 @@ pub fn sim(mut level: Level, debug_save: bool) {
         sched.run(&mut world);
     }
     world.resource_mut::<Replay>().say("Replay complete", Gray);
+    world
+        .resource_mut::<Replay>()
+        .command("scoreboard players set sim speed 1".into());
     world.run_system_once(flush_unfinished_changes);
     steady_state::generate(&mut world);
 

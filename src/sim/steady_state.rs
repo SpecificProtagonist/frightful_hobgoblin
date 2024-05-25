@@ -171,6 +171,8 @@ pub fn generate(world: &mut World) {
                     "
                     data modify entity @s[tag=!returned] data.play set value {returning}
                     execute store result score @s[tag=returned] sim_{0}_sleep run random value 100..600
+                    execute store result score @s daytime run time query daytime
+                    execute if score @s daytime matches 13000..23000 run return 0
                     execute store result score @s[tag=returned] rand run random value 0..{1}
                     tag @s add returned
                     ",

@@ -150,6 +150,7 @@ impl Replay {
         for _ in 0..20 {
             replay.tick();
         }
+        replay.say("Defaulting replay speed to 5×", Gray);
         replay
     }
 
@@ -163,7 +164,7 @@ impl Replay {
         println!("{msg}");
         #[cfg(debug_assertions)]
         self.command(format!(
-            "tellraw @a {{\"text\":\"{msg}\",\"color\":\"grey\"}}",
+            "tellraw @a {{\"text\":\"{msg}\",\"color\":\"gray\"}}",
         ));
     }
 
@@ -342,6 +343,7 @@ impl Replay {
             data modify storage sim_{0}:data newly_queued_tracks set value []
             data modify storage sim_{0}:data track set value {{}}
             scoreboard objectives add rand dummy
+            scoreboard objectives add daytime dummy
             scoreboard objectives add sim_{0}_sleep dummy
             scoreboard objectives add sim_{0}_particle dummy
             function sim_{0}:play_track_global {{track:0}}
@@ -349,7 +351,7 @@ impl Replay {
             scoreboard objectives setdisplay sidebar sim_tick
             # How many sim ticks to replay per game tick (0 to stop)
             scoreboard objectives add speed dummy
-            scoreboard players set SIM_{0} speed 1
+            scoreboard players set SIM_{0} speed 5
             # Set to X to warp X sim ticks ahead
             scoreboard objectives add warp dummy
             scoreboard players set SIM_{0} warp 0
