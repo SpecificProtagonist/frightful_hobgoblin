@@ -18,7 +18,7 @@ pub fn init_roads(
     let ray_start = center.as_vec2() * 0.5 + level.area().center_vec2() * 0.5;
     let count = 5;
     for i in 0..count {
-        let angle = (i as f32 + rand_f32(0., 0.4)) * 2. * PI / count as f32;
+        let angle = (i as f32 + rand(0. ..0.4)) * 2. * PI / count as f32;
         let direction = vec2(angle.cos(), angle.sin());
         let mut pos = ray_start;
         while level.area().contains(pos.block()) {

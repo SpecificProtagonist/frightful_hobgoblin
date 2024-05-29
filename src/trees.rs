@@ -34,7 +34,7 @@ pub fn init_trees(mut commands: Commands, level: Res<Level>) {
 
     // Make some noise!
     for column in noise.cells() {
-        noise[column] = rand();
+        noise[column] = rand(0. ..1.);
     }
 
     // Find vanilla trees
@@ -128,7 +128,7 @@ pub fn spawn_trees(
         }
 
         // Stagger spawn
-        if 0.02 < rand() {
+        if rand(0.98) {
             continue;
         }
 
@@ -219,13 +219,13 @@ pub fn grow_trees(
     mut trees: Query<(&Pos, &mut Tree, &mut GrowTree)>,
 ) {
     for (pos, mut tree, mut grow) in &mut trees {
-        if rand_range(0..=(tick.0 - grow.last_grown).max(1)) > 500 {
-            if rand_f32(grow.size, grow.params.max_size + 2.) < grow.params.max_size {
+        if rand(0..=(tick.0 - grow.last_grown).max(1)) > 500 {
+            if rand(grow.size..grow.params.max_size + 2.) < grow.params.max_size {
                 grow.build(&mut level, pos.0, &mut tree.blocks);
                 if (grow.size > 1.3) & (tree.state == TreeState::Young) {
                     tree.state = TreeState::Ready;
                 }
-                grow.size += rand_f32(0.13, 0.25);
+                grow.size += rand(0.13..0.25);
             }
             grow.last_grown = tick.0;
         }
@@ -247,35 +247,35 @@ impl TreeGen {
         match self {
             Self::Oak => TreeParams {
                 species: Oak,
-                max_size: rand_f32(1.5, 2.0) * rand_f32(1.1, 2.2),
+                max_size: rand(1.5..2.0) * rand(1.1..2.2),
                 leaf_z_factor: 1.,
                 stem_thickness: 1.,
                 stem_len: 2.,
             },
             Self::Birch => TreeParams {
                 species: Birch,
-                max_size: rand_f32(1.5, 2.0) * rand_f32(1.0, 2.0),
+                max_size: rand(1.5..2.0) * rand(1.0..2.0),
                 leaf_z_factor: 1.3,
                 stem_thickness: 1.,
                 stem_len: 2.,
             },
             Self::Pine => TreeParams {
                 species: Spruce,
-                max_size: rand_f32(1.5, 2.0) * rand_f32(1.0, 1.8),
+                max_size: rand(1.5..2.0) * rand(1.0..1.8),
                 leaf_z_factor: 0.4,
                 stem_thickness: 0.7,
                 stem_len: 1.,
             },
             Self::Cherry => TreeParams {
                 species: Cherry,
-                max_size: rand_f32(1.5, 2.0) * rand_f32(1.1, 2.2),
+                max_size: rand(1.5..2.0) * rand(1.1..2.2),
                 leaf_z_factor: 1.,
                 stem_thickness: 1.,
                 stem_len: 2.,
             },
             Self::Jungle => TreeParams {
                 species: Jungle,
-                max_size: rand_f32(1.3, 4.0),
+                max_size: rand(1.3..4.0),
                 leaf_z_factor: 0.4,
                 stem_thickness: 1.,
                 stem_len: 2.,
@@ -317,11 +317,11 @@ impl GrowTree {
         ) -> (Branch, f32) {
             let extent = dir * len;
             if thickness > 0.4 {
-                let ratio = rand_f32(0.3, 0.5);
-                let mut angle = rand_f32(0., PI * 2.);
+                let ratio = rand(0.3..0.5);
+                let mut angle = rand(0. ..PI * 2.);
                 if let Some(sibling) = sibling_angle {
                     while (angle - sibling + PI).abs() < PI / 4. {
-                        angle = rand_f32(0., PI * 2.);
+                        angle = rand(0. ..PI * 2.);
                     }
                 }
                 let split_dir = vec2(angle.sin(), angle.cos());
@@ -400,7 +400,7 @@ impl GrowTree {
                 for block_pos in Cuboid::around((start + extent).block(), 5) {
                     let mut diff = block_pos.as_vec3() - (start + extent);
                     diff.z /= params.leaf_z_factor;
-                    if diff.length() < scale * 1.0 + rand_f32(-0.7, 0.4) {
+                    if diff.length() < scale * 1.0 + rand(-0.7..0.4) {
                         level(block_pos, |b| b | Leaves(params.species, None));
                     }
                 }
@@ -472,13 +472,13 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
     level(pos, log_block);
 
     pos.x += 1;
-    if 0.8 > rand() {
+    if rand(0.8) {
         if pos.truncate() == base_pos.truncate() {
             pos += rand_2(0.3).extend(0);
         }
         level(pos, log_block);
 
-        if 0.2 > rand() {
+        if rand(0.2) {
             pos.z += 1;
             level(pos, log_block);
         }
@@ -495,7 +495,7 @@ pub fn make_tiny(level: &mut Level, base_pos: IVec3, species: TreeSpecies) {
         let distance_squared = ((leaf_pos - pos).x * (leaf_pos - pos).x
             + (leaf_pos - pos).z * (leaf_pos - pos).z
             + (leaf_pos - pos).y * (leaf_pos - pos).y) as f32;
-        if 1.0 - (distance_squared / 3.0) > rand() {
+        if rand(1.0 - (distance_squared / 3.0)) {
             level(leaf_pos, |b| b | leaf_block);
         }
     }
@@ -520,7 +520,7 @@ pub fn make_straight(level: &mut Level, pos: IVec3, species: TreeSpecies) {
 
     level(pos + IVec3::Z * (log_height + 1), |b| b | leaf_block);
     level(pos + IVec3::Z * (log_height + 2), |b| b | leaf_block);
-    if (log_height == 5) & (0.75 > rand()) | (log_height > 5) {
+    if (log_height == 5) & rand(0.75) | (log_height > 5) {
         level(pos + IVec3::Z * (log_height + 3), |b| b | leaf_block);
     }
 

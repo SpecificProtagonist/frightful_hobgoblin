@@ -877,7 +877,7 @@ impl Iterator for ColumnLineIter {
 
         if (self.prev.x != next.x) & (self.prev.y != next.y) {
             let interpol = if self.style == LineStyle::ThickWobbly {
-                if rand() {
+                if rand(0.5) {
                     ivec2(self.prev.x, next.x)
                 } else {
                     ivec2(next.x, self.prev.x)

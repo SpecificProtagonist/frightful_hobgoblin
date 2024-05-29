@@ -133,7 +133,7 @@ pub fn house(
         .all(|c| (roof.shape)(c.as_vec2()) > floors.last().unwrap().z as f32 + 4.0)
     {
         floors.push(Floor {
-            z: floors.last().unwrap().z + rand_range(3..=4),
+            z: floors.last().unwrap().z + rand(3..=4),
             area,
             material: if upper_floors_keep_material {
                 floors.last().unwrap().material
@@ -159,7 +159,7 @@ pub fn house(
             border_pos += dir.offset(0, 1);
         }
         let occlusion = occluded as f32 / total as f32;
-        if (depth < 9) | (0.5 + (depth - width) as f32 / 12. - occlusion < rand()) {
+        if (depth < 9) | rand(0.5 - (depth - width) as f32 / 12. + occlusion) {
             continue;
         }
         let shrunk_area = floors[0].area.extend(dir, -1);
@@ -173,12 +173,11 @@ pub fn house(
     }
 
     // Chimney
-    let chimney = if match center_biome() {
+    let chimney = if rand(match center_biome() {
         Desert | Savanna => 0.1,
         Snowy => 1.,
         _ => 0.8,
-    } > rand()
-    {
+    }) {
         let possible = floors[0]
             .area
             .border_no_corners()
@@ -269,13 +268,12 @@ fn building(
     let biome = level.biome[floors[0].area.center()];
     let species = biome.random_tree_species();
     let floorbords = biome.random_tree_species();
-    let log_stripped = if match species {
+    let log_stripped = if rand(match species {
         Birch => 1.,
         DarkOak => 0.6,
         Spruce => 0.2,
         _ => 0.,
-    } > rand()
-    {
+    }) {
         LogType::Stripped
     } else {
         LogType::Normal
@@ -310,12 +308,12 @@ fn building(
     let mut windows = Vec::new();
     for (i, floor) in floors.iter().enumerate() {
         // Determine windows
-        let mut prev_window = rand_range(0..3);
+        let mut prev_window = rand(0..3);
         'windows: for column in floor.area.border_no_corners() {
             let pos = column.extend(floor.z + 1);
             let dir = floor.area.outside_face(column);
             if level(pos + IVec3::from(dir)).solid()
-                | level(pos + IVec2::from(dir).extend(-1)).solid() & (0.7 > rand())
+                | level(pos + IVec2::from(dir).extend(-1)).solid() & rand(0.7)
                 | !roof.covers(pos)
                 | !roof.covers(pos + dir.offset(-1, 0).extend(0))
                 | !roof.covers(pos + dir.offset(0, 1).extend(0))
@@ -477,7 +475,7 @@ fn building(
                     break 'floor;
                 }
             }
-            prefab(&format!("hearth_{}", rand_range(0..=1))).build(
+            prefab(&format!("hearth_{}", rand(0..=1))).build(
                 level,
                 chimney.extend(floor.z),
                 dir,
@@ -491,12 +489,12 @@ fn building(
 
     // Some movement
     for i in 0..rec.len() {
-        if 0.03 > rand() {
+        if rand(0.03) {
             rec.insert(
                 i,
                 ConsItem::Goto(MoveTask::new(ivec3(
-                    rand_range(floors[0].area.min.x + 1..floors[0].area.max.x),
-                    rand_range(floors[0].area.min.y + 1..floors[0].area.max.y),
+                    rand(floors[0].area.min.x + 1..floors[0].area.max.x),
+                    rand(floors[0].area.min.y + 1..floors[0].area.max.y),
                     entrance.z,
                 ))),
             );
@@ -510,7 +508,7 @@ fn building(
     }
     let stair_support_style = [StairSupportStyle::Stair, StairSupportStyle::Fence].choose();
     let stair_material = Wood(species);
-    let stair_rot_dir = if 0.5 > rand() { 1 } else { -1 };
+    let stair_rot_dir = if rand(0.5) { 1 } else { -1 };
     for upper_floor_index in 1..floors.len() {
         let lower_z = floors[upper_floor_index - 1].z - 1;
         let upper_z = floors[upper_floor_index].z - 1;
@@ -625,7 +623,7 @@ fn building(
             shutter_pos += dir.offset(0, -2).extend(0);
             half_open_shutter_rot = -1;
         }
-        let shutter_dir = if 0.1 < rand() {
+        let shutter_dir = if rand(0.9) {
             dir
         } else {
             dir.rotated(half_open_shutter_rot)

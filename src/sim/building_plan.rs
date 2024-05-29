@@ -45,10 +45,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
         Rect::new_centered(level.area().center(), IVec2::splat(44)),
         |area, temperature| {
             let max_move = (100. * temperature) as i32;
-            *area += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
+            *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
 
             if !level.area().has_subrect(*area) {
                 return f32::INFINITY;
@@ -82,17 +79,11 @@ pub fn plan_house(
     // TODO: On a large map, allow for multiple town centers
     let center = center.single().truncate();
     let Some(area) = optimize(
-        Rect::new_centered(
-            center.block(),
-            ivec2(rand_range(7..=11), rand_range(7..=15)),
-        ),
+        Rect::new_centered(center.block(), ivec2(rand(7..=11), rand(7..=15))),
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
-            *area += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
-            if 0.2 > rand() {
+            *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
+            if rand(0.2) {
                 *area = Rect::new_centered(area.center(), area.size().yx())
             }
 
@@ -143,10 +134,7 @@ pub fn hitching_post(
         Rect::new_centered(level.area().center(), ivec2(5, 5)),
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
-            *area += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
+            *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
             if !level.free(*area) || area.grow(4).into_iter().all(|b| level.blocked[b] != Street) {
                 return f32::INFINITY;
             }
@@ -187,50 +175,6 @@ pub fn hitching_post(
     level(hay, Hay);
 
     commands.spawn(SpawnHitchedHorse(pos + 2 * IVec3::Z));
-}
-
-pub fn upgrade_plaza(
-    mut commands: Commands,
-    mut level: ResMut<Level>,
-    tick: Res<Tick>,
-    center: Query<(Entity, &CityCenter)>,
-    mut untree: Untree,
-) {
-    if tick.0 != 1000 {
-        return;
-    }
-    let (entity, rect) = center.single();
-
-    let cursor = level.recording_cursor();
-    let mut rec = ConsList::new();
-
-    // Visit blocks in a spiral from the center
-    let mut offset = IVec2::ZERO;
-    let mut dir = HDir::YNeg;
-    for _ in 0..rect.size().max_element().pow(2) {
-        // Rounded corners
-        let metr = offset.as_vec2().powf(4.);
-        if metr.x + metr.y < (rect.size().max_element() as f32 / 2.).powf(4.) + 0.6 {
-            let pos = level.ground(rect.center() + offset);
-            level(pos, PackedMud);
-            if 0.2 > rand() {
-                rec.push_back(ConsItem::Goto(MoveTask {
-                    goal: pos + IVec3::Z,
-                    distance: 2,
-                }));
-            }
-            untree.remove_trees(&mut level, Some(pos.truncate()));
-            level.pop_recording_into(&mut rec, cursor);
-        }
-        if (offset.x == offset.y)
-            | (offset.x < 0) & (offset.x == -offset.y)
-            | (offset.x > 0) & (offset.x == 1 - offset.y)
-        {
-            dir = dir.rotated(1);
-        }
-        offset += dir;
-    }
-    commands.entity(entity).insert(ConstructionSite::new(rec));
 }
 
 // Very temporary, just for testing!

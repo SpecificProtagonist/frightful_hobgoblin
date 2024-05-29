@@ -16,7 +16,7 @@ pub fn desire_lines(
     mut dl: ResMut<DesireLines>,
     walkers: Query<(&Pos, &PrevPos), With<Villager>>,
 ) {
-    if 0.3 < rand() {
+    if rand(0.7) {
         return;
     }
     for (pos, prev_pos) in &walkers {
@@ -32,7 +32,7 @@ pub fn desire_lines(
 pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
     // Broaden the path smoothly
     let alt_pos =
-        pos + if 0.5 < rand() { IVec3::X } else { IVec3::Y } * if 0.5 < rand() { -1 } else { 1 };
+        pos + if rand(0.5) { IVec3::X } else { IVec3::Y } * if rand(0.5) { -1 } else { 1 };
     fn affected(block: Block) -> bool {
         matches!(
             block,
@@ -66,7 +66,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
         level(pos + IVec3::Z, Air)
     } else {
         match level(pos) {
-            Grass | Podzol if wear > 7 => level(pos, if 0.5 < rand() { Dirt } else { CoarseDirt }),
+            Grass | Podzol if wear > 7 => level(pos, if rand(0.5) { Dirt } else { CoarseDirt }),
             Dirt | CoarseDirt
                 if (wear > 12) & {
                     // Try to add some steps (only works for shallow slopes)
@@ -94,7 +94,7 @@ pub fn add_desire_line(level: &mut Level, dl: &mut DesireLines, pos: IVec3) {
                 }
             }
             Sand if wear > 17 => level(pos, PackedMud),
-            SnowBlock | PowderedSnow if (wear > 9) & (0.3 < rand()) => {
+            SnowBlock | PowderedSnow if (wear > 9) & rand(0.7) => {
                 if level(pos - IVec3::Z).solid() {
                     level(pos, Gravel)
                 } else {

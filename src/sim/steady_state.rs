@@ -3,8 +3,8 @@ use itertools::Itertools;
 use std::fmt::Write;
 
 use self::{
+    market::{MarketStall, StallNotYetPlanned},
     quarry::Quarry,
-    stall::{MarketStall, StallNotYetPlanned},
 };
 use crate::*;
 use sim::*;
@@ -36,13 +36,13 @@ pub fn generate(world: &mut World) {
             sched.set_executor_kind(ExecutorKind::SingleThreaded);
             sched.add_systems((quarry::update_quarry_rotation,));
             let mut data = quarries.get_mut(world, quarry).unwrap();
-            data.crane_rot_target = (data.crane_rot + rand_range(4..12)) % 16;
+            data.crane_rot_target = (data.crane_rot + rand(4..12)) % 16;
             let start_rot = data.crane_rot;
             while quarries.get(world, quarry).unwrap().rotating() {
                 sched.run(world);
                 world.run_system(tick).unwrap();
             }
-            for _ in 0..rand_range(10..100) {
+            for _ in 0..rand(10..100) {
                 world.run_system(tick).unwrap();
             }
             quarries.get_mut(world, quarry).unwrap().crane_rot_target = start_rot;
@@ -118,7 +118,7 @@ pub fn generate(world: &mut World) {
         if assignable.is_empty() {
             assignable.clone_from(&houses);
         }
-        let home = assignable.swap_remove(rand_range(0..assignable.len()));
+        let home = assignable.swap_remove(rand(0..assignable.len()));
         let mut destinations = world
             .query_filtered::<Entity, (With<MarketStall>, Without<StallNotYetPlanned>)>()
             .iter(world)
@@ -143,7 +143,7 @@ pub fn generate(world: &mut World) {
         for destination in destinations {
             tracks.push(world.resource_mut::<Replay>().begin_next_track());
             let goal = world.get::<Pos>(destination).unwrap().block()
-                + ivec3(rand_range(-1..=1), rand_range(-1..=1), 0);
+                + ivec3(rand(-1..=1), rand(-1..=1), 0);
             world
                 .entity_mut(villager)
                 .insert(MoveTask { goal, distance: 1 });
@@ -151,7 +151,7 @@ pub fn generate(world: &mut World) {
                 world.run_system(walk).unwrap();
                 world.run_system(tick).unwrap();
             }
-            for _ in 0..rand_range(20..200) {
+            for _ in 0..rand(20..200) {
                 world.run_system(tick).unwrap();
             }
             world.entity_mut(villager).insert(MoveTask::new(home_pos));

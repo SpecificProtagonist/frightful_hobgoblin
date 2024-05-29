@@ -81,6 +81,7 @@ pub enum Block {
     CraftingTable,
     Stonecutter(HAxis),
     Smoker(HDir),
+    BrewingStand,
     Other(u16),
 }
 
@@ -721,6 +722,7 @@ impl Block {
                 "smoker".into(),
                 vec![("facing".into(), dir.to_str().into())],
             ),
+            BrewingStand => "brewing_stand".into(),
             Other(index) => unknown.states[*index as usize].clone(),
         }
     }
@@ -1042,6 +1044,7 @@ impl Block {
                 "polished_blackstone_button" => button(PolishedBlackstone, props),
                 "ladder" => Ladder(facing(props)),
                 "smoker" => Smoker(facing(props)),
+                "brewing_stand" => BrewingStand,
                 _ => return None,
             })
         }

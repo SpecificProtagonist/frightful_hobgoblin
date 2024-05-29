@@ -20,12 +20,12 @@ pub fn house(level: &mut Level, outer: Cuboid) {
     // Roof
     level.fill_at(outer.d2(), outer.max.z, Full(MudBrick));
 
-    let door_pos = ivec2(rand_range(inner.min.x..=inner.max.x), outer.min.y);
+    let door_pos = ivec2(rand(inner.min.x..=inner.max.x), outer.min.y);
     level(door_pos, inner.min.z, Door(Oak, YPos, DoorMeta::empty()));
     level(door_pos, inner.min.z + 1, Door(Oak, YPos, DoorMeta::TOP));
 
     let mut roof_access = false;
-    if 0.7 > rand() {
+    if rand(0.7) {
         roof_access = true;
         let ladder_pos = *inner
             .d2()
@@ -57,7 +57,7 @@ pub fn house(level: &mut Level, outer: Cuboid) {
         level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
     } else {
         // Flat wooden roof
-        if 0.5 > rand() {
+        if rand(0.5) {
             level.fill_at(
                 inner.d2().grow2(if outer.size().x > outer.size().y {
                     IVec2::X
@@ -67,12 +67,12 @@ pub fn house(level: &mut Level, outer: Cuboid) {
                 outer.max.z + 1,
                 Slab(Wood(Oak), Bottom),
             );
-            if 0.5 > rand() {
+            if rand(0.5) {
                 level.fill_at(outer.d2().corners(), outer.max.z + 1, Full(MudBrick));
             }
         } else {
             level.fill_at(inner.d2(), outer.max.z, Slab(Wood(Oak), Bottom));
-            if 0.5 > rand() {
+            if rand(0.5) {
                 level.fill_at(
                     outer.d2().corners(),
                     outer.max.z + 1,
@@ -109,10 +109,10 @@ fn crenel(width: i32, i: i32) -> Block {
 
 /// z_max inclusive
 fn wall_column(level: &mut Level, column: IVec2, z_min: i32, z_max: i32) {
-    let offset = rand_f32(-0.2, 0.2);
+    let offset = rand(-0.2..0.2);
     for z in z_min..=z_max {
         let rel_height = (z - z_min) as f32 / (z_max + 1 - z_min) as f32;
-        let block = if rel_height + offset + rand_f32(-0.3, 0.3) > 0.6 {
+        let block = if rel_height + offset + rand(-0.3..0.3) > 0.6 {
             Full(Wood(Birch))
         } else {
             Log(Birch, LogType::Stripped, Axis::Z)
@@ -133,7 +133,7 @@ fn wall_dir(level: &Level, pos: IVec3) -> HDir {
     }
     for dir in HDir::ALL {
         if level(pos.add(dir)).solid() {
-            if rand_range(0..count) == 0 {
+            if rand(0..count) == 0 {
                 return dir;
             }
             count -= 1

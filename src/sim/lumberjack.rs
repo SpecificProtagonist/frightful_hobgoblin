@@ -53,17 +53,11 @@ pub fn plan_lumberjack(
 
     // TODO: Seperate focus and shack position selection
     let Some(area) = optimize(
-        Rect::new_centered(
-            level.area().center(),
-            ivec2(rand_range(4..=6), rand_range(5..=8)),
-        ),
+        Rect::new_centered(level.area().center(), ivec2(rand(4..=6), rand(5..=8))),
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
-            *area += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
-            if 0.2 > rand() {
+            *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
+            if rand(0.2) {
                 *area = Rect::new_centered(area.center(), area.size().yx())
             }
 

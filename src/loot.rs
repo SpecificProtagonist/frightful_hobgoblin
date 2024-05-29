@@ -17,10 +17,10 @@ pub fn chest() -> String {
     let mut items = Vec::new();
     let mut slots = (0..27).collect_vec();
     let (table, roll_count) = rand_weighted(tables);
-    for _ in 0..rand_range(roll_count) {
+    for _ in 0..rand(roll_count) {
         let (item, count) = rand_weighted(table);
-        let slot = slots.remove(rand_range(0..slots.len()));
-        items.push((item, rand_range(count), slot));
+        let slot = slots.remove(rand(0..slots.len()));
+        items.push((item, rand(count), slot));
     }
 
     snbt(&items)
@@ -39,7 +39,7 @@ pub fn smoker() -> String {
         (0.4, "cooked_rabbit"),
         (0.4, "cooked_chicken"),
     ]);
-    snbt(&[(fuel, rand_range(0..8), 1), (output, rand_range(0..7), 2)])
+    snbt(&[(fuel, rand(0..8), 1), (output, rand(0..7), 2)])
 }
 
 fn snbt(items: &[(&str, i32, i32)]) -> String {
@@ -52,4 +52,33 @@ fn snbt(items: &[(&str, i32, i32)]) -> String {
     }
     out.push(']');
     out
+}
+
+fn potion() -> String {
+    format!(
+        "potion,tag:{{Potion:\"{}\"}}",
+        [
+            "mundane",
+            "thick",
+            "awkward",
+            "strong_regeneration",
+            "long_fire_resistance",
+            "long_swiftness",
+            "water_breathing",
+            "long_night_vision",
+            "invisibility"
+        ]
+        .choose()
+    )
+}
+
+pub fn brewing_stand() -> String {
+    let mut items = vec![("blaze_powder", rand(0..10), 4)];
+    let potion = potion();
+    for i in 0..3 {
+        if rand(0.8) {
+            items.push((&potion, 1, i))
+        }
+    }
+    snbt(&items)
 }

@@ -269,7 +269,7 @@ fn spawn_villagers(
     city_center: Query<&Pos, With<CityCenter>>,
 ) {
     if (tick.0 < 30 * 4) & (tick.0 % 4 == 0) {
-        let column = city_center.single().truncate() + vec2(rand_f32(-5., 5.), rand_f32(-5., 5.));
+        let column = city_center.single().truncate() + vec2(rand(-5. ..5.), rand(-5. ..5.));
         commands.spawn((
             Id::default(),
             Villager::default(),

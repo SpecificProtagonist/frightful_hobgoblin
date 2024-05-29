@@ -22,16 +22,16 @@ pub fn make_town_name() -> String {
 
     // Todo: Experiment with probabilities
     let mut name = String::new();
-    if 0.25 > rand() {
+    if rand(0.25) {
         name.extend(uppercase(prefixes.choose()));
         name += middle.choose();
         if name.ends_with("thorp") {
             name += "e"
         }
-    } else if 0.3 > rand() {
+    } else if rand(0.3) {
         name.extend(uppercase(prefixes.choose()));
         name += suffixes.choose();
-    } else if 0.5 > rand() {
+    } else if rand(0.5) {
         name.extend(uppercase(middle.choose()));
         name += suffixes.choose();
     } else {
@@ -45,8 +45,8 @@ pub fn make_town_name() -> String {
         .replace("hh", "h")
         .replace("tt", "t");
 
-    if 0.25 > rand() {
-        if 0.3 > rand() {
+    if rand(0.25) {
+        if rand(0.3) {
             name += "-le-"
         } else {
             name += " ";

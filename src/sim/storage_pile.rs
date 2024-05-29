@@ -26,7 +26,7 @@ impl LumberPile {
         target_2: Vec2,
     ) -> (IVec3, Rect, Self) {
         let params = LumberPile {
-            axis: if 0.5 > rand() { HAxis::X } else { HAxis::Y },
+            axis: if rand(0.5) { HAxis::X } else { HAxis::Y },
             width: 3,
             length: 5,
         };
@@ -42,17 +42,14 @@ impl LumberPile {
         let (pos, params) = optimize(
             (target.block(), params),
             |(pos, params), temperature| {
-                if 0.2 > rand() {
+                if rand(0.2) {
                     params.axis = params.axis.rotated()
-                } else if 0.3 > rand() {
-                    params.width = rand_range(3..=5);
-                    params.length = rand_range(5..=6);
+                } else if rand(0.3) {
+                    params.width = rand(3..=5);
+                    params.length = rand(5..=6);
                 } else {
                     let max_move = (20. * temperature) as i32;
-                    *pos += ivec2(
-                        rand_range(-max_move..=max_move),
-                        rand_range(-max_move..=max_move),
-                    );
+                    *pos += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
                 }
                 let area = area(*pos, *params);
 
@@ -165,20 +162,17 @@ impl StonePile {
         let area = optimize(
             Rect {
                 min: target.block(),
-                max: target.block() + ivec2(rand_range(3..=4), rand_range(3..=4)),
+                max: target.block() + ivec2(rand(3..=4), rand(3..=4)),
             },
             |area, temperature| {
-                if 0.3 > rand() {
+                if rand(0.3) {
                     *area = Rect {
                         min: area.center(),
-                        max: area.center() + ivec2(rand_range(3..=4), rand_range(3..=4)),
+                        max: area.center() + ivec2(rand(3..=4), rand(3..=4)),
                     }
                 } else {
                     let max_move = (20. * temperature) as i32;
-                    *area += ivec2(
-                        rand_range(-max_move..=max_move),
-                        rand_range(-max_move..=max_move),
-                    );
+                    *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
                 }
                 if !level.free(*area) | (wateryness(level, *area) > 0.) {
                     return f32::INFINITY;

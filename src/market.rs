@@ -7,7 +7,7 @@ use crate::{
     sim::CityCenter,
 };
 
-use self::construction::ConstructionSite;
+use self::{construction::ConstructionSite, logistics::MoveTask};
 
 // TODO: Generate villagers visiting stalls
 
@@ -23,7 +23,7 @@ pub struct StallNotYetPlanned;
 pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) {
     let center = center.single().block().truncate();
     for x in -1..=1 {
-        let offset = || ivec2(x * 7 + rand_range(0..=1), -rand_range(3..=4));
+        let offset = || ivec2(x * 8 + rand(0..=1), -rand(3..=4));
         commands.spawn((
             MarketStall {
                 pos: center + offset(),
@@ -84,12 +84,12 @@ fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
         Snowy | Taiga | Forest | BirchForest | Jungles | DarkForest | CherryGrove => 0.2,
         _ => 0.6,
     };
-    let stall = prefab(if cloth_chance > rand() {
+    let stall = prefab(if rand(cloth_chance) {
         "stall_0"
     } else {
         "stall_1"
     });
-    let wares = prefab(&format!("stall_wares_{}", rand_range(0..=6)));
+    let wares = prefab(&format!("stall_wares_{}", rand(0..=6)));
 
     let pos = level.ground(pos) + IVec3::Z;
     let biome = level.biome[pos];
@@ -97,7 +97,7 @@ fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
         level,
         pos,
         facing,
-        0.5 > rand(),
+        rand(0.5),
         false,
         biome.random_tree_species(),
         replace_wool_colors(),
@@ -106,12 +106,23 @@ fn stall(level: &mut Level, pos: IVec2, facing: HDir) -> ConsList {
         level,
         pos,
         facing,
-        0.5 > rand(),
+        rand(0.5),
         false,
         biome.random_tree_species(),
         replace_wool_colors(),
     );
-    level.pop_recording(cursor).map(ConsItem::Set).collect()
+    let mut rec: ConsList = level.pop_recording(cursor).map(ConsItem::Set).collect();
+    for item in &mut rec {
+        if let ConsItem::Set(SetBlock {
+            block: Smoker(..),
+            nbt,
+            ..
+        }) = item
+        {
+            *nbt = Some(loot::smoker())
+        }
+    }
+    rec
 }
 
 fn replace_wool_colors() -> impl Fn(Color) -> Color {
@@ -123,4 +134,48 @@ fn replace_wool_colors() -> impl Fn(Color) -> Color {
         *color = *available.choose()
     }
     move |c| replace[c as usize]
+}
+
+pub fn upgrade_plaza(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    tick: Res<Tick>,
+    center: Query<(Entity, &CityCenter)>,
+    mut untree: Untree,
+) {
+    if tick.0 != 1000 {
+        return;
+    }
+    let (entity, rect) = center.single();
+
+    let cursor = level.recording_cursor();
+    let mut rec = ConsList::new();
+
+    // Visit blocks in a spiral from the center
+    let mut offset = IVec2::ZERO;
+    let mut dir = HDir::YNeg;
+    for _ in 0..rect.size().max_element().pow(2) {
+        // Rounded corners
+        let metr = offset.as_vec2().powf(4.);
+        if metr.x + metr.y < (rect.size().max_element() as f32 / 2.).powf(4.) + 0.6 {
+            let pos = level.ground(rect.center() + offset);
+            level(pos, PackedMud);
+            if rand(0.2) {
+                rec.push_back(ConsItem::Goto(MoveTask {
+                    goal: pos + IVec3::Z,
+                    distance: 2,
+                }));
+            }
+            untree.remove_trees(&mut level, Some(pos.truncate()));
+            level.pop_recording_into(&mut rec, cursor);
+        }
+        if (offset.x == offset.y)
+            | (offset.x < 0) & (offset.x == -offset.y)
+            | (offset.x > 0) & (offset.x == 1 - offset.y)
+        {
+            dir = dir.rotated(1);
+        }
+        offset += dir;
+    }
+    commands.entity(entity).insert(ConstructionSite::new(rec));
 }

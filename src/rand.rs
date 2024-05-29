@@ -1,35 +1,64 @@
-use nanorand::WyRand;
+use std::ops::{Range, RangeInclusive};
+
+use nanorand::{RandomGen, RandomRange, WyRand};
 
 use crate::*;
 
-pub fn rand<Generated>() -> Generated
-where
-    Generated: nanorand::RandomGen<WyRand, 8>,
-{
+thread_local! {
+    pub static RNG: Cell<WyRand> = default();
+}
+
+pub fn rand<T: RandArg>(arg: T) -> T::T {
     let mut rng = RNG.replace(WyRand::new_seed(0));
-    let value = Generated::random(&mut rng);
+    let value = T::gen(arg, &mut rng);
     RNG.set(rng);
     value
 }
 
-pub fn rand_range<Number, Bounds>(range: Bounds) -> Number
-where
-    Number: nanorand::RandomRange<WyRand, 8>,
-    Bounds: std::ops::RangeBounds<Number>,
-{
-    let mut rng = RNG.replace(WyRand::new_seed(0));
-    let value = Number::random_range(&mut rng, range);
-    RNG.set(rng);
-    value
+pub trait RandArg {
+    type T;
+    fn gen(self, rand: &mut WyRand) -> Self::T;
 }
 
-pub fn rand_f32(min: f32, max: f32) -> f32 {
-    min + (max - min) * rand::<f32>()
+impl RandArg for f32 {
+    type T = bool;
+
+    fn gen(self, rng: &mut WyRand) -> Self::T {
+        self > f32::random(rng)
+    }
+}
+
+impl RandArg for Range<f32> {
+    type T = f32;
+
+    fn gen(self, rng: &mut WyRand) -> Self::T {
+        self.start + (self.end - self.start) * f32::random(rng)
+    }
+}
+
+pub trait Num: RandomRange<WyRand, 8> {}
+impl Num for i32 {}
+impl Num for usize {}
+
+impl<T: Num> RandArg for Range<T> {
+    type T = T;
+
+    fn gen(self, rand: &mut WyRand) -> T {
+        T::random_range(rand, self)
+    }
+}
+
+impl<T: Num> RandArg for RangeInclusive<T> {
+    type T = T;
+
+    fn gen(self, rand: &mut WyRand) -> T {
+        T::random_range(rand, self)
+    }
 }
 
 pub fn rand_1(prob: f32) -> i32 {
-    if prob > rand() {
-        if 0.5 > rand() {
+    if rand(prob) {
+        if rand(0.5) {
             1
         } else {
             -1
@@ -65,7 +94,7 @@ pub fn rand_weighted<T: Clone>(items: &[(f32, T)]) -> T {
 
 pub fn try_rand_weighted<T: Clone>(items: &[(f32, T)]) -> Option<T> {
     let total_weight = items.iter().fold(0., |acc, &(weight, _)| acc + weight);
-    let rng = total_weight * rand::<f32>();
+    let rng = rand(0. ..total_weight);
     (total_weight > 0.).then(|| select(items, rng))
 }
 
@@ -80,18 +109,14 @@ impl<T> ChooseExt for [T] {
     type Item = T;
 
     fn try_choose(&self) -> Option<&T> {
-        self.get(rand_range(0..self.len()))
+        self.get(rand(0..self.len()))
     }
 
     fn try_choose_mut(&mut self) -> Option<&mut T> {
-        self.get_mut(rand_range(0..self.len()))
+        self.get_mut(rand(0..self.len()))
     }
 
     fn choose(&self) -> &T {
         self.try_choose().unwrap()
     }
-}
-
-thread_local! {
-    pub static RNG: Cell<WyRand> = default();
 }

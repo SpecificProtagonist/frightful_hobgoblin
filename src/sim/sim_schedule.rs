@@ -5,22 +5,20 @@ use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 use detect_existing_buildings::detect_existing_buildings;
 use lumberjack::{plan_lumberjack, test_build_lumberjack};
 use make_name::make_town_name;
+use market::{init_stalls, plan_stalls};
 use quarry::{plan_quarry, test_build_quarry};
 use roads::init_roads;
-use stall::{init_stalls, plan_stalls};
 use storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals};
 use trees::{init_trees, spawn_trees};
+
+use self::market::upgrade_plaza;
 
 use super::*;
 
 pub fn sim(mut level: Level, debug_save: bool) {
     let mut replay = Replay::new(&level);
     replay.say(
-        &format!(
-            "{}: Founding of {}",
-            rand_range(1400..1550),
-            make_town_name()
-        ),
+        &format!("{}: Founding of {}", rand(1400..1550), make_town_name()),
         Yellow,
     );
 

@@ -70,15 +70,12 @@ pub fn plan_quarry(
     let Some(params) = optimize(
         Params {
             pos: level.area().center(),
-            dir: rand_f32(0., 2. * PI),
+            dir: rand(0. ..2. * PI),
         },
         |params, temperature| {
             let max_move = (60. * temperature) as i32;
-            params.pos += ivec2(
-                rand_range(-max_move..=max_move),
-                rand_range(-max_move..=max_move),
-            );
-            params.dir += (rand_f32(-1., 1.)) * 2. * PI * temperature.min(0.5);
+            params.pos += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
+            params.dir += (rand(-1. ..1.)) * 2. * PI * temperature.min(0.5);
 
             if !level.free(params.base_area()) || !level.free(params.probed_mining_area()) {
                 return f32::INFINITY;
@@ -143,10 +140,7 @@ pub fn plan_quarry(
             dir: params.dir,
             to_mine,
             crane_species: level.biome[params.pos].random_tree_species(),
-            crane_pos: pos
-                + (params.dir_vec2() * -1.6 * rand::<f32>())
-                    .as_ivec2()
-                    .extend(0),
+            crane_pos: pos + (params.dir_vec2() * rand(-1.6..1.)).as_ivec2().extend(0),
             crane_rot: 0,
             crane_rot_cooldown: 0,
             crane_rot_target: 0,
@@ -219,7 +213,7 @@ pub fn make_stone_piles(
             },
             Pile {
                 goods: default(),
-                interact_distance: 2,
+                interact_distance: 3,
                 despawn_when_empty: None,
             },
             StoragePile,
@@ -231,10 +225,10 @@ pub fn quarry_rotation(
     mut quarries: Query<&mut Quarry, (Without<Planned>, Without<ConstructionSite>)>,
 ) {
     for mut quarry in &mut quarries {
-        if 0.005 < rand() {
+        if rand(0.995) {
             continue;
         }
-        quarry.crane_rot_target = rand_range(0..16);
+        quarry.crane_rot_target = rand(0..16);
     }
 }
 
