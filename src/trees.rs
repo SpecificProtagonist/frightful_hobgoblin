@@ -20,6 +20,7 @@ pub enum TreeState {
     Young,
     Ready,
     MarkedForChoppage,
+    Decorative,
 }
 
 #[derive(Resource, Deref, DerefMut)]
@@ -215,7 +216,7 @@ pub fn spawn_trees(
                         blocks: default(),
                         state: TreeState::Young,
                     },
-                    TreeGen::make(rand_weighted(kind)),
+                    rand_weighted(kind).make(),
                 ))
                 .id(),
         );
@@ -242,7 +243,7 @@ pub fn grow_trees(
 }
 
 #[derive(Copy, Clone)]
-enum TreeGen {
+pub enum TreeGen {
     Oak,
     Birch,
     Pine,
@@ -252,7 +253,7 @@ enum TreeGen {
 }
 
 impl TreeGen {
-    fn make(self) -> GrowTree {
+    pub fn make(self) -> GrowTree {
         match self {
             Self::Oak => basic_tree(BasicParams {
                 species: Oak,

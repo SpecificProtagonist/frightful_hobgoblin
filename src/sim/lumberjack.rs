@@ -45,7 +45,7 @@ pub fn plan_lumberjack(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
-    trees: Query<(Entity, &Pos), (With<Tree>, Without<TreeIsNearLumberCamp>)>,
+    trees: Query<(Entity, &Pos, &Tree), Without<TreeIsNearLumberCamp>>,
 ) {
     if !planned.is_empty() {
         return;
@@ -67,8 +67,10 @@ pub fn plan_lumberjack(
             let center_distance = level.reachability[area.center()].max(150) as f32;
             let tree_access = trees
                 .iter()
-                .map(|(_, p)| {
-                    -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.))
+                .filter_map(|(_, p, tree)| {
+                    (tree.state == TreeState::Ready).then_some(
+                        -1. / ((area.center().as_vec2().distance(p.truncate()) - 10.).max(7.)),
+                    )
                 })
                 .sum::<f32>();
             wateryness(&level, *area) * 20.
@@ -82,7 +84,7 @@ pub fn plan_lumberjack(
         return;
     };
 
-    for (tree, pos) in &trees {
+    for (tree, pos, _) in &trees {
         if pos.truncate().distance(area.center_vec2()) < 20. {
             commands.entity(tree).insert(TreeIsNearLumberCamp);
         }
