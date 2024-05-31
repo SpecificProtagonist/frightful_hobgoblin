@@ -171,11 +171,16 @@ pub fn spawn_trees(
             Jungles => 1.,
         };
         let kind: &[_] = match level.biome[column] {
-            Plain | River | Ocean | Beach | Forest | Swamp | MangroveSwamp | Savanna => &[
+            Plain | River | Ocean | Beach | Forest | Swamp | MangroveSwamp => &[
                 (1., TreeGen::Oak),
                 (0.7, TreeGen::Pine),
                 (0.4, TreeGen::Birch),
                 (0.2, TreeGen::Cherry),
+            ],
+            Savanna => &[
+                (1., TreeGen::Oak),
+                (0.7, TreeGen::Cypress),
+                (0.4, TreeGen::Birch),
             ],
             Taiga | Snowy => &[
                 (1., TreeGen::Pine),
@@ -183,13 +188,17 @@ pub fn spawn_trees(
                 (0.2, TreeGen::Oak),
             ],
             Desert => &[
-                (1., TreeGen::Oak),
-                (0.7, TreeGen::Pine),
-                (0.4, TreeGen::Cherry),
+                (1., TreeGen::Cypress),
+                (0.3, TreeGen::Oak),
+                (0.3, TreeGen::Cherry),
             ],
             BirchForest => &[(1., TreeGen::Birch)],
             Jungles => &[(1., TreeGen::Jungle), (0.3, TreeGen::Oak)],
-            Mesa => &[(1., TreeGen::Pine), (0.5, TreeGen::Oak)],
+            Mesa => &[
+                (1., TreeGen::Pine),
+                (0.3, TreeGen::Cypress),
+                (0.5, TreeGen::Oak),
+            ],
             DarkForest => &[(1., TreeGen::Oak)],
             CherryGrove => &[(1.0, TreeGen::Cherry), (0.2, TreeGen::Birch)],
         };
@@ -206,7 +215,7 @@ pub fn spawn_trees(
                         blocks: default(),
                         state: TreeState::Young,
                     },
-                    GrowTree::make(rand_weighted(kind).params()),
+                    TreeGen::make(rand_weighted(kind)),
                 ))
                 .id(),
         );
@@ -220,7 +229,7 @@ pub fn grow_trees(
 ) {
     for (pos, mut tree, mut grow) in &mut trees {
         if rand(0..=(tick.0 - grow.last_grown).max(1)) > 500 {
-            if rand(grow.size..grow.params.max_size + 2.) < grow.params.max_size {
+            if rand(grow.size..grow.max_size + 2.) < grow.max_size {
                 grow.build(&mut level, pos.0, &mut tree.blocks);
                 if (grow.size > 1.3) & (tree.state == TreeState::Young) {
                     tree.state = TreeState::Ready;
@@ -239,48 +248,120 @@ enum TreeGen {
     Pine,
     Cherry,
     Jungle,
-    // TODO: More!
+    Cypress,
 }
 
 impl TreeGen {
-    fn params(self) -> TreeParams {
+    fn make(self) -> GrowTree {
         match self {
-            Self::Oak => TreeParams {
+            Self::Oak => basic_tree(BasicParams {
                 species: Oak,
                 max_size: rand(1.5..2.0) * rand(1.1..2.2),
                 leaf_z_factor: 1.,
                 stem_thickness: 1.,
                 stem_len: 2.,
-            },
-            Self::Birch => TreeParams {
+            }),
+            Self::Birch => basic_tree(BasicParams {
                 species: Birch,
                 max_size: rand(1.5..2.0) * rand(1.0..2.0),
                 leaf_z_factor: 1.3,
                 stem_thickness: 1.,
                 stem_len: 2.,
-            },
-            Self::Pine => TreeParams {
+            }),
+            Self::Pine => basic_tree(BasicParams {
                 species: Spruce,
                 max_size: rand(1.5..2.0) * rand(1.0..1.8),
                 leaf_z_factor: 0.4,
                 stem_thickness: 0.7,
                 stem_len: 1.,
-            },
-            Self::Cherry => TreeParams {
+            }),
+            Self::Cherry => basic_tree(BasicParams {
                 species: Cherry,
                 max_size: rand(1.5..2.0) * rand(1.1..2.2),
                 leaf_z_factor: 1.,
                 stem_thickness: 1.,
                 stem_len: 2.,
-            },
-            Self::Jungle => TreeParams {
+            }),
+            Self::Jungle => basic_tree(BasicParams {
                 species: Jungle,
                 max_size: rand(1.3..4.0),
                 leaf_z_factor: 0.4,
                 stem_thickness: 1.,
                 stem_len: 2.,
+            }),
+            Self::Cypress => GrowTree {
+                size: -0.1,
+                max_size: rand(1.5..2.0),
+                last_grown: 0,
+                gen: Generator::Cypress,
             },
         }
+    }
+}
+
+struct BasicParams {
+    species: TreeSpecies,
+    max_size: f32,
+    leaf_z_factor: f32,
+    stem_thickness: f32,
+    stem_len: f32,
+}
+
+fn basic_tree(params: BasicParams) -> GrowTree {
+    fn branch(thickness: f32, len: f32, dir: Vec3, sibling_angle: Option<f32>) -> (Branch, f32) {
+        let extent = dir * len;
+        if thickness > 0.4 {
+            let ratio = rand(0.3..0.5);
+            let mut angle = rand(0. ..PI * 2.);
+            if let Some(sibling) = sibling_angle {
+                while (angle - sibling + PI).abs() < PI / 4. {
+                    angle = rand(0. ..PI * 2.);
+                }
+            }
+            let split_dir = vec2(angle.sin(), angle.cos());
+            let dir_primary = (dir + split_dir.extend(0.) * (1. - ratio)).normalize();
+            let dir_secondary = (dir - split_dir.extend(0.) * ratio).normalize();
+            let (primary, primary_angle) = branch(
+                thickness * (1. - ratio),
+                thickness * (1.8 - ratio) * 1.0 + 0.,
+                dir_primary,
+                None,
+            );
+            let (secondary, _) = branch(
+                thickness * ratio,
+                thickness * (1.0 + ratio) * 1.0 + 0.,
+                dir_secondary,
+                Some(primary_angle),
+            );
+            (
+                Branch {
+                    thickness,
+                    extent,
+                    children: vec![primary, secondary],
+                },
+                angle,
+            )
+        } else {
+            (
+                Branch {
+                    thickness,
+                    extent,
+                    children: default(),
+                },
+                0.,
+            )
+        }
+    }
+    let (stem, _) = branch(params.stem_thickness, params.stem_len, Vec3::Z, None);
+    GrowTree {
+        size: -0.1,
+        max_size: params.max_size,
+        last_grown: 0,
+        gen: Generator::Basic(BasicTree {
+            stem,
+            species: params.species,
+            leaf_z_factor: params.leaf_z_factor,
+        }),
     }
 }
 
@@ -288,9 +369,86 @@ impl TreeGen {
 #[derive(Component)]
 pub struct GrowTree {
     pub size: f32,
-    stem: Branch,
+    max_size: f32,
     last_grown: i32,
-    params: TreeParams,
+    gen: Generator,
+}
+
+enum Generator {
+    Basic(BasicTree),
+    Cypress,
+}
+
+struct BasicTree {
+    stem: Branch,
+    species: TreeSpecies,
+    leaf_z_factor: f32,
+}
+
+impl BasicTree {
+    fn build(&self, level: &mut Level, pos: Vec3, size: f32) {
+        if size < 0.25 {
+            level(pos, GroundPlant(Sapling(self.species)));
+            return;
+        }
+        level(pos, Fence(Wood(self.species)));
+
+        self.place(level, pos, size, &self.stem, Vec3::ZERO, 0);
+    }
+
+    fn place(
+        &self,
+        level: &mut Level,
+        pos: Vec3,
+        scale: f32,
+        branch: &Branch,
+        branch_base: Vec3,
+        i: i32,
+    ) {
+        let start = pos + branch_base * scale;
+        let extent = branch.extent * scale;
+        if (branch.thickness * scale < 0.8) | branch.children.is_empty() {
+            for block_pos in Cuboid::around((start + extent).block(), 5) {
+                let mut diff = block_pos.as_vec3() - (start + extent);
+                diff.z /= self.leaf_z_factor;
+                if diff.length() < scale * 1.0 + rand(-0.7..0.4) {
+                    level(block_pos, |b| b | Leaves(self.species, None));
+                }
+            }
+            return;
+        }
+
+        let fence = (scale < 0.8) | (i as f32 > scale + 0.25);
+        let steps = (extent.length() * 10.) as i32;
+        let mut prev_pos = start.block();
+        for step in 0..=steps {
+            let pos = (start + extent.normalize() * 0.1 * step as f32).block();
+            let check_pos = (start + extent.normalize() * 0.1 * (step + 1) as f32).block();
+            let diff = (check_pos - prev_pos).abs();
+            if fence {
+                if diff != IVec3::ZERO {
+                    level(pos, |b| b | Fence(Wood(self.species)));
+                    prev_pos = pos;
+                }
+            } else if ((branch.thickness > 0.6) & (diff != IVec3::ZERO)) | (diff.max_element() > 1)
+            {
+                level(pos, Log(self.species, LogType::FullBark, Axis::Z));
+                prev_pos = pos;
+            }
+        }
+        level(
+            (start + extent).block(),
+            if fence {
+                Fence(Wood(self.species))
+            } else {
+                Log(self.species, LogType::FullBark, Axis::Z)
+            },
+        );
+
+        for child in &branch.children {
+            self.place(level, pos, scale, child, branch_base + branch.extent, i + 1)
+        }
+    }
 }
 
 struct Branch {
@@ -299,163 +457,53 @@ struct Branch {
     children: Vec<Branch>,
 }
 
-struct TreeParams {
-    species: TreeSpecies,
-    max_size: f32,
-    leaf_z_factor: f32,
-    stem_thickness: f32,
-    stem_len: f32,
+fn build_cypress(level: &mut Level, pos: Vec3, size: f32) {
+    let pos = pos.block();
+    if size < 0.25 {
+        level(pos, GroundPlant(Sapling(Spruce)));
+        return;
+    }
+    for i in 0..=(size * 1.5) as i32 {
+        level(
+            pos + i * IVec3::Z,
+            if size < 1. {
+                Fence(Wood(Jungle))
+            } else {
+                Fence(Andesite)
+            },
+        )
+    }
+    let top = (size * 4.) as i32;
+    for i in 0..top {
+        for x in -1..=1 {
+            for y in -1..=1 {
+                let distance = ivec2(x, y).as_vec2().length();
+                let radius = (1. - ((i as f32 / top as f32) - 0.2).abs()) * (size + 1.) / 2.;
+                if distance < radius * rand(1. ..1.3) {
+                    level(pos + ivec3(x, y, i + 1), |b| b | Leaves(Spruce, None))
+                }
+            }
+        }
+    }
 }
 
 impl GrowTree {
-    fn make(params: TreeParams) -> Self {
-        fn branch(
-            thickness: f32,
-            len: f32,
-            dir: Vec3,
-            sibling_angle: Option<f32>,
-        ) -> (Branch, f32) {
-            let extent = dir * len;
-            if thickness > 0.4 {
-                let ratio = rand(0.3..0.5);
-                let mut angle = rand(0. ..PI * 2.);
-                if let Some(sibling) = sibling_angle {
-                    while (angle - sibling + PI).abs() < PI / 4. {
-                        angle = rand(0. ..PI * 2.);
-                    }
-                }
-                let split_dir = vec2(angle.sin(), angle.cos());
-                let dir_primary = (dir + split_dir.extend(0.) * (1. - ratio)).normalize();
-                let dir_secondary = (dir - split_dir.extend(0.) * ratio).normalize();
-                let (primary, primary_angle) = branch(
-                    thickness * (1. - ratio),
-                    thickness * (1.8 - ratio) * 1.0 + 0.,
-                    dir_primary,
-                    None,
-                );
-                let (secondary, _) = branch(
-                    thickness * ratio,
-                    thickness * (1.0 + ratio) * 1.0 + 0.,
-                    dir_secondary,
-                    Some(primary_angle),
-                );
-                (
-                    Branch {
-                        thickness,
-                        extent,
-                        children: vec![primary, secondary],
-                    },
-                    angle,
-                )
-            } else {
-                (
-                    Branch {
-                        thickness,
-                        extent,
-                        children: default(),
-                    },
-                    0.,
-                )
-            }
-        }
-        let (stem, _) = branch(params.stem_thickness, params.stem_len, Vec3::Z, None);
-        Self {
-            stem,
-            size: -0.1,
-
-            last_grown: 0,
-            params,
-        }
-    }
-
     pub fn build(
         &mut self,
         level: &mut Level,
         pos: Vec3,
         current_blocks: &mut Vec<(IVec3, Block)>,
     ) {
-        if self.size < 0.25 {
-            level(pos, GroundPlant(Sapling(self.params.species)));
-            return;
-        }
-        level(pos, Fence(Wood(self.params.species)));
         for (pos, block) in current_blocks.drain(..) {
             if level(pos) == block {
                 level(pos, Air)
             }
         }
         let cursor = level.recording_cursor();
-        fn place(
-            params: &TreeParams,
-            level: &mut Level,
-            pos: Vec3,
-            scale: f32,
-            branch: &Branch,
-            branch_base: Vec3,
-            i: i32,
-        ) {
-            let start = pos + branch_base * scale;
-            let extent = branch.extent * scale;
-            if (branch.thickness * scale < 0.8) | branch.children.is_empty() {
-                for block_pos in Cuboid::around((start + extent).block(), 5) {
-                    let mut diff = block_pos.as_vec3() - (start + extent);
-                    diff.z /= params.leaf_z_factor;
-                    if diff.length() < scale * 1.0 + rand(-0.7..0.4) {
-                        level(block_pos, |b| b | Leaves(params.species, None));
-                    }
-                }
-                return;
-            }
-
-            let fence = (scale < 0.8) | (i as f32 > scale + 0.25);
-            let steps = (extent.length() * 10.) as i32;
-            let mut prev_pos = start.block();
-            for step in 0..=steps {
-                let pos = (start + extent.normalize() * 0.1 * step as f32).block();
-                let check_pos = (start + extent.normalize() * 0.1 * (step + 1) as f32).block();
-                let diff = (check_pos - prev_pos).abs();
-                if fence {
-                    if diff != IVec3::ZERO {
-                        level(pos, |b| b | Fence(Wood(params.species)));
-                        prev_pos = pos;
-                    }
-                } else if ((branch.thickness > 0.6) & (diff != IVec3::ZERO))
-                    | (diff.max_element() > 1)
-                {
-                    level(pos, Log(params.species, LogType::FullBark, Axis::Z));
-                    prev_pos = pos;
-                }
-            }
-            level(
-                (start + extent).block(),
-                if fence {
-                    Fence(Wood(params.species))
-                } else {
-                    Log(params.species, LogType::FullBark, Axis::Z)
-                },
-            );
-
-            for child in &branch.children {
-                place(
-                    params,
-                    level,
-                    pos,
-                    scale,
-                    child,
-                    branch_base + branch.extent,
-                    i + 1,
-                )
-            }
-        }
-        place(
-            &self.params,
-            level,
-            pos,
-            self.size,
-            &self.stem,
-            Vec3::ZERO,
-            0,
-        );
+        match &self.gen {
+            Generator::Basic(params) => params.build(level, pos, self.size),
+            Generator::Cypress => build_cypress(level, pos, self.size),
+        };
         current_blocks.extend(level.get_recording(cursor).map(|r| (r.pos, r.block)));
     }
 }

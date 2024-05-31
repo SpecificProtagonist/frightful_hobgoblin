@@ -210,6 +210,7 @@ pub fn chop(
             for set in &rec {
                 amount += match set.previous {
                     Log(..) => 4.,
+                    Fence(Andesite) => 2.,
                     Fence(..) => 1.,
                     Leaves(..) => 0.25,
                     _ => 0.,
