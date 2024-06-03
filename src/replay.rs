@@ -554,7 +554,6 @@ pub fn tick_replay(
     named: Query<(&Id, &Name), Changed<Name>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
     mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&InBoat>), Changed<Pos>>,
-    jobless: Query<&Id, Added<Jobless>>,
     lumberjacks: Query<&Id, Added<Lumberworker>>,
     masons: Query<&Id, Added<Mason>>,
 ) {
@@ -575,8 +574,24 @@ pub fn tick_replay(
     // New villagers
     for (id, pos, vill, is_trader) in &new_vills {
         let biome = level.biome[pos.block().truncate()];
+        // Display random profession since most aren't used yet
+        let profession = rand_weighted(&[
+            (5., "none"),
+            (1., "armorer"),
+            (1., "butcher"),
+            (1., "cartographer"),
+            (1., "cleric"),
+            (1., "farmer"),
+            (1., "fisherman"),
+            (1., "fletcher"),
+            (1., "leatherworker"),
+            (1., "librarian"),
+            (1., "shepherd"),
+            (1., "toolsmith"),
+            (1., "weaponsmith"),
+        ]);
         replay.command(format!(
-            "summon {} {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
+            "summon {} {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\",profession:\"{}\"}}}}",
             if is_trader {
                 "wandering_trader"
             } else {
@@ -586,8 +601,10 @@ pub fn tick_replay(
             pos.z,
             pos.y,
             id.snbt(),
-            biome.villager_type()
+            biome.villager_type(),
+            profession
         ));
+
         replay.command(format!(
             // TODO: Use block display?
             "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1, Tags:[\"carry\"]}}",
@@ -639,19 +656,14 @@ pub fn tick_replay(
         }
     }
     // Professions
-    for id in &jobless {
-        replay.command(format!(
-            "data modify entity {id} VillagerDate.profession set value none",
-        ));
-    }
     for id in &lumberjacks {
         replay.command(format!(
-            "data modify entity {id} VillagerDate.profession set value nitwit",
+            "data modify entity {id} VillagerDate.profession set value \"nitwit\"",
         ));
     }
     for id in &masons {
         replay.command(format!(
-            "data modify entity {id} VillagerDate.profession set value mason",
+            "data modify entity {id} VillagerDate.profession set value \"mason\"",
         ));
     }
 
