@@ -72,6 +72,7 @@ pub enum Block {
     IronBars,
     Trapdoor(TreeSpecies, HDir, DoorMeta),
     Door(TreeSpecies, HDir, DoorMeta),
+    Sign(TreeSpecies, HDir, SignType),
     Bell(HDir, BellAttachment),
     Button(BlockMaterial, FullDir),
     Repeater(HDir, u8),
@@ -278,6 +279,14 @@ pub enum GateState {
     Closed,
 }
 pub use GateState::*;
+
+#[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
+pub enum SignType {
+    Floor,
+    Wall,
+    WallHanging,
+    Ceiling,
+}
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum BlockMaterial {
@@ -637,6 +646,32 @@ impl Block {
                         format!("{}", meta.contains(DoorMeta::OPEN)).into(),
                     ),
                 ],
+            ),
+            Sign(species, dir, kind) => Blockstate(
+                format!(
+                    "{species}_{}",
+                    match kind {
+                        SignType::Floor => "sign",
+                        SignType::Wall => "wall_sign",
+                        SignType::WallHanging => "wall_hanging_sign",
+                        SignType::Ceiling => "hanging_sign",
+                    }
+                )
+                .into(),
+                vec![if matches!(kind, SignType::Wall | SignType::WallHanging) {
+                    ("facing".into(), dir.to_str().into())
+                } else {
+                    (
+                        "rotation".into(),
+                        match dir {
+                            YNeg => "8",
+                            XPos => "12",
+                            YPos => "0",
+                            XNeg => "4",
+                        }
+                        .into(),
+                    )
+                }],
             ),
             Bell(facing, attachment) => Blockstate(
                 "bell".into(),
@@ -1125,10 +1160,16 @@ impl Block {
                 | Ladder(..)
                 | Trapdoor(..)
                 | Door(..)
+                | FenceGate(..)
                 | WallBanner(..)
                 | Repeater(..)
                 | Rail(..)
+                | Sign(..)
         )
+    }
+
+    pub fn solid_underside(self) -> bool {
+        self.solid() & !matches!(self, Slab(_, Top))
     }
 
     pub fn walkable(self) -> bool {
@@ -1259,4 +1300,42 @@ impl std::ops::BitOrAssign for Block {
     fn bitor_assign(&mut self, rhs: Self) {
         *self = *self | rhs
     }
+}
+
+pub fn sign_text(text: &str, sign_type: SignType) -> String {
+    let mut lines = Vec::new();
+    let mut line = String::from("");
+    for word in text.split(' ') {
+        if line.len() + word.len()
+            < if matches!(sign_type, SignType::WallHanging | SignType::Ceiling) {
+                10
+            } else {
+                15
+            }
+        {
+            if !line.is_empty() {
+                line.push(' ');
+            }
+            line.push_str(word);
+        } else {
+            lines.push(line);
+            line = word.into();
+        }
+    }
+    lines.push(line);
+    if lines.len() < 3 {
+        lines.insert(0, "".into())
+    }
+    while lines.len() < 4 {
+        lines.push("".into())
+    }
+    let mut text = "{messages:[".to_string();
+    for (i, line) in lines.iter().enumerate() {
+        if i != 0 {
+            text.push(',')
+        }
+        text.push_str(&format!("'{{\"text\":\"{}\"}}'", line.replace('\'', "\\'")));
+    }
+    text.push_str("]}");
+    format!("is_waxed:true,front_text:{text},back_text:{text}")
 }

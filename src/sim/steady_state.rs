@@ -1,13 +1,19 @@
-use bevy_ecs::schedule::ExecutorKind;
+use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
+use bevy_utils::default;
 use itertools::Itertools;
 use std::fmt::Write;
 
 use self::{
     market::{MarketStall, StallNotYetPlanned},
+    personal_name::name,
     quarry::Quarry,
+    roads::Roads,
 };
 use crate::*;
 use sim::*;
+
+#[derive(Component)]
+pub struct Trader;
 
 /// Animations to be perpetually run after the replay is done
 pub fn generate(world: &mut World) {
@@ -83,7 +89,17 @@ pub fn generate(world: &mut World) {
         ));
     }
 
-    // Walking
+    // Villagers
+    let walk = world.register_system(walk);
+    let walk = |world: &mut World, villager: Entity, goal: IVec3, distance: i32| {
+        world
+            .entity_mut(villager)
+            .insert(MoveTask { goal, distance });
+        while world.get::<MoveTask>(villager).is_some() {
+            world.run_system(walk).unwrap();
+            world.run_system(tick).unwrap();
+        }
+    };
     let houses = world
         .query_filtered::<Entity, With<House>>()
         .iter(world)
@@ -92,7 +108,7 @@ pub fn generate(world: &mut World) {
     world.resource_mut::<Replay>().track = 0;
     for &house in &houses {
         if let Some(pos) = world.get::<House>(house).unwrap().chimney {
-            let id = Id::default();
+            let id = Id::new();
             chimneys.insert(house, id);
             world.resource_mut::<Replay>().command(format!(
                 "summon marker {} {} {} {{{}}}",
@@ -130,35 +146,20 @@ pub fn generate(world: &mut World) {
             }
         }
 
-        let walk = world.register_system(walk);
         let returning = world.resource_mut::<Replay>().begin_next_track();
         let home_pos = world.get::<Pos>(home).unwrap().block();
-        world.entity_mut(villager).insert(MoveTask::new(home_pos));
-        while world.get::<MoveTask>(villager).is_some() {
-            world.run_system(walk).unwrap();
-            world.run_system(tick).unwrap();
-        }
+        walk(world, villager, home_pos, 0);
 
         let mut tracks = Vec::new();
         for destination in destinations {
             tracks.push(world.resource_mut::<Replay>().begin_next_track());
             let goal = world.get::<Pos>(destination).unwrap().block()
                 + ivec3(rand(-1..=1), rand(-1..=1), 0);
-            world
-                .entity_mut(villager)
-                .insert(MoveTask { goal, distance: 1 });
-            while world.get::<MoveTask>(villager).is_some() {
-                world.run_system(walk).unwrap();
-                world.run_system(tick).unwrap();
-            }
+            walk(world, villager, goal, 1);
             for _ in 0..rand(20..200) {
                 world.run_system(tick).unwrap();
             }
-            world.entity_mut(villager).insert(MoveTask::new(home_pos));
-            while world.get::<MoveTask>(villager).is_some() {
-                world.run_system(walk).unwrap();
-                world.run_system(tick).unwrap();
-            }
+            walk(world, villager, home_pos, 0);
         }
         let biome = world.resource::<Level>().biome[home_pos];
         let mut replay = world.resource_mut::<Replay>();
@@ -212,6 +213,93 @@ pub fn generate(world: &mut World) {
             home_pos.x,
             home_pos.z,
             home_pos.y,
+            invocation(),
+            handler_name,
+        ));
+    }
+
+    // Wandering traders
+    let stalls = world
+        .query_filtered::<&Pos, With<MarketStall>>()
+        .iter(world)
+        .map(|p| p.block())
+        .collect_vec();
+    let mut road_starts = world
+        .resource::<Roads>()
+        .0
+        .iter()
+        .filter(|path| (path.len() > 60) & (path.iter().all(|n| !n.boat)))
+        .map(|p| p.back().unwrap().pos)
+        .collect_vec();
+
+    let traders_count = stalls.len().min(road_starts.len());
+    for _ in 0..traders_count {
+        let i = rand(0..road_starts.len());
+        let road_start = road_starts.remove(i);
+        let id = Id::new();
+        let Some(tavern) = world
+            .query_filtered::<&Pos, With<Tavern>>()
+            .iter(world)
+            .next()
+            .map(|p| p.block())
+        else {
+            break;
+        };
+
+        let track_enter = world.resource_mut::<Replay>().begin_next_track();
+        let trader = world
+            .spawn((
+                id,
+                PrevPos(default()),
+                Pos(road_start.as_vec3()),
+                Villager::default(),
+                Trader,
+            ))
+            .id();
+        world.run_system_once(name);
+        walk(world, trader, tavern, 1);
+
+        let track_trade = world.resource_mut::<Replay>().begin_next_track();
+        for _ in 0..6 {
+            walk(world, trader, *stalls.choose(), rand(0..=2));
+            for _ in 0..rand(100..300) {
+                world.run_system(tick).unwrap();
+            }
+        }
+        walk(world, trader, tavern, 0);
+
+        let track_leave = world.resource_mut::<Replay>().begin_next_track();
+        walk(world, trader, road_start, 1);
+        let mut replay = world.resource_mut::<Replay>();
+        replay.command(format!("effect give {id} invisibility"));
+        replay.command(format!("kill {id}"));
+
+        let handler_name = format!("trader_{handlers}");
+        handlers += 1;
+        replay.mcfunction(
+            &format!("on_idle/{handler_name}"),
+            &format!(
+                "
+                data modify entity @s[tag=!entered] data.play set value {track_enter}
+                execute store result score @s[tag=entered] sim_{0}_sleep run random value 100..600
+                execute store result score @s daytime run time query daytime
+                execute if score @s daytime matches 13000..23000 run return 0
+                execute store result score @s[tag=entered] rand run random value 0..3
+                execute if score @s[tag=entered] rand matches 0 run data modify entity @s data.play set value {track_leave}
+                execute if score @s[tag=entered] rand matches 1.. run data modify entity @s data.play set value {track_trade}
+                tag @s[tag=entered] add already_entered
+                tag @s add entered
+                tag @s[tag=already_entered] remove entered
+                tag @s remove already_entered
+                ",invocation()
+            )
+        );
+        replay.track = 0;
+        replay.command(format!(
+            "summon marker {} {} {} {{Tags:[\"sim_{3}_tick\"],data:{{on_idle:\"{4}\"}}}}",
+            tavern.x,
+            tavern.z,
+            tavern.y,
             invocation(),
             handler_name,
         ));

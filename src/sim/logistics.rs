@@ -183,17 +183,14 @@ pub fn walk(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     level: Res<Level>,
-    mut query: Query<
-        (
-            Entity,
-            &Id,
-            &mut Pos,
-            &MoveTask,
-            Option<&InBoat>,
-            Option<&mut MovePath>,
-        ),
-        With<Villager>,
-    >,
+    mut query: Query<(
+        Entity,
+        &Id,
+        &mut Pos,
+        &MoveTask,
+        Option<&InBoat>,
+        Option<&mut MovePath>,
+    )>,
 ) {
     for (entity, id, mut pos, goal, in_boat, path) in &mut query {
         if let Some(mut path) = path {

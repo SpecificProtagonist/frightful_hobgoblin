@@ -17,6 +17,8 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::sync::Arc;
 
+use self::steady_state::Trader;
+
 // TODO: When warping ahead, skip tps except for the last ones
 // to do that, store tps in a seperate list
 // TODO: allow (option when running the generator) to skip the replay of the first n ticks
@@ -33,15 +35,19 @@ impl Display for Id {
 
 // Maybe just use normal random uuids? Small numbers make it easier to debug though.
 impl Id {
+    /// This is only correct after Replay has been constructed
+    pub fn new() -> Self {
+        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+    }
+
     pub fn snbt(&self) -> String {
         format!("UUID:[I;0,0,0,{}]", self.0)
     }
 }
 
-// This is only correct after Replay has been constructed
 impl Default for Id {
     fn default() -> Self {
-        Self(NEXT_ID.fetch_add(1, Ordering::Relaxed))
+        Self::new()
     }
 }
 
@@ -544,7 +550,7 @@ pub fn tick_replay(
     change_tick: SystemChangeTick,
     mut level: ResMut<Level>,
     mut replay: ResMut<Replay>,
-    new_vills: Query<(&Id, &Pos, &Villager), Added<Villager>>,
+    new_vills: Query<(&Id, &Pos, &Villager, Has<Trader>), Added<Villager>>,
     named: Query<(&Id, &Name), Changed<Name>>,
     changed_vills: Query<&Villager, Changed<Villager>>,
     mut moved: Query<(&Id, &Pos, &mut PrevPos, Option<&InBoat>), Changed<Pos>>,
@@ -567,10 +573,15 @@ pub fn tick_replay(
         replay.block(set.pos, set.block, set.nbt);
     }
     // New villagers
-    for (id, pos, vill) in &new_vills {
+    for (id, pos, vill, is_trader) in &new_vills {
         let biome = level.biome[pos.block().truncate()];
         replay.command(format!(
-            "summon villager {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
+            "summon {} {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\"}}}}",
+            if is_trader {
+                "wandering_trader"
+            } else {
+                "villager"
+            },
             pos.x,
             pos.z,
             pos.y,

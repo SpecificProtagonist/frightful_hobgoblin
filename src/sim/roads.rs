@@ -6,9 +6,13 @@ use sim::*;
 
 use self::{
     desire_lines::{add_desire_line, DesireLines},
-    pathfind::pathfind,
+    pathfind::{pathfind, PathingNode},
     trees::{Tree, TreeGen, TreeState, Trees},
 };
+
+/// Direction: From center outwards
+#[derive(Resource)]
+pub struct Roads(pub Vec<VecDeque<PathingNode>>);
 
 pub fn init_roads(
     mut commands: Commands,
@@ -52,15 +56,15 @@ pub fn init_roads(
 
     // Line with trees
     // TODO: Hedges, other trees
-    for path in paths {
+    for path in &paths {
         let mut points_left = Vec::new();
         let mut points_right = Vec::new();
         for i in 50.. {
-            let point = path[i].pos;
-            let prev = path[i - 5].pos.truncate().as_vec2();
             let Some(upcomming) = path.get(i + 5).map(|n| n.pos.truncate().as_vec2()) else {
                 break;
             };
+            let prev = path[i - 5].pos.truncate().as_vec2();
+            let point = path[i].pos;
             let dir = (upcomming - prev).normalize();
             let side = vec2(dir.y, -dir.x) * 3.5;
             let pos = point.truncate().as_vec2() + vec2(0.5, 0.5);
@@ -102,11 +106,13 @@ pub fn init_roads(
                 );
             }
         };
-        if rand(0.7) {
+        if rand(0.6) {
             make_trees(points_left);
         }
-        if rand(0.7) {
+        if rand(0.6) {
             make_trees(points_right);
         }
     }
+
+    commands.insert_resource(Roads(paths));
 }

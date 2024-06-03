@@ -23,6 +23,9 @@ pub struct House {
 }
 
 #[derive(Component)]
+pub struct Tavern;
+
+#[derive(Component)]
 pub struct ToBeBuild;
 
 pub fn unevenness(level: &Level, area: Rect) -> f32 {
@@ -222,14 +225,26 @@ pub fn test_build_house(
     mut dl: ResMut<DesireLines>,
     mut untree: Untree,
     new: Query<(Entity, &HousePlan), With<ToBeBuild>>,
+    taverns: Query<(), With<Tavern>>,
 ) {
-    for (entity, house) in &new {
-        let (rec, house) =
-            house::house(&mut commands, &mut level, &mut dl, &mut untree, house.area);
+    if let Some((entity, house)) = new.iter().next() {
+        // Tmp
+        let tavern = taverns.is_empty() && rand(0.3);
+        let (rec, house) = house::house(
+            &mut commands,
+            &mut level,
+            &mut dl,
+            &mut untree,
+            house.area,
+            tavern,
+        );
         let site = ConstructionSite::new(rec);
         commands
             .entity(entity)
             .remove::<ToBeBuild>()
             .insert((site, house));
+        if tavern {
+            commands.entity(entity).insert(Tavern);
+        }
     }
 }

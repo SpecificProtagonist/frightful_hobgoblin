@@ -7,7 +7,7 @@ mod personal_name;
 pub mod quarry;
 pub mod roads;
 mod sim_schedule;
-mod steady_state;
+pub mod steady_state;
 mod storage_pile;
 
 use std::collections::VecDeque;

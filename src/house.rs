@@ -7,6 +7,7 @@ use roof::build_roof;
 use self::{
     construction::RemoveWhenBlocked,
     desire_lines::{add_desire_line, DesireLines},
+    make_name::tavern_name,
     pathfind::pathfind_street,
     roof::{roof_shape, Shape},
     sim::{logistics::MoveTask, ConsItem, ConsList},
@@ -47,6 +48,7 @@ pub fn house(
     dl: &mut DesireLines,
     untree: &mut Untree,
     area: Rect,
+    tavern: bool,
 ) -> (ConsList, House) {
     let inner = area.shrink(1);
 
@@ -208,7 +210,50 @@ pub fn house(
         None
     };
 
-    building(commands, level, untree, entrance, &floors, roof, chimney)
+    let (mut rec, house) = building(commands, level, untree, entrance, &floors, roof, chimney);
+
+    let cursor = level.recording_cursor();
+    if tavern {
+        // Generate sign
+        let door_dir = floors
+            .iter()
+            .find(|f| f.z == entrance.z)
+            .unwrap()
+            .area
+            .outside_face(entrance.truncate());
+        for offset in [
+            door_dir.offset(1, 0).extend(2),
+            door_dir.offset(1, -1).extend(2),
+            door_dir.offset(1, 1).extend(2),
+            door_dir.offset(1, -1).extend(1),
+            door_dir.offset(1, 1).extend(1),
+            door_dir.offset(2, 0).extend(2),
+        ] {
+            let pos = entrance + offset;
+            if level(pos).solid() | matches!(level(pos), Trapdoor(..)) {
+                continue;
+            }
+            let (sign_type, dir) = if level(pos + IVec3::Z).solid_underside() {
+                (SignType::Ceiling, door_dir)
+            } else if offset.z == 1 {
+                (SignType::Wall, door_dir)
+            } else {
+                (SignType::WallHanging, door_dir.rotated(1))
+            };
+            let species = rand_weighted(&[
+                (2., center_biome().random_tree_species()),
+                (1., Warped),
+                (1., Crimson),
+            ]);
+            let nbt = sign_text(&tavern_name(), sign_type);
+            level(pos, Sign(species, dir, sign_type), nbt);
+            break;
+        }
+    }
+
+    level.pop_recording_into(&mut rec, cursor);
+
+    (rec, house)
 }
 
 pub fn shack(

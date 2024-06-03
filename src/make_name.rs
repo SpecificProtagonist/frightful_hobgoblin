@@ -1,3 +1,5 @@
+use itertools::Itertools;
+
 use crate::*;
 
 // Todo: make toponyms take features into account (not needed for other villages mentioned but not generated)
@@ -64,4 +66,76 @@ fn uppercase(word: &'static str) -> impl Iterator<Item = char> {
         .into_iter()
         .flatten()
         .chain(iter)
+}
+
+pub fn tavern_name() -> String {
+    let animal = [
+        "Hare", "Stag", "Hart", "Buck", "Cow", "Heifer", "Calf", "Bull", "Birds", "Pheasant",
+        "Cock", "Rooster", "Dove", "Crane", "Swan", "Tit", "Ostrich", "Horse", "Stallion", "Dog",
+        "Bitch", "Dolphin", "Lion", "Ram", "Bear", "Dragon", "Rabbit", "Goat",
+    ];
+    let person_trait = [
+        "Old", "Young", "Jovial", "Lazy", "Tipsy", "Drunk", "Drunken", "Sleeping", "Bold",
+        "Cunning", "Fat",
+    ];
+    let occupation = [
+        "Porter",
+        "Blacksmith",
+        "Carpenter",
+        "Weaver",
+        "Fisherman",
+        "Spinner",
+        "Cobbler",
+        "Cordwainer",
+        "Ratcatcher",
+        "Glazier",
+        "Potter",
+        "Sergeant",
+        "Pilgrim",
+        "Bishop",
+    ];
+    let number = [(2., "Three"), (0.3, "Double"), (0.3, "Two"), (0.3, "Dozen")];
+    let arms = [
+        "Castle", "Cross", "Shield", "Crown", "Antler", "Band", "Leaf", "Arrow", "Head", "Cup",
+        "Hammer", "Flute", "Drum", "Sickle", "Hatchet", "Plow", "Rose",
+    ];
+    let thingy = arms
+        .iter()
+        .map(|&s| (2.5, s))
+        .chain(animal.iter().map(|&s| (1., s)))
+        .collect_vec();
+    let tavern = [
+        (1.5, "Tavern"),
+        (1.1, "Inn"),
+        (0.6, "Lodge"),
+        (0.5, "House"),
+        (0.5, "Auberge"),
+        (0.4, "Bethel"),
+        (0.4, "Pub"),
+        (0.3, "Rest"),
+        (0.3, "Respite"),
+    ];
+    let mut name = rand_weighted(&[
+        (1., format!("{}'s Arms", occupation.choose())),
+        (
+            1.,
+            format!("{} {}", person_trait.choose(), occupation.choose()),
+        ),
+        (1., format!("{} {}s", rand_weighted(&number), arms.choose())),
+        (
+            2.,
+            format!("{} and {}", rand_weighted(&thingy), rand_weighted(&thingy)),
+        ),
+        (
+            1.4,
+            format!("{} {}", person_trait.choose(), animal.choose()),
+        ),
+    ]);
+    if rand(0.4) {
+        name.insert_str(0, "The ");
+    }
+    if rand(0.3) {
+        name = format!("{name} {}", rand_weighted(&tavern));
+    }
+    name
 }
