@@ -119,6 +119,13 @@ impl Rect {
         }
     }
 
+    pub fn extend_to(self, column: IVec2) -> Self {
+        Self {
+            min: self.min.min(column),
+            max: self.max.max(column),
+        }
+    }
+
     pub fn transposed(self) -> Self {
         Self::new_centered(self.center(), self.size().yx())
     }
@@ -406,6 +413,16 @@ impl From<HDir> for FullDir {
 }
 
 pub const NEIGHBORS_2D: [IVec2; 4] = [ivec2(1, 0), ivec2(-1, 0), ivec2(0, 1), ivec2(0, -1)];
+pub const NEIGHBORS_2D_FULL: [IVec2; 8] = [
+    ivec2(1, 0),
+    ivec2(-1, 0),
+    ivec2(0, 1),
+    ivec2(0, -1),
+    ivec2(1, 1),
+    ivec2(-1, 1),
+    ivec2(1, -1),
+    ivec2(-1, -1),
+];
 
 pub const NEIGHBORS_3D: [IVec3; 6] = [
     ivec3(1, 0, 0),

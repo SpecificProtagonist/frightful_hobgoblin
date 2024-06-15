@@ -4,15 +4,57 @@ use itertools::Itertools;
 pub fn chest() -> String {
     let tools: (&[_], _) = (
         &[
+            (1., ("iron_hoe", 1..=1)),
             (1., ("iron_pickaxe", 1..=1)),
             (1., ("iron_shovel", 1..=1)),
             (1., ("iron_axe", 1..=1)),
             (1., ("flint_and_steel", 1..=1)),
+            (1., ("shears", 1..=1)),
         ],
         1..=3,
     );
-    let food: (&[_], _) = (&[(1., ("bread", 1..=13)), (0.3, ("sugar", 1..=5))], 3..=7);
-    let tables = &[(1., tools), (1., food)];
+    let food: (&[_], _) = (
+        &[
+            (1., ("bread", 1..=13)),
+            (0.3, ("sugar", 1..=5)),
+            (0.3, ("egg", 1..=8)),
+        ],
+        3..=7,
+    );
+    let clothes: (&[_], _) = (
+        &[
+            (1., ("leather_boots", 1..=1)),
+            (1., ("leather_leggings", 1..=1)),
+            (1., ("leather_chestplate", 1..=1)),
+            (1., ("leather_helmet", 1..=1)),
+            (0.8, ("chainmail_chestplate", 1..=1)),
+            (0.4, ("turtle_helmet", 1..=1)),
+        ],
+        3..=4,
+    );
+    let dyes: (&[_], _) = (
+        &[
+            (1., ("white", 1..=4)),
+            (1., ("orange", 1..=4)),
+            (1., ("magenta", 1..=4)),
+            (1., ("light_blue", 1..=4)),
+            (1., ("yellow", 1..=4)),
+            (1., ("lime", 1..=4)),
+            (1., ("pink", 1..=4)),
+            (1., ("gray", 1..=4)),
+            (1., ("light_gray", 1..=4)),
+            (1., ("cyan", 1..=4)),
+            (1., ("purple", 1..=4)),
+            (1., ("blue", 1..=4)),
+            (1., ("brown", 1..=4)),
+            (1., ("green", 1..=4)),
+            (1., ("red", 1..=4)),
+            (1., ("black", 1..=4)),
+            (3., ("feather", 1..=1)),
+        ],
+        4..=7,
+    );
+    let tables = &[(1., tools), (1., clothes), (1.5, food), (0.4, dyes)];
 
     let mut items = Vec::new();
     let mut slots = (0..27).collect_vec();

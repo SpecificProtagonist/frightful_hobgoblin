@@ -1,6 +1,6 @@
 use std::ops::{Range, RangeInclusive};
 
-use nanorand::{RandomGen, RandomRange, WyRand};
+use nanorand::{RandomGen, RandomRange, Rng, WyRand};
 
 use crate::*;
 
@@ -98,14 +98,15 @@ pub fn try_rand_weighted<T: Clone>(items: &[(f32, T)]) -> Option<T> {
     (total_weight > 0.).then(|| select(items, rng))
 }
 
-pub trait ChooseExt {
+pub trait SliceExt {
     type Item;
     fn try_choose(&self) -> Option<&Self::Item>;
     fn try_choose_mut(&mut self) -> Option<&mut Self::Item>;
     fn choose(&self) -> &Self::Item;
+    fn shuffle(&mut self) -> &mut Self;
 }
 
-impl<T> ChooseExt for [T] {
+impl<T> SliceExt for [T] {
     type Item = T;
 
     fn try_choose(&self) -> Option<&T> {
@@ -118,5 +119,27 @@ impl<T> ChooseExt for [T] {
 
     fn choose(&self) -> &T {
         self.try_choose().unwrap()
+    }
+
+    fn shuffle(&mut self) -> &mut Self {
+        let mut rng = RNG.replace(WyRand::new_seed(0));
+        Rng::shuffle(&mut rng, &mut *self);
+        RNG.set(rng);
+        self
+    }
+}
+
+pub trait IterExt {
+    type Item;
+    fn shuffled(self) -> Vec<Self::Item>;
+}
+
+impl<I: Iterator> IterExt for I {
+    type Item = I::Item;
+
+    fn shuffled(self) -> Vec<Self::Item> {
+        let mut items: Vec<_> = self.collect();
+        items.shuffle();
+        items
     }
 }

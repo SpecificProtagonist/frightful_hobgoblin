@@ -134,9 +134,16 @@ pub fn house(
         .border()
         .all(|c| (roof.shape)(c.as_vec2()) > floors.last().unwrap().z as f32 + 4.0)
     {
+        let z = floors.last().unwrap().z + rand(3..=4);
+        let mut floor_area = Rect::new_centered(area.center(), IVec2::ZERO);
+        for column in area {
+            if roof.covers(column.extend(z - 1)) {
+                floor_area = floor_area.extend_to(column);
+            }
+        }
         floors.push(Floor {
-            z: floors.last().unwrap().z + rand(3..=4),
-            area,
+            z,
+            area: floor_area,
             material: if upper_floors_keep_material {
                 floors.last().unwrap().material
             } else {
@@ -312,7 +319,7 @@ fn building(
 
     let biome = level.biome[floors[0].area.center()];
     let species = biome.random_tree_species();
-    let floorbords = biome.random_tree_species();
+    let floorboards = biome.random_tree_species();
     let log_stripped = if rand(match species {
         Birch => 1.,
         DarkOak => 0.6,
@@ -475,7 +482,7 @@ fn building(
             for column in floor.area.shrink(1) {
                 let pos = column.extend(ceiling);
                 if roof.covers(pos) {
-                    level(pos, Slab(Wood(floorbords), Top));
+                    level(pos, Slab(Wood(floorboards), Top));
                 }
             }
         }
@@ -688,17 +695,21 @@ fn building(
         });
     }
 
+    // Interior
+    for floor in floors {
+        interior(level, floor.area.shrink(1), floor.z, floorboards, &roof);
+    }
+
     level.pop_recording_into(&mut rec, cursor);
 
-    // Fill smokers
+    // Fill containers
     for item in &mut rec {
-        if let ConsItem::Set(SetBlock {
-            block: Smoker(..),
-            nbt,
-            ..
-        }) = item
-        {
-            *nbt = Some(loot::smoker())
+        if let ConsItem::Set(SetBlock { block, nbt, .. }) = item {
+            match block {
+                Chest(..) | Barrel => *nbt = Some(loot::chest()),
+                Smoker(..) => *nbt = Some(loot::smoker()),
+                _ => {}
+            }
         }
     }
 
@@ -742,4 +753,132 @@ fn foundation(level: &mut Level, untree: &mut Untree, area: Rect, floor: i32) ->
     rec.extend(level.pop_recording(cursor).map(ConsItem::Set));
 
     rec
+}
+
+fn interior(level: &mut Level, inner: Rect, z: i32, wall_mat: TreeSpecies, roof: &Roof) {
+    // TODO: properly record stair location & reuse it
+    fn blocked(level: &Level, pos: IVec3) -> bool {
+        (level(pos) != Air)
+            | !level(pos - IVec3::Z).solid()
+            | matches!(level(pos - IVec3::Z), Stair(..))
+            | NEIGHBORS_2D
+                .iter()
+                .any(|&off| matches!(level(pos + off.extend(0)), Door(..)))
+            | NEIGHBORS_2D_FULL
+                .iter()
+                .zip(-1..=2)
+                .any(|(off, off_z)| matches!(level(pos + off.extend(off_z)), Stair(..)))
+    }
+
+    let mut possible_walls = Vec::new();
+    for trans in [true, false] {
+        let inner = if trans { inner.transposed() } else { inner };
+        let transpose = |v: IVec2| if trans { ivec2(v.y, v.y) } else { v };
+        if (inner.size().x > 6)
+        // rand(6..=10)
+        & rand(1. - (inner.size().x as f32 - inner.size().y as f32).max(0.) / 3.)
+        {
+            for y in inner.min.y + 3..=inner.max.y - 3 {
+                if [inner.min.x - 1, inner.max.x + 1]
+                    .iter()
+                    .all(|&x| level(transpose(ivec2(x, y)).extend(z + 1)).full_block())
+                    & [inner.min.x + 1, inner.max.x - 1]
+                        .iter()
+                        .all(|&x| !blocked(level, transpose(ivec2(x, y)).extend(z)))
+                    & roof.covers(ivec3(inner.center().x, y, z + 3))
+                {
+                    let wall = (inner.min.x..=inner.max.x)
+                        .map(|x| ivec2(x, y))
+                        .collect_vec();
+                    let room_1 =
+                        Rect::new(transpose(inner.min), transpose(ivec2(inner.max.x, y - 1)));
+                    let room_2 =
+                        Rect::new(transpose(ivec2(inner.min.x, y + 1)), transpose(inner.max));
+                    possible_walls.push((wall, room_1, room_2));
+                }
+            }
+        }
+    }
+    for room in if let Some((wall, room_1, room_2)) = possible_walls.try_choose() {
+        let door = *wall[1..wall.len() - 1].choose();
+        for &column in wall {
+            let mut pos = column.extend(if column == door { z + 2 } else { z });
+            while !level(pos).solid() {
+                level(pos, Full(Wood(wall_mat)));
+                pos += IVec3::Z;
+            }
+            match level(pos) {
+                Stair(mat, _, Top) | Slab(mat, Top) => level(pos, Full(mat)),
+                _ => {}
+            }
+        }
+        let door_dir = XPos.rotated(rand(0..4));
+        level(door.extend(z), Door(wall_mat, door_dir, DoorMeta::empty()));
+        level(door.extend(z + 1), Door(wall_mat, door_dir, DoorMeta::TOP));
+        vec![*room_1, *room_2]
+    } else {
+        vec![inner]
+    } {
+        // Carpet
+        if rand(0.4) & (room.size().min_element() > 3) {
+            let color = *[Gray, LightGray, White, Brown, Green, Purple, Orange, Pink].choose();
+            for column in room.shrink(1) {
+                if (level(column.extend(z)) == Air)
+                    & !matches!(level(column.extend(z - 1)), Air | Stair(..))
+                {
+                    level(column.extend(z), Carpet(color));
+                }
+            }
+        }
+        // Lighting
+        let mut torches: Vec<IVec2> = Vec::new();
+        for spot in room.border().shuffled() {
+            let dir = room.outside_face(spot);
+            if level((spot + IVec2::from(dir)).extend(z + 1)).full_block()
+                & (level(spot.extend(z + 1)) == Air)
+                && torches
+                    .iter()
+                    .all(|t| (t.x - spot.x).abs() + (t.y - spot.y).abs() > 9)
+            {
+                torches.push(spot);
+                level(spot.extend(z + 1), Torch(Some(dir.rotated(2))))
+            }
+        }
+        // Furniture
+        // TODO: do this properly
+        let sets: &[(f32, &[(f32, Block)])] = &[
+            (1., &[(2., Barrel), (1., Chest(XPos)), (0.5, CraftingTable)]),
+            (
+                1.,
+                &[
+                    (1., CraftingTable),
+                    (1., Chest(XPos)),
+                    (1., Loom(XPos)),
+                    (1., SmithingTable),
+                ],
+            ),
+            (
+                0.2,
+                &[
+                    (1., Bookshelf),
+                    (0.2, CartographyTable),
+                    (0.2, EnchantingTable),
+                    (0.1, EnderChest(XPos)),
+                ],
+            ),
+        ];
+        let furniture = rand_weighted(sets);
+        for column in room.border() {
+            if blocked(level, column.extend(z)) {
+                continue;
+            }
+            let dir = room.outside_face(column).rotated(2);
+            if rand(0.6) {
+                level(
+                    column.extend(z),
+                    rand_weighted(furniture).rotated(XPos.difference(dir)),
+                );
+            }
+        }
+    }
 }

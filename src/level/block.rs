@@ -69,6 +69,15 @@ pub enum Block {
     // TODO: Store orientation
     Hay,
     Barrel,
+    Chest(HDir),
+    EnderChest(HDir),
+    CartographyTable,
+    Loom(HDir),
+    SmithingTable,
+    EnchantingTable,
+    Bookshelf,
+    DecoratedPot,
+    Torch(Option<HDir>),
     IronBars,
     Trapdoor(TreeSpecies, HDir, DoorMeta),
     Door(TreeSpecies, HDir, DoorMeta),
@@ -608,6 +617,33 @@ impl Block {
                 )],
             ),
             Barrel => "barrel".into(),
+            Chest(facing) => Blockstate(
+                "chest".into(),
+                vec![("facing".into(), facing.to_str().into())],
+            ),
+            EnderChest(facing) => Blockstate(
+                "ender_chest".into(),
+                vec![("facing".into(), facing.to_str().into())],
+            ),
+            CartographyTable => "cartography_table".into(),
+            Loom(facing) => Blockstate(
+                "loom".into(),
+                vec![("facing".into(), facing.to_str().into())],
+            ),
+            SmithingTable => "smithing_table".into(),
+            EnchantingTable => "enchanting_table".into(),
+            Bookshelf => "bookshelf".into(),
+            DecoratedPot => "decorated_pot".into(),
+            Torch(facing) => {
+                if let Some(facing) = facing {
+                    Blockstate(
+                        "wall_torch".into(),
+                        vec![("facing".into(), facing.to_str().into())],
+                    )
+                } else {
+                    "torch".into()
+                }
+            }
             IronBars => "iron_bars".into(),
             Trapdoor(species, dir, meta) => Blockstate(
                 format!("{species}_trapdoor").into(),
@@ -1067,6 +1103,7 @@ impl Block {
                 "mangrove_trapdoor" => trapdoor(Mangrove, props),
                 "oak_door" => door(Oak, props),
                 "spruce_door" => door(Spruce, props),
+                "oak_wall_sign" => Sign(Oak, facing(props), SignType::Wall),
                 "bell" => Bell(
                     facing(props),
                     match props.get_str("attachment").unwrap() {
@@ -1168,6 +1205,22 @@ impl Block {
         )
     }
 
+    pub fn full_block(self) -> bool {
+        matches!(
+            self,
+            Full(..)
+                | Wool(..)
+                | Terracotta(..)
+                | Log(..)
+                | MushroomStem
+                | Gravel
+                | Sand
+                | CraftingTable
+                | Bookshelf
+                | SmithingTable
+        )
+    }
+
     pub fn solid_underside(self) -> bool {
         self.solid() & !matches!(self, Slab(_, Top))
     }
@@ -1234,6 +1287,9 @@ impl Block {
             Button(material, dir) => Button(material, fdir(dir)),
             FenceGate(material, dir, state) => FenceGate(material, hdir(dir), state),
             Smoker(dir) => Smoker(hdir(dir)),
+            Loom(dir) => Loom(hdir(dir)),
+            Chest(dir) => Chest(hdir(dir)),
+            EnderChest(dir) => EnderChest(hdir(dir)),
             _ => self,
         }
     }
