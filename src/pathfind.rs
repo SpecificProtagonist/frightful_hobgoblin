@@ -195,7 +195,7 @@ fn pathfind_with(
             }
 
             // Can be reduced for performance
-            let exploration_limit_reached = path.len() > 30000;
+            let exploration_limit_reached = path.len() > 50000;
 
             // Arrived at target
             if check_success(new_pos, heuristic) {
