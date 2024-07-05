@@ -773,7 +773,7 @@ fn interior(level: &mut Level, inner: Rect, z: i32, wall_mat: TreeSpecies, roof:
     let mut possible_walls = Vec::new();
     for trans in [true, false] {
         let inner = if trans { inner.transposed() } else { inner };
-        let transpose = |v: IVec2| if trans { ivec2(v.y, v.y) } else { v };
+        let transpose = |v: IVec2| if trans { ivec2(v.y, v.x) } else { v };
         if (inner.size().x > 6)
         // rand(6..=10)
         & rand(1. - (inner.size().x as f32 - inner.size().y as f32).max(0.) / 3.)
@@ -788,7 +788,7 @@ fn interior(level: &mut Level, inner: Rect, z: i32, wall_mat: TreeSpecies, roof:
                     & roof.covers(ivec3(inner.center().x, y, z + 3))
                 {
                     let wall = (inner.min.x..=inner.max.x)
-                        .map(|x| ivec2(x, y))
+                        .map(|x| transpose(ivec2(x, y)))
                         .collect_vec();
                     let room_1 =
                         Rect::new(transpose(inner.min), transpose(ivec2(inner.max.x, y - 1)));

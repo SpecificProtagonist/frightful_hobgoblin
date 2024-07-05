@@ -127,7 +127,10 @@ impl Rect {
     }
 
     pub fn transposed(self) -> Self {
-        Self::new_centered(self.center(), self.size().yx())
+        Self {
+            min: self.min.yx(),
+            max: self.max.yx(),
+        }
     }
 
     pub fn border(self) -> impl Iterator<Item = IVec2> {

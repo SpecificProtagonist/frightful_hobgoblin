@@ -64,6 +64,9 @@ pub fn init_roads(
                 break;
             };
             let prev = path[i - 5].pos.truncate().as_vec2();
+            if upcomming == prev {
+                continue;
+            }
             let point = path[i].pos;
             let dir = (upcomming - prev).normalize();
             let side = vec2(dir.y, -dir.x) * 3.5;

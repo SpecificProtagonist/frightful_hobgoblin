@@ -354,7 +354,7 @@ impl Replay {
             scoreboard objectives add sim_{0}_particle dummy
             function sim_{0}:play_track_global {{track:0}}
             scoreboard players set SIM_{0} sim_tick 0
-            scoreboard objectives setdisplay sidebar sim_tick
+            # scoreboard objectives setdisplay sidebar sim_tick
             # How many sim ticks to replay per game tick (0 to stop)
             scoreboard objectives add speed dummy
             scoreboard players set SIM_{0} speed 5
