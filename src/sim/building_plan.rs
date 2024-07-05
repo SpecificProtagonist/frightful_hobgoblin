@@ -47,7 +47,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
     optimize(
         Rect::new_centered(level.area().center(), IVec2::splat(44)),
         |area, temperature| {
-            let max_move = (100. * temperature) as i32;
+            let max_move = (300. * temperature) as i32;
             *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
 
             if !level.area().has_subrect(*area) {

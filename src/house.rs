@@ -1,6 +1,7 @@
 use std::convert::identity;
 
 use crate::{building_plan::House, *};
+use bevy_math::Vec2Swizzles;
 use itertools::Itertools;
 use roof::build_roof;
 
@@ -773,7 +774,7 @@ fn interior(level: &mut Level, inner: Rect, z: i32, wall_mat: TreeSpecies, roof:
     let mut possible_walls = Vec::new();
     for trans in [true, false] {
         let inner = if trans { inner.transposed() } else { inner };
-        let transpose = |v: IVec2| if trans { ivec2(v.y, v.x) } else { v };
+        let transpose = |v: IVec2| if trans { v.yx() } else { v };
         if (inner.size().x > 6)
         // rand(6..=10)
         & rand(1. - (inner.size().x as f32 - inner.size().y as f32).max(0.) / 3.)

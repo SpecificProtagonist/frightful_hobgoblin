@@ -12,7 +12,7 @@ fn main() {
     let seed = std::env::args()
         .nth(1)
         .map(|seed| seed.parse().expect("Invalid seed"));
-    let seed = seed.unwrap_or(tls_rng().generate::<u16>() as u64);
+    let seed = seed.unwrap_or(tls_rng().generate::<u16>() as u64 % 999);
     println!("Seed: {seed}");
     RNG.set(WyRand::new_seed(seed));
 

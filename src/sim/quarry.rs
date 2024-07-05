@@ -62,6 +62,7 @@ pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<Quarry>, With<Planned>)>,
+    center: Query<&Pos, With<CityCenter>>,
 ) {
     if !planned.is_empty() {
         return;
@@ -69,7 +70,7 @@ pub fn plan_quarry(
 
     let Some(params) = optimize(
         Params {
-            pos: level.area().center(),
+            pos: center.single().0.block().truncate(),
             dir: rand(0. ..2. * PI),
         },
         |params, temperature| {
@@ -102,16 +103,20 @@ pub fn plan_quarry(
             }
             let avg_stone = stone as f32 / columns as f32;
 
-            if avg_stone < 5. {
+            // if avg_stone < 5. {
+            //     return f32::INFINITY;
+            // }
+            let area = Rect::new_centered(params.pos, IVec2::splat(7));
+            if area.into_iter().any(|c| level.water[c].is_some()) {
                 return f32::INFINITY;
             }
-            let area = Rect::new_centered(params.pos, IVec2::splat(7));
-            wateryness(&level, area) * 20. + unevenness(&level, area) * 1.5 - avg_stone * 1.
-                + distance / 100.
+            /*wateryness(&level, area) * 2000. +*/
+            unevenness(&level, area) * 1.5 - avg_stone * 5. + distance / 100.
         },
-        200,
-        1,
+        300,
+        5,
     ) else {
+        println!("failed to place quarry");
         return;
     };
 

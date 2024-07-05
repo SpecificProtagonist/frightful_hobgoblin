@@ -46,6 +46,7 @@ pub fn plan_lumberjack(
     level: Res<Level>,
     planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
     trees: Query<(Entity, &Pos, &Tree), Without<TreeIsNearLumberCamp>>,
+    center: Query<&Pos, With<CityCenter>>,
 ) {
     if !planned.is_empty() {
         return;
@@ -53,7 +54,10 @@ pub fn plan_lumberjack(
 
     // TODO: Seperate focus and shack position selection
     let Some(area) = optimize(
-        Rect::new_centered(level.area().center(), ivec2(rand(4..=6), rand(5..=8))),
+        Rect::new_centered(
+            center.single().0.block().truncate(),
+            ivec2(rand(4..=6), rand(5..=8)),
+        ),
         |area, temperature| {
             let max_move = (60. * temperature) as i32;
             *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
@@ -64,7 +68,7 @@ pub fn plan_lumberjack(
             if !level.free(area.grow(1)) {
                 return f32::INFINITY;
             }
-            let center_distance = level.reachability[area.center()].max(150) as f32;
+            let center_distance = level.reachability[area.center()] as f32;
             let tree_access = trees
                 .iter()
                 .filter_map(|(_, p, tree)| {

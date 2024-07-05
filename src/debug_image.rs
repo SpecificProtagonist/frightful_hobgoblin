@@ -36,7 +36,7 @@ impl MapImage {
                 Color::Ocean => Rgb([100, 000, 200]),
                 Color::River => Rgb([100, 100, 255]),
                 Color::Path => Rgb([120, 120, 0]),
-                Color::Building => Rgb([30, 20, 0]),
+                Color::Building => Rgb([200, 20, 0]),
                 Color::Grey(value) => Rgb([value, value, value]),
             },
         )

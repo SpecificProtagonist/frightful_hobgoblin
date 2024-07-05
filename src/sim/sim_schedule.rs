@@ -16,6 +16,7 @@ use self::market::upgrade_plaza;
 use super::*;
 
 pub fn sim(mut level: Level, debug_save: bool) {
+    let city_center = choose_starting_area(&level);
     let mut replay = Replay::new(&level);
     replay.say(
         &format!("{}: Founding of {}", rand(1400..1550), make_town_name()),
@@ -25,7 +26,6 @@ pub fn sim(mut level: Level, debug_save: bool) {
     let mut world = World::new();
     world.init_resource::<Tick>();
 
-    let city_center = choose_starting_area(&level);
     let city_center_pos = level.ground(city_center.center());
     CENTER_BIOME.get_or_init(|| level.biome[city_center.center()]);
     (level.blocked)(city_center, Street);
