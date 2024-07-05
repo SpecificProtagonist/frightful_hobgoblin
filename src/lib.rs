@@ -1,5 +1,4 @@
 #![feature(option_get_or_insert_default)]
-#![feature(lazy_cell)]
 #![feature(let_chains)]
 // Feeling cute, might delete later
 #![feature(unboxed_closures)]

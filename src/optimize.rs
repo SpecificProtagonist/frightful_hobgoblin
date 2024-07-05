@@ -1,4 +1,4 @@
-use float_ord::FloatOrd;
+use bevy_math::FloatOrd;
 
 /// Smaller score is better
 // TODO: Handle failure better

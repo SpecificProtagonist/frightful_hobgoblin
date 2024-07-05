@@ -1,7 +1,7 @@
 use std::{convert::identity, f32::consts::PI};
 
 use crate::*;
-use bevy_utils::FloatOrd;
+use bevy_math::FloatOrd;
 use itertools::Itertools;
 use sim::*;
 
