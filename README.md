@@ -2,7 +2,7 @@
 
 ![Example village](screenshot.png)
 
-WIP entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
+Winning entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
 
 The aim of GDMC is to take an existing Minecraft map and generate a settlement within it, aiming at adaptability, functionality, evocative narrative and aesthetics. While most generators generate a static instance of a village, this one runs a simulation of the village getting constructed and replays it in Minecraft. Running the replay only requires Minecraft and no mods or external programs. It also aims to be reasonably fast by working with the world directly instead of over an http interface and by using a fast language instead of a interpreted, highly dynamic one.
 
