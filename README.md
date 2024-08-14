@@ -1,6 +1,6 @@
 # Frightful Hobgoblin
 
-![Example village](screenshot.png)
+![Example village](image.png)
 
 Winning entry for the 2024 [Generative Design in Minecraft](https://gendesignmc.wikidot.com/start) competition.
 
