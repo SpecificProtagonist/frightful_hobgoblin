@@ -267,8 +267,9 @@ fn spawn_villagers(
     level: Res<Level>,
     tick: Res<Tick>,
     city_center: Query<&Pos, With<CityCenter>>,
+    config: Res<Config>,
 ) {
-    if (tick.0 < 30 * 4) & (tick.0 % 4 == 0) {
+    if (tick.0 < config.villagers * 4) & (tick.0 % 4 == 0) {
         let column = city_center.single().truncate() + vec2(rand(-5. ..5.), rand(-5. ..5.));
         commands.spawn((
             Id::default(),

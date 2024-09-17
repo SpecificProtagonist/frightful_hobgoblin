@@ -25,6 +25,7 @@ pub mod rand;
 pub mod remove_foliage;
 pub mod replay;
 pub mod roof;
+pub mod shipping;
 pub mod sim;
 pub mod test_house;
 pub mod trees;
@@ -38,6 +39,7 @@ pub use geometry::*;
 pub use level::*;
 pub use prefab::prefab;
 pub use rand::*;
+use serde::Deserialize;
 pub use sim::*;
 pub use trees::Untree;
 
@@ -53,3 +55,45 @@ const DATA_VERSION: i32 = 3578;
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;
+
+#[derive(Deserialize, Resource)]
+pub struct Config {
+    // World settings
+    pub path: String,
+    pub out_path: Option<String>,
+    pub min_x: i32,
+    pub max_x: i32,
+    pub min_y: i32,
+    pub max_y: i32,
+    // Generator settings
+    pub seed: Option<u64>,
+    pub villagers: i32,
+    pub ticks: i32,
+    // Debug options
+    /// Modify world instead of generating a replay (blockstates will be incorrect)
+    #[serde(default)]
+    pub skip_replay: bool,
+    #[serde(default)]
+    pub skip_walk: bool,
+    #[serde(default)]
+    pub show_reachability: bool,
+    #[serde(default)]
+    pub show_blocked: bool,
+}
+
+impl Config {
+    pub fn area(&self) -> Rect {
+        Rect {
+            min: ivec2(self.min_x, self.min_y),
+            max: ivec2(self.max_x, self.max_y),
+        }
+    }
+
+    pub fn load_level(&self) -> Level {
+        Level::new(
+            &self.path,
+            self.out_path.as_ref().unwrap_or(&self.path),
+            self.area(),
+        )
+    }
+}

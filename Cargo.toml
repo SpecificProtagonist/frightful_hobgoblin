@@ -27,7 +27,7 @@ itertools = "0.12"
 bresenham = { path = "bresenham-rs" }
 # Used only for debugging
 image = { version = "0.25", default-features = false, features = ["png"] }
-bevy_ecs = "0.14"
+bevy_ecs = { version = "0.14", default-features = false}
 bevy_math = "0.14"
 bevy_derive = "0.14"
 bevy_utils = "0.14"
@@ -36,4 +36,5 @@ enum-iterator = "2"
 # git points to pull request that fixes off-by-one error
 nanorand = {version = "0.8", git = "https://github.com/StT191/nanorand-rs.git" }
 flate2 = "1"
-argh = {path="argh/argh"}
+toml = "0.8"
+serde = {version = "1", features = ["serde_derive"]}

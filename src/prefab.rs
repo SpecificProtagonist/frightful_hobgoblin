@@ -100,7 +100,7 @@ fn load_folder(map: &mut HashMap<String, Prefab>, folder: PathBuf, path: &str) {
                 "{path}{}",
                 entry.path().file_stem().unwrap().to_string_lossy()
             );
-            let mut file = File::open(&entry.path()).unwrap();
+            let mut file = File::open(entry.path()).unwrap();
             let nbt = read_gzip_compound_tag(&mut file)
                 .unwrap_or_else(|_| panic!("Invalid nbt: {:?}", path));
             let prefab = load_from_nbt(&nbt, &name);

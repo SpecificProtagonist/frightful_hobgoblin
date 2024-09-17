@@ -4,21 +4,25 @@ use crate::*;
 
 // TODO: test with non-po2 resolution
 pub struct ColumnMap<T, const RES: i32 = 1> {
+    area: Rect,
     chunk_min: ChunkIndex,
     chunk_max: ChunkIndex,
     pub data: Vec<T>,
 }
 
 impl<T: Default + Clone, const RES: i32> ColumnMap<T, RES> {
-    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex) -> Self {
-        Self::new_with(chunk_min, chunk_max, default())
+    pub fn new(area: Rect) -> Self {
+        Self::new_with(area, default())
     }
 }
 
 impl<T: Clone, const RES: i32> ColumnMap<T, RES> {
-    pub fn new_with(chunk_min: ChunkIndex, chunk_max: ChunkIndex, default: T) -> Self {
+    pub fn new_with(area: Rect, default: T) -> Self {
+        let chunk_min = ChunkIndex::from(area.min);
+        let chunk_max = ChunkIndex::from(area.max);
         let chunk_count = (chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1);
         Self {
+            area,
             chunk_min,
             chunk_max,
             data: vec![default; (chunk_count * (16 / RES) * (16 / RES)) as usize],
@@ -27,6 +31,10 @@ impl<T: Clone, const RES: i32> ColumnMap<T, RES> {
 }
 
 impl<T, const RES: i32> ColumnMap<T, RES> {
+    pub fn area(&self) -> Rect {
+        self.area
+    }
+
     fn column_index(&self, column: IVec2) -> usize {
         self.chunk_index(column.into()) * (16 / RES as usize) * (16 / RES as usize)
             + (column.x.rem_euclid(16) / RES + column.y.rem_euclid(16) / RES * (16 / RES)) as usize

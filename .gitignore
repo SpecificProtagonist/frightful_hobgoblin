@@ -3,6 +3,7 @@
 /.vscode
 
 /config_local*.rs
+config*.toml
 
 perf.data*
 profile*

@@ -68,14 +68,15 @@ impl Level {
             region_path.into_os_string().into_string().unwrap()
         };
         let chunk_provider = FolderRegionProvider::new(&region_path);
+        let load_area = area.grow(crate::LOAD_MARGIN);
         // TODO: use area just as a settlement area but try to load a wider margin around it (need to detect if chunks are present)
         let chunk_min = ChunkIndex::from(area.min - ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
         let chunk_max = ChunkIndex::from(area.max + ivec2(crate::LOAD_MARGIN, crate::LOAD_MARGIN));
 
-        let mut blocks = BlockMap::new(chunk_min, chunk_max, Air);
-        let mut biome = ColumnMap::new(chunk_min, chunk_max);
-        let mut height = ColumnMap::new_with(chunk_min, chunk_max, MIN_SECTION * 16);
-        let mut water = ColumnMap::new(chunk_min, chunk_max);
+        let mut blocks = BlockMap::new(load_area, Air);
+        let mut biome = ColumnMap::new(load_area);
+        let mut height = ColumnMap::new_with(load_area, MIN_SECTION * 16);
+        let mut water = ColumnMap::new(load_area);
 
         // Load chunks. Collecting indexes to vec neccessary for zip
         (chunk_min.1..=chunk_max.1)
@@ -106,9 +107,9 @@ impl Level {
             biome,
             height,
             water,
-            blocked: ColumnMap::new(chunk_min, chunk_max),
-            reachability: ColumnMap::new(chunk_min, chunk_max),
-            dirty_chunks: ColumnMap::new(chunk_min, chunk_max),
+            blocked: ColumnMap::new(load_area),
+            reachability: ColumnMap::new(load_area),
+            dirty_chunks: ColumnMap::new(load_area),
             setblock_recording: default(),
         }
     }
@@ -181,7 +182,7 @@ impl Level {
     }
 
     pub fn column_map<T: Clone, const RES: i32>(&self, default: T) -> ColumnMap<T, RES> {
-        ColumnMap::new_with(self.chunk_min, self.chunk_max, default)
+        ColumnMap::new_with(self.area(), default)
     }
 
     fn block_mut(&mut self, pos: IVec3) -> &mut Block {

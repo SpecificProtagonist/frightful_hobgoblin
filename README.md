@@ -16,11 +16,12 @@ Each simulation tick corresponds to one game tick. Each tick, the changes to the
 
 The simulation is pseudorandom but deterministic (useful for debugging).
 
-Performance-wise I haven't made many optimizations yet, but it world loading is parallelized and nbt encoding/gzip compression is offloaded to worker threads.
+Performance-wise I haven't made many optimizations yet, but it world loading is parallelized and nbt encoding/gzip compression is offloaded to worker threads; the vast majority of time is spent on pathfinding.
 
 ## Running
 
-To run the generator, install [Rust](https://rust-lang.org), switch to the nightly toolchain (e.g. `rustup default nightly`) and run `cargo run --`. Running without any further arguments will tell you what configuration to provide. You can also build without running: `cargo build --release`.
+To run the generator, install [Rust](https://rust-lang.org) and switch to the nightly toolchain (e.g. `rustup default nightly`).
+Edit [example-config.toml] and run as `cargo run example-config.toml`. You can also build without running: `cargo build --release`.
 
 Open the world in Minecraft. Each replay only runs while you're in the build area, letting you visit multiple settlements in turn. You can speed up the replay with the following command:
 

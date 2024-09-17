@@ -1,4 +1,5 @@
 use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
+use num_traits::FromPrimitive;
 
 use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
@@ -15,7 +16,7 @@ use self::market::upgrade_plaza;
 
 use super::*;
 
-pub fn sim(mut level: Level, debug_save: bool) {
+pub fn sim(mut level: Level, config: Config) {
     let city_center = choose_starting_area(&level);
     let mut replay = Replay::new(&level);
     replay.say(
@@ -24,6 +25,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
     );
 
     let mut world = World::new();
+    world.insert_resource(config);
     world.init_resource::<Tick>();
 
     let city_center_pos = level.ground(city_center.center());
@@ -31,6 +33,16 @@ pub fn sim(mut level: Level, debug_save: bool) {
     (level.blocked)(city_center, Street);
     world.spawn((Pos(city_center_pos.as_vec3()), CityCenter(city_center)));
     level.reachability = reachability_2d_from(&level, city_center.center());
+
+    if world.resource::<Config>().show_reachability {
+        for column in level.area() {
+            let block: Block =
+                Wool(Color::from_u32((level.reachability[column] / 100).min(15)).unwrap());
+            let pos = level.ground(column);
+            level(pos, block);
+        }
+    }
+
     replay.command(format!(
         "tp @p {} {} {}",
         city_center_pos.x,
@@ -100,7 +112,7 @@ pub fn sim(mut level: Level, debug_save: bool) {
             .chain(),
     );
 
-    for _ in 0..30000 {
+    for _ in 0..world.resource::<Config>().ticks {
         sched.run(&mut world);
     }
     world.resource_mut::<Replay>().say("Replay complete", Gray);
@@ -114,12 +126,11 @@ pub fn sim(mut level: Level, debug_save: bool) {
 
     // show_blocked(&mut level);
 
-    if debug_save {
+    if world.resource::<Config>().skip_replay {
         level.debug_save();
-        return;
+    } else {
+        let replay = world.remove_resource::<Replay>().unwrap();
+        rayon::spawn(move || level.save_metadata());
+        replay.finish();
     }
-
-    let replay = world.remove_resource::<Replay>().unwrap();
-    rayon::spawn(move || level.save_metadata());
-    replay.finish();
 }

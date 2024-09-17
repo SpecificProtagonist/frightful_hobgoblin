@@ -13,7 +13,9 @@ pub struct BlockMap<T> {
 }
 
 impl<T: Copy> BlockMap<T> {
-    pub fn new(chunk_min: ChunkIndex, chunk_max: ChunkIndex, default: T) -> Self {
+    pub fn new(area: Rect, default: T) -> Self {
+        let chunk_min = ChunkIndex::from(area.min);
+        let chunk_max = ChunkIndex::from(area.max);
         let chunk_count =
             ((chunk_max.0 - chunk_min.0 + 1) * (chunk_max.1 - chunk_min.1 + 1)) as usize;
         Self {

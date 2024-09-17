@@ -1,0 +1,17 @@
+path = "path/to/input_world"
+# If not specified, the input world will be overwritten
+out_path = "path/to/output/to"
+# Build area
+min_x = -550
+max_x = -250
+min_y = 50
+max_y = 350
+
+ticks = 30000
+villagers = 30
+
+# Debug options
+skip_replay = false
+skip_walk = false
+show_blocked = false
+show_reachability = false

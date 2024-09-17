@@ -1,16 +1,23 @@
 #![allow(dead_code)]
+use std::fs::read_to_string;
 use std::time::Instant;
 
-#[path = "../../config_local.rs"]
-mod config;
-use config::*;
 use frightful_hobgoblin::pathfind::{pathfind, reachability_2d_from, reachability_from};
 use frightful_hobgoblin::*;
+use itertools::Itertools;
 
 fn main() {
-    let area = Rect::new_centered(ivec2(AREA[0], AREA[1]), ivec2(AREA[2], AREA[3]));
+    let args = std::env::args().collect_vec();
+    if args.len() != 2 {
+        eprintln!("Expected exactly one argument: path to config file");
+        std::process::exit(1)
+    }
+    let config_file = &args[1];
+    let config: Config =
+        toml::from_str(&read_to_string(config_file).expect("Failed to read config"))
+            .expect("Failed to parse config");
 
-    let level = Level::new(SAVE_READ_PATH, SAVE_WRITE_PATH, area);
+    let level = config.load_level();
 
     let i = 2000;
     let start = Instant::now();

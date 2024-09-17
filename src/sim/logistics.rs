@@ -191,8 +191,15 @@ pub fn walk(
         Option<&InBoat>,
         Option<&mut MovePath>,
     )>,
+    config: Res<Config>,
 ) {
     for (entity, id, mut pos, goal, in_boat, path) in &mut query {
+        if config.skip_walk {
+            pos.0 = goal.goal.as_vec3();
+            commands.entity(entity).remove::<(MoveTask, MovePath)>();
+            continue;
+        }
+
         if let Some(mut path) = path {
             const WALK_PER_TICK: f32 = 0.16;
             const BOATING_PER_TICK: f32 = 0.2;
