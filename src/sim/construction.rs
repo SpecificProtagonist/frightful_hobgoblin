@@ -14,8 +14,8 @@ pub struct Built;
 pub struct ConstructionSite {
     pub todo: ConsList,
     pub has_builder: bool,
-    /// Whether it has the materials necessary for the next block
-    pub has_materials: bool,
+    // /// Whether it has the materials necessary for the next block
+    // pub has_materials: bool,
 }
 
 impl ConstructionSite {
@@ -23,7 +23,18 @@ impl ConstructionSite {
         Self {
             todo: blocks,
             has_builder: false,
-            has_materials: false,
+        }
+    }
+
+    pub fn has_materials(&self, self_pile: &Pile, ticks_until: i32) -> bool {
+        if let Some(ConsItem::Set(set)) = self.todo.front() {
+            if let Some(needed) = goods_for_block(set.block) {
+                self_pile.available(needed.good, ticks_until) > needed.amount
+            } else {
+                true
+            }
+        } else {
+            true
         }
     }
 }
@@ -105,7 +116,6 @@ pub fn build(
             Some(ConsItem::Set(set)) => {
                 if let Some(missing) = pile.try_consume(set.block) {
                     building.has_builder = false;
-                    building.has_materials = false;
                     in_pile.priority = Some(missing);
                     commands.entity(builder).remove::<BuildTask>();
                 } else {
@@ -120,36 +130,31 @@ pub fn build(
                 commands
                     .entity(e_building)
                     .remove::<(InPile, ConstructionSite)>()
-                    .insert((
-                        Built,
-                        OutPile {
-                            available: pile.goods.clone(),
-                        },
-                    ));
+                    .insert((Built, OutPile::default()));
             }
         }
     }
 }
 
-pub fn check_construction_site_readiness(
-    mut query: Query<(&mut ConstructionSite, &Pile), Changed<Pile>>,
-) {
-    for (mut site, pile) in &mut query {
-        if !site.has_materials {
-            match &site.todo[0] {
-                ConsItem::Goto(_) | ConsItem::Carry(_) => {
-                    site.has_materials = true;
-                }
-                ConsItem::Set(set) => {
-                    if let Some(needed) = goods_for_block(set.block) {
-                        if pile.has(needed) {
-                            site.has_materials = true;
-                        }
-                    } else {
-                        site.has_materials = true
-                    }
-                }
-            }
-        }
-    }
-}
+// pub fn check_construction_site_readiness(
+//     mut query: Query<(&mut ConstructionSite, &Pile), Changed<Pile>>,
+// ) {
+//     for (mut site, pile) in &mut query {
+//         if !site.has_materials {
+//             match &site.todo[0] {
+//                 ConsItem::Goto(_) | ConsItem::Carry(_) => {
+//                     site.has_materials = true;
+//                 }
+//                 ConsItem::Set(set) => {
+//                     if let Some(needed) = goods_for_block(set.block) {
+//                         if pile.available(needed) {
+//                             site.has_materials = true;
+//                         }
+//                     } else {
+//                         site.has_materials = true
+//                     }
+//                 }
+//             }
+//         }
+//     }
+// }

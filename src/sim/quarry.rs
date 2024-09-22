@@ -213,14 +213,8 @@ pub fn make_stone_piles(
         commands.spawn((
             Pos(pos),
             params,
-            OutPile {
-                available: default(),
-            },
-            Pile {
-                goods: default(),
-                interact_distance: 3,
-                despawn_when_empty: None,
-            },
+            OutPile::default(),
+            Pile::new(default(), 3),
             StoragePile,
         ));
     }
@@ -368,9 +362,12 @@ pub fn work(
             // Drop off stone
             if let Some((to, _, _, _)) = piles
                 .iter()
-                .filter(|(_, _, current, stone_pile)| {
-                    current.get(&Good::Stone).copied().unwrap_or_default() + stack.amount
-                        <= stone_pile.max()
+                .filter(|(_, pile_pos, current, stone_pile)| {
+                    current.space_available(
+                        Good::Stone,
+                        stone_pile.max(),
+                        min_walk_ticks(worker_pos.0, pile_pos.0),
+                    ) >= stack.amount
                 })
                 .min_by_key(|(_, pos, _, _)| pos.distance(worker_pos.0) as i32)
             {

@@ -154,8 +154,8 @@ pub fn work(
     mut trees: Query<(Entity, &Pos, &mut Tree)>,
     piles: Query<(Entity, &Pos, &Pile, &LumberPile), With<StoragePile>>,
 ) {
-    for (entity, villager, mut lumberworker) in &mut workers {
-        let worker_pos = pos.get(entity).unwrap();
+    for (worker, villager, mut lumberworker) in &mut workers {
+        let worker_pos = pos.get(worker).unwrap();
         if lumberworker.ready_to_work {
             // Go chopping
             let Some((_, tree_pos, mut tree_meta)) = trees
@@ -167,26 +167,28 @@ pub fn work(
                 return;
             };
             commands
-                .entity(entity)
+                .entity(worker)
                 .insert(ChopTask::new(tree_pos.block()));
             tree_meta.state = TreeState::MarkedForChoppage;
             lumberworker.ready_to_work = false;
         } else if let Some(stack) = villager.carry {
             // Drop off lumber
-            // TODO: This allows overly full piles due to multiple simultaneous deliveries. Fix this by introducing storage piles?
             if let Some((to, _, _, _)) = piles
                 .iter()
-                .filter(|(_, _, current, lumber_pile)| {
-                    current.get(&Good::Wood).copied().unwrap_or_default() + stack.amount
-                        <= lumber_pile.max()
+                .filter(|(_, pile_pos, current, lumber_pile)| {
+                    current.space_available(
+                        Good::Wood,
+                        lumber_pile.max(),
+                        min_walk_ticks(worker_pos.0, pile_pos.0),
+                    ) >= stack.amount
                 })
                 .min_by_key(|(_, pos, _, _)| pos.distance(worker_pos.0) as i32)
             {
-                commands.entity(entity).insert(DeliverTask { to });
+                commands.entity(worker).insert(DeliverTask { to });
             }
         } else {
             // Return home
-            commands.entity(entity).insert(MoveTask::new(
+            commands.entity(worker).insert(MoveTask::new(
                 pos.get(lumberworker.workplace).unwrap().block(),
             ));
             lumberworker.ready_to_work = true;
@@ -250,14 +252,8 @@ pub fn make_lumber_piles(
         commands.spawn((
             Pos(pos.as_vec3()),
             params,
-            OutPile {
-                available: default(),
-            },
-            Pile {
-                goods: default(),
-                interact_distance: params.width,
-                despawn_when_empty: None,
-            },
+            OutPile::default(),
+            Pile::new(default(), params.width),
             StoragePile,
         ));
     }

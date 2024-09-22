@@ -48,6 +48,17 @@ impl std::fmt::Display for Stack {
     }
 }
 
+impl std::ops::Neg for Stack {
+    type Output = Self;
+
+    fn neg(self) -> Self::Output {
+        Self {
+            good: self.good,
+            amount: -self.amount,
+        }
+    }
+}
+
 pub const CARRY_CAPACITY: f32 = 64.;
 
 pub fn next_stack(list: &ConsList) -> Option<Stack> {

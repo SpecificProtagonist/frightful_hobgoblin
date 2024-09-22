@@ -1,7 +1,10 @@
+use std::ops::DerefMut;
+
 use super::*;
-use crate::{goods::Good, pathfind::PathingNode, *};
+use crate::{goods::Good, *};
 
 use bevy_ecs::prelude::*;
+use storage_pile::UpdatePileVisuals;
 
 #[derive(Component, Debug, Clone, Copy)]
 pub struct MoveTask {
@@ -13,13 +16,6 @@ impl MoveTask {
     pub fn new(goal: IVec3) -> MoveTask {
         Self { goal, distance: 0 }
     }
-}
-
-/// Path to move along, in reverse order
-#[derive(Component, Debug)]
-pub struct MovePath {
-    steps: VecDeque<PathingNode>,
-    vertical: bool,
 }
 
 // Assumes reservations have already been made
@@ -35,22 +31,73 @@ pub struct DeliverTask {
     pub to: Entity,
 }
 
-#[derive(Component, Debug, Clone, Deref, DerefMut)]
+#[derive(Copy, Clone, Debug)]
+pub struct Delta {
+    ticks_until: i32,
+    added: Stack,
+}
+
+#[derive(Component, Debug, Clone)]
 pub struct Pile {
-    #[deref]
     pub goods: Goods,
     pub interact_distance: i32,
     /// If this is some, clear unblock the area and despawn this pile if it empties
     pub despawn_when_empty: Option<Rect>,
+    pub future_deltas: Vec<Delta>,
 }
 
 impl Pile {
-    pub fn new(goods: Goods) -> Self {
+    pub fn new(goods: Goods, interact_distance: i32) -> Self {
         Self {
             goods,
-            interact_distance: 1,
+            interact_distance,
             despawn_when_empty: None,
+            future_deltas: default(),
         }
+    }
+
+    pub fn add(&mut self, stack: Stack) {
+        self.goods.add(stack)
+    }
+
+    pub fn add_at(&mut self, added: Stack, ticks_until: i32) {
+        self.future_deltas.push(Delta { ticks_until, added })
+    }
+
+    pub fn try_consume(&mut self, block: Block) -> Option<Good> {
+        self.goods.try_consume(block)
+    }
+
+    pub fn space_available(&self, good: Good, limit: f32, ticks_until: i32) -> f32 {
+        let mut max = self.goods.get(&good).copied().unwrap_or(0.);
+        let mut at_tick = max;
+        for delta in &self.future_deltas {
+            if delta.added.good == good {
+                at_tick += delta.added.amount;
+                if delta.ticks_until <= ticks_until {
+                    max += delta.added.amount
+                } else if delta.added.amount > 0. {
+                    max = max.max(at_tick)
+                }
+            }
+        }
+        limit - max
+    }
+
+    pub fn available(&self, good: Good, ticks_until: i32) -> f32 {
+        let mut available = self.goods.get(&good).copied().unwrap_or(0.);
+        let mut at_tick = available;
+        for delta in &self.future_deltas {
+            if delta.added.good == good {
+                at_tick += delta.added.amount;
+                if delta.ticks_until <= ticks_until {
+                    available += delta.added.amount
+                } else if delta.added.amount < 0. {
+                    available = available.min(at_tick)
+                }
+            }
+        }
+        available
     }
 }
 
@@ -60,6 +107,37 @@ impl Default for Pile {
             goods: default(),
             interact_distance: 1,
             despawn_when_empty: None,
+            future_deltas: default(),
+        }
+    }
+}
+
+pub fn update_piles(
+    mut commands: Commands,
+    mut level: ResMut<Level>,
+    mut piles: Query<(Entity, &mut Pile)>,
+) {
+    for (entity, mut pile) in &mut piles {
+        let Pile {
+            goods,
+            despawn_when_empty,
+            future_deltas,
+            ..
+        } = pile.deref_mut();
+        future_deltas.retain_mut(|delta| {
+            delta.ticks_until -= 1;
+            if delta.ticks_until == 0 {
+                goods.add(delta.added);
+                false
+            } else {
+                true
+            }
+        });
+        if let Some(area) = despawn_when_empty {
+            if future_deltas.is_empty() & goods.iter().all(|(_, &amount)| amount <= 0.) {
+                (level.blocked)(*area, Free);
+                commands.entity(entity).despawn();
+            }
         }
     }
 }
@@ -81,9 +159,11 @@ pub struct InPile {
 /// Pile that makes goods available.
 #[derive(Component, Default, Debug)]
 pub struct OutPile {
-    /// Goods available, not including goods present but promised for another delivery
-    pub available: Goods,
+    pub reserved: HashMap<Good, f32>,
 }
+
+// /// Goods available, not including goods present but promised for another delivery
+// pub available: Goods,
 
 #[derive(Component)]
 #[component(storage = "SparseSet")]
@@ -95,40 +175,36 @@ pub struct DeliverReady;
 
 pub fn pickup(
     mut commands: Commands,
-    mut level: ResMut<Level>,
+    level: Res<Level>,
     pos: Query<&Pos>,
     mut out_piles: Query<(&mut Pile, &mut OutPile)>,
-    mut pickup: Query<
-        (Entity, &mut Villager, &mut PickupTask, Has<PickupReady>),
-        Without<MoveTask>,
-    >,
+    mut pickup: Query<(Entity, &mut Villager, &PickupTask, Has<PickupReady>), Without<MoveTask>>,
 ) {
-    for (entity, mut villager, mut task, pickup_ready) in &mut pickup {
+    for (entity, mut villager, task, pickup_ready) in &mut pickup {
         if !pickup_ready {
-            commands.entity(entity).insert((
-                MoveTask {
-                    goal: pos.get(task.from).unwrap().block(),
-                    distance: out_piles.get(task.from).unwrap().0.interact_distance,
-                },
-                PickupReady,
-            ));
-        } else if villager.carry.is_none() {
             let (mut pile, mut out_pile) = out_piles.get_mut(task.from).unwrap();
+            let goal = pos.get(task.from).unwrap().block();
+            let distance = pile.interact_distance;
+            let path = MovePath::new(&level, pos.get(entity).unwrap().block(), goal, distance);
+            pile.add_at(-task.stack, path.ticks() + 2);
+            *out_pile.reserved.get_mut(&task.stack.good).unwrap() -= task.stack.amount;
+            commands
+                .entity(entity)
+                .insert((path, MoveTask { goal, distance }, PickupReady));
+        } else if villager.carry.is_none() {
+            commands.trigger_targets(UpdatePileVisuals, task.from);
+            let (mut pile, out_pile) = out_piles.get_mut(task.from).unwrap();
             // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
-            let extra = out_pile.available.remove_up_to(Stack {
-                good: task.stack.good,
-                amount: missing,
-            });
-            task.stack.amount += extra.amount;
-            pile.remove(task.stack);
-            if let Some(area) = pile.despawn_when_empty {
-                if pile.iter().all(|(_, &amount)| amount <= 0.) {
-                    (level.blocked)(area, Free);
-                    commands.entity(task.from).despawn();
-                }
-            }
-            villager.carry = Some(task.stack);
+            let available = pile.available(task.stack.good, 0)
+                - out_pile
+                    .reserved
+                    .get(&task.stack.good)
+                    .copied()
+                    .unwrap_or(0.);
+            let extra = missing.min(available);
+            pile.add(Stack::new(task.stack.good, -extra));
+            villager.carry = Some(Stack::new(task.stack.good, task.stack.amount + extra));
             commands
                 .entity(entity)
                 .remove::<(PickupTask, PickupReady)>();
@@ -138,8 +214,9 @@ pub fn pickup(
 
 pub fn deliver(
     mut commands: Commands,
+    level: Res<Level>,
     pos: Query<&Pos>,
-    mut piles: Query<(&mut Pile, Option<&mut InPile>, Option<&mut OutPile>)>,
+    mut piles: Query<(&mut Pile, Option<&mut InPile>)>,
     mut deliver: Query<
         (Entity, &mut Villager, &DeliverTask, Has<DeliverReady>),
         (Without<MoveTask>, Without<PickupTask>),
@@ -151,25 +228,22 @@ pub fn deliver(
             return;
         };
         if !deliver_ready {
-            commands.entity(entity).insert((
-                MoveTask {
-                    goal: pos.get(task.to).unwrap().block(),
-                    distance: piles.get(task.to).unwrap().0.interact_distance,
-                },
-                DeliverReady,
-            ));
-        } else {
-            let (mut pile, in_pile, out_pile) = piles.get_mut(task.to).unwrap();
-            pile.add(stack);
-
+            let goal = pos.get(task.to).unwrap().block();
+            let distance = piles.get(task.to).unwrap().0.interact_distance;
+            let path = MovePath::new(&level, pos.get(entity).unwrap().block(), goal, distance);
+            let (mut pile, in_pile) = piles.get_mut(task.to).unwrap();
+            pile.add_at(stack, path.ticks());
             if let Some(mut in_pile) = in_pile {
                 if in_pile.priority == Some(stack.good) {
                     in_pile.priority = None
                 }
             }
-            if let Some(mut out_pile) = out_pile {
-                out_pile.available.add(stack)
-            };
+            commands
+                .entity(entity)
+                .insert((MoveTask { goal, distance }, path, DeliverReady));
+        } else {
+            commands.trigger_targets(UpdatePileVisuals, task.to);
+
             villager.carry = None;
             commands
                 .entity(entity)
@@ -178,6 +252,80 @@ pub fn deliver(
     }
 }
 
+const WALK_PER_TICK: f32 = 0.16;
+const BOATING_PER_TICK: f32 = 0.2;
+const CLIMB_PER_TICK: f32 = 0.09;
+
+pub fn min_walk_ticks(start: Vec3, end: Vec3) -> i32 {
+    ((start - end).abs().element_sum() / WALK_PER_TICK) as i32
+}
+
+/// Path to move along
+#[derive(Component, Debug)]
+pub struct MovePath(VecDeque<MovePathNode>);
+
+impl MovePath {
+    fn new(level: &Level, start: IVec3, goal: IVec3, target_distance: i32) -> Self {
+        let mut path = pathfind(level, start, goal, target_distance).path;
+        let mut steps = VecDeque::<MovePathNode>::new();
+        let mut pos = start.as_vec3();
+        let mut vertical = false;
+        while let Some(mut next_node) = path.front().copied() {
+            let diff = (next_node.pos.as_vec3() - pos).truncate();
+            if vertical {
+                // Climbing
+                if if next_node.pos.z as f32 > pos.z {
+                    pos.z += CLIMB_PER_TICK;
+                    pos.z > next_node.pos.z as f32
+                } else {
+                    pos.z -= CLIMB_PER_TICK;
+                    pos.z < next_node.pos.z as f32
+                } {
+                    path.pop_front();
+                    if let Some(&next) = path.front() {
+                        vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
+                    }
+                }
+            } else {
+                let boat = next_node.boat;
+                let speed = if boat {
+                    BOATING_PER_TICK
+                } else {
+                    WALK_PER_TICK
+                };
+                // Not climbing, but possibly going up stairs
+                if diff.length() < speed {
+                    path.pop_front();
+                    if let Some(&next) = path.front() {
+                        vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
+                        next_node = next;
+                    }
+                }
+                if !vertical {
+                    let diff = (next_node.pos.as_vec3() - pos).truncate();
+                    pos += (diff.normalize_or_zero() * speed).extend(0.);
+                    if !next_node.boat {
+                        set_walk_height(level, &mut pos);
+                    }
+                }
+                steps.push_back(MovePathNode { pos, boat });
+            }
+        }
+        Self(steps)
+    }
+
+    fn ticks(&self) -> i32 {
+        self.0.len() as i32
+    }
+}
+
+#[derive(Debug)]
+struct MovePathNode {
+    pos: Vec3,
+    boat: bool,
+}
+
+// TODO: Calculate the exact path at the beginning, then store it & use it for walk_ticks
 // TODO: Smooth this out
 pub fn walk(
     mut commands: Commands,
@@ -200,76 +348,41 @@ pub fn walk(
             continue;
         }
 
-        if let Some(mut path) = path {
-            const WALK_PER_TICK: f32 = 0.16;
-            const BOATING_PER_TICK: f32 = 0.2;
-            const CLIMB_PER_TICK: f32 = 0.09;
-            let Some(mut next_node) = path.steps.front().copied() else {
-                commands.entity(entity).remove::<(MoveTask, MovePath)>();
-                continue;
-            };
-            let diff = (next_node.pos.as_vec3() - pos.0).truncate();
-            if path.vertical {
-                // Climbing
-                if if next_node.pos.z as f32 > pos.0.z {
-                    pos.0.z += CLIMB_PER_TICK;
-                    pos.0.z > next_node.pos.z as f32
-                } else {
-                    pos.0.z -= CLIMB_PER_TICK;
-                    pos.0.z < next_node.pos.z as f32
-                } {
-                    path.steps.pop_front();
-                    if let Some(&next) = path.steps.front() {
-                        path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
-                    }
-                }
-            } else {
-                let speed;
-                if next_node.boat {
-                    speed = BOATING_PER_TICK;
-                    if in_boat.is_none() {
-                        let boat_id = Id::default();
-                        commands.entity(entity).insert(InBoat(boat_id));
-                        let biome = level.biome[pos.block().truncate()];
-                        replay.command(format!(
-                            "summon boat {} {} {} {{{}, Invulnerable:1, Type:\"{}\"}}",
-                            pos.x,
-                            pos.z,
-                            pos.y,
-                            boat_id.snbt(),
-                            biome.default_tree_species().to_str()
-                        ));
-                        replay.command(format!("ride {id} mount {boat_id}"));
-                    }
-                } else {
-                    speed = WALK_PER_TICK;
-                    if let Some(boat_id) = in_boat {
-                        commands.entity(entity).remove::<InBoat>();
-                        replay.command(format!("kill {}", boat_id.0));
-                    }
-                }
-                // Not climbing, but possibly going up stairs
-                if diff.length() < speed {
-                    path.steps.pop_front();
-                    if let Some(&next) = path.steps.front() {
-                        path.vertical = (next.pos - next_node.pos).truncate() == IVec2::ZERO;
-                        next_node = next;
-                    }
-                }
-                if !path.vertical {
-                    let diff = (next_node.pos.as_vec3() - pos.0).truncate();
-                    pos.0 += (diff.normalize_or_zero() * speed).extend(0.);
-                    if !next_node.boat {
-                        set_walk_height(&level, &mut pos);
-                    }
-                }
+        let Some(mut path) = path else {
+            commands.entity(entity).insert(MovePath::new(
+                &level,
+                pos.block(),
+                goal.goal,
+                goal.distance,
+            ));
+            continue;
+        };
+
+        let Some(node) = path.0.pop_front() else {
+            commands.entity(entity).remove::<(MoveTask, MovePath)>();
+            continue;
+        };
+
+        pos.0 = node.pos;
+
+        if node.boat {
+            if in_boat.is_none() {
+                let boat_id = Id::default();
+                commands.entity(entity).insert(InBoat(boat_id));
+                let biome = level.biome[pos.block().truncate()];
+                replay.command(format!(
+                    "summon boat {} {} {} {{{}, Invulnerable:1, Type:\"{}\"}}",
+                    pos.x,
+                    pos.z,
+                    pos.y,
+                    boat_id.snbt(),
+                    biome.default_tree_species().to_str()
+                ));
+                replay.command(format!("ride {id} mount {boat_id}"));
             }
-        } else {
-            let path = pathfind(&level, pos.block(), goal.goal, goal.distance);
-            commands.entity(entity).insert(MovePath {
-                steps: path.path,
-                vertical: false,
-            });
+        } else if let Some(boat_id) = in_boat {
+            commands.entity(entity).remove::<InBoat>();
+            replay.command(format!("kill {}", boat_id.0));
         }
     }
 }

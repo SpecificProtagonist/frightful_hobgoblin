@@ -1,5 +1,6 @@
 use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
 use num_traits::FromPrimitive;
+use storage_pile::update_pile_visuals;
 
 use crate::{pathfind::reachability_2d_from, sim::desire_lines::*};
 
@@ -9,7 +10,6 @@ use make_name::make_town_name;
 use market::{init_stalls, plan_stalls};
 use quarry::{plan_quarry, test_build_quarry};
 use roads::init_roads;
-use storage_pile::{update_lumber_pile_visuals, update_stone_pile_visuals};
 use trees::{init_trees, spawn_trees};
 
 use self::market::upgrade_plaza;
@@ -76,19 +76,18 @@ pub fn sim(mut level: Level, config: Config) {
                 build,
                 pickup,
                 deliver,
-                check_construction_site_readiness,
+                // check_construction_site_readiness,
+                update_piles,
             ),
             (
                 lumberjack::assign_worker,
                 lumberjack::make_lumber_piles,
-                update_lumber_pile_visuals,
                 lumberjack::work,
                 lumberjack::chop,
             ),
             (
                 quarry::assign_worker,
                 quarry::make_stone_piles,
-                update_stone_pile_visuals,
                 quarry::work,
                 quarry::quarry_rotation,
                 quarry::update_quarry_rotation,
@@ -111,6 +110,7 @@ pub fn sim(mut level: Level, config: Config) {
         )
             .chain(),
     );
+    world.observe(update_pile_visuals);
 
     for _ in 0..world.resource::<Config>().ticks {
         sched.run(&mut world);

@@ -92,16 +92,18 @@ fn assign_work(
             Without<BuildTask>,
         ),
     >,
-    mut out_piles: Query<(Entity, &Pos, &mut OutPile)>,
+    mut out_piles: Query<(Entity, &Pos, &mut OutPile, &mut Pile)>,
     mut in_piles: Query<(Entity, &Pos, &mut InPile)>,
-    mut construction_sites: Query<(Entity, &Pos, &mut ConstructionSite)>,
+    mut construction_sites: Query<(Entity, &Pos, &mut ConstructionSite, &Pile), Without<OutPile>>,
 ) {
     for (vill, vil_pos) in &idle {
         // Construction
-        if let Some((building, pos, mut site)) = construction_sites
+        if let Some((building, pos, mut site, _)) = construction_sites
             .iter_mut()
-            .filter(|(_, _, site)| site.has_materials & !site.has_builder)
-            .min_by_key(|(_, pos, _)| pos.distance_squared(vil_pos.0) as u32)
+            .filter(|(_, site_pos, site, pile)| {
+                site.has_materials(pile, min_walk_ticks(vil_pos.0, site_pos.0)) & !site.has_builder
+            })
+            .min_by_key(|(_, pos, _, _)| pos.distance_squared(vil_pos.0) as u32)
         {
             site.has_builder = true;
             commands
@@ -113,11 +115,14 @@ fn assign_work(
         // Transport
         if let Some((_, task)) = out_piles
             .iter_mut()
-            .filter_map(|(out_entity, out_pos, out_pile)| {
+            .filter_map(|(out_entity, out_pos, out_pile, pile)| {
+                let min_ticks = min_walk_ticks(vil_pos.0, out_pos.0);
                 let mut best_score = f32::INFINITY;
                 let mut task = None;
-                for (good, &amount) in out_pile.available.iter() {
-                    if amount == 0. {
+                for good in pile.goods.keys() {
+                    let amount = pile.available(*good, min_ticks)
+                        - out_pile.reserved.get(good).copied().unwrap_or(0.);
+                    if amount <= 0. {
                         continue;
                     }
                     for (in_entity, in_pos, in_pile) in &mut in_piles {
@@ -156,12 +161,13 @@ fn assign_work(
             // TODO: Also influence via best_score?
             .min_by_key(|(d, _)| *d as i32)
         {
-            out_piles
+            *out_piles
                 .get_mut(task.0.from)
                 .unwrap()
                 .2
-                .available
-                .remove(task.0.stack);
+                .reserved
+                .entry(task.0.stack.good)
+                .or_insert(0.) += task.0.stack.amount;
             in_piles
                 .get_mut(task.1.to)
                 .unwrap()
@@ -215,13 +221,12 @@ fn starting_resources(
         commands.spawn((
             Pos(pos.as_vec3()),
             params,
-            OutPile {
-                available: goods.clone(),
-            },
+            OutPile::default(),
             Pile {
                 goods,
                 interact_distance: params.width,
                 despawn_when_empty: Some(area),
+                future_deltas: default(),
             },
         ));
     }
@@ -236,13 +241,12 @@ fn starting_resources(
         commands.spawn((
             Pos(pos),
             params,
-            OutPile {
-                available: goods.clone(),
-            },
+            OutPile::default(),
             Pile {
                 goods,
                 interact_distance: 2,
                 despawn_when_empty: Some(area),
+                future_deltas: default(),
             },
         ));
     }
@@ -254,12 +258,9 @@ fn starting_resources(
         // stock.add(Stack::new(Good::Stone, 99999999.));
         stock
     };
-    commands.entity(center).insert((
-        OutPile {
-            available: starting_resources.clone(),
-        },
-        Pile::new(starting_resources),
-    ));
+    commands
+        .entity(center)
+        .insert((OutPile::default(), Pile::new(starting_resources, 1)));
 }
 
 fn spawn_villagers(

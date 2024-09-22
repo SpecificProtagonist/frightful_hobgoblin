@@ -76,12 +76,78 @@ impl LumberPile {
     }
 }
 
-pub fn update_lumber_pile_visuals(
+#[derive(Component)]
+pub struct StonePile {
+    pub volume: Cuboid,
+}
+
+impl StonePile {
+    pub fn make(level: &mut Level, untree: &mut Untree, target: Vec2) -> (Vec3, Rect, Self) {
+        let area = optimize(
+            Rect {
+                min: target.block(),
+                max: target.block() + ivec2(rand(3..=4), rand(3..=4)),
+            },
+            |area, temperature| {
+                if rand(0.3) {
+                    *area = Rect {
+                        min: area.center(),
+                        max: area.center() + ivec2(rand(3..=4), rand(3..=4)),
+                    }
+                } else {
+                    let max_move = (20. * temperature) as i32;
+                    *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
+                }
+                if !level.free(*area) | (wateryness(level, *area) > 0.) {
+                    return f32::INFINITY;
+                }
+                // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
+                let worker_distance = target.distance(area.center_vec2()) / 20.;
+                let size_bonus = area.total() as f32 * 4.;
+                worker_distance + unevenness(level, *area) * 1. - size_bonus
+            },
+            100,
+            5,
+        )
+        // TODO
+        .unwrap();
+
+        untree.remove_trees(level, area);
+
+        let z = level.height.average(area.border()) as i32 + 1;
+        (level.height)(area, z - 1);
+        level.fill_at(area, z - 1, PackedMud);
+        (level.blocked)(area, Blocked);
+        (
+            area.center_vec2().extend(z as f32),
+            area,
+            StonePile {
+                volume: Cuboid::new(area.min.extend(z), area.max.extend(z + 2)),
+            },
+        )
+    }
+
+    pub fn max(&self) -> f32 {
+        self.volume.volume() as f32
+    }
+}
+
+#[derive(Event)]
+pub struct UpdatePileVisuals;
+
+pub fn update_pile_visuals(
+    trigger: Trigger<UpdatePileVisuals>,
     mut level: ResMut<Level>,
-    query: Query<(&Pos, &LumberPile, &Pile), Changed<Pile>>,
+    query: Query<(&Pos, &Pile)>,
+    lumber: Query<&LumberPile>,
+    stone: Query<&StonePile>,
 ) {
-    for (pos, lumberpile, pile) in &query {
-        let amount = pile.get(&Good::Wood).copied().unwrap_or_default();
+    let Ok((pos, pile)) = query.get(trigger.entity()) else {
+        return;
+    };
+
+    if let Ok(lumberpile) = lumber.get(trigger.entity()) {
+        let amount = pile.goods.get(&Good::Wood).copied().unwrap_or(0.);
         let logs = (amount / (4. * lumberpile.length as f32)).round() as usize;
         let log_positions: &[(i32, i32)] = match lumberpile.width {
             3 => &[(0, 0), (-1, 0), (1, 0), (0, 1), (1, 1), (-1, 1), (0, 2)],
@@ -150,70 +216,9 @@ pub fn update_lumber_pile_visuals(
             }
         }
     }
-}
 
-#[derive(Component)]
-pub struct StonePile {
-    pub volume: Cuboid,
-}
-
-impl StonePile {
-    pub fn make(level: &mut Level, untree: &mut Untree, target: Vec2) -> (Vec3, Rect, Self) {
-        let area = optimize(
-            Rect {
-                min: target.block(),
-                max: target.block() + ivec2(rand(3..=4), rand(3..=4)),
-            },
-            |area, temperature| {
-                if rand(0.3) {
-                    *area = Rect {
-                        min: area.center(),
-                        max: area.center() + ivec2(rand(3..=4), rand(3..=4)),
-                    }
-                } else {
-                    let max_move = (20. * temperature) as i32;
-                    *area += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
-                }
-                if !level.free(*area) | (wateryness(level, *area) > 0.) {
-                    return f32::INFINITY;
-                }
-                // TODO: use actual pathfinding distance (when there are proper pathable workplaces)
-                let worker_distance = target.distance(area.center_vec2()) / 20.;
-                let size_bonus = area.total() as f32 * 4.;
-                worker_distance + unevenness(level, *area) * 1. - size_bonus
-            },
-            100,
-            5,
-        )
-        // TODO
-        .unwrap();
-
-        untree.remove_trees(level, area);
-
-        let z = level.height.average(area.border()) as i32 + 1;
-        (level.height)(area, z - 1);
-        level.fill_at(area, z - 1, PackedMud);
-        (level.blocked)(area, Blocked);
-        (
-            area.center_vec2().extend(z as f32),
-            area,
-            StonePile {
-                volume: Cuboid::new(area.min.extend(z), area.max.extend(z + 2)),
-            },
-        )
-    }
-
-    pub fn max(&self) -> f32 {
-        self.volume.volume() as f32
-    }
-}
-
-pub fn update_stone_pile_visuals(
-    mut level: ResMut<Level>,
-    query: Query<(&StonePile, &Pile), Changed<Pile>>,
-) {
-    for (stonepile, pile) in &query {
-        let mut leftover = pile.get(&Good::Stone).copied().unwrap_or(0.);
+    if let Ok(stonepile) = stone.get(trigger.entity()) {
+        let mut leftover = pile.available(Good::Stone, 0);
         for pos in stonepile.volume {
             level(pos, if leftover > 0. { Full(Andesite) } else { Air });
             leftover -= 1.;
