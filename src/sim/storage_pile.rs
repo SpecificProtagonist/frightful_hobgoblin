@@ -215,14 +215,7 @@ pub fn update_stone_pile_visuals(
     for (stonepile, pile) in &query {
         let mut leftover = pile.get(&Good::Stone).copied().unwrap_or(0.);
         for pos in stonepile.volume {
-            level(
-                pos,
-                if leftover > 0. {
-                    Full(SmoothStone)
-                } else {
-                    Air
-                },
-            );
+            level(pos, if leftover > 0. { Full(Andesite) } else { Air });
             leftover -= 1.;
         }
     }
