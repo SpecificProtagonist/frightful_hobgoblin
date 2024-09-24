@@ -14,8 +14,6 @@ pub struct Built;
 pub struct ConstructionSite {
     pub todo: ConsList,
     pub has_builder: bool,
-    // /// Whether it has the materials necessary for the next block
-    // pub has_materials: bool,
 }
 
 impl ConstructionSite {
@@ -52,6 +50,7 @@ pub fn new_construction_site(
     check_for_removal: Query<(Entity, &RemoveWhenBlocked)>,
 ) {
     for (entity, mut site, existing_pile) in &mut new {
+        // Cleanup doodahs
         let cursor = level.recording_cursor();
         for (entity, data) in &check_for_removal {
             if data.check_area.iter().any(|c| level(c).solid()) {
@@ -70,6 +69,7 @@ pub fn new_construction_site(
         let mut stock = existing_pile.cloned().unwrap_or_default();
         let mut requested = Goods::default();
         let mut priority = None;
+        // Calculate required materials
         for cons in &site.todo {
             let ConsItem::Set(set) = cons else { continue };
             if let Some(stack) = goods_for_block(set.block) {
@@ -92,6 +92,23 @@ pub fn new_construction_site(
                 priority,
             },
         ));
+
+        // Add construction noises
+        let mut i = 0;
+        let mut sound_cooldown = 0;
+        while let Some(item) = site.todo.get(i) {
+            if let ConsItem::Set(set) = item {
+                sound_cooldown -= 1;
+                if sound_cooldown < 0 {
+                    sound_cooldown = 120;
+                    let pos = set.pos;
+                    site.todo
+                        .insert(i, ConsItem::Command(playsound("construction", pos)));
+                    i += 1;
+                }
+            }
+            i += 1;
+        }
     }
 }
 
@@ -99,11 +116,11 @@ pub fn build(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     mut builders: Query<(Entity, &mut Villager, &BuildTask), (With<Villager>, Without<MoveTask>)>,
-    mut buildings: Query<(Entity, &mut ConstructionSite, &mut Pile, &mut InPile)>,
+    mut sites: Query<(Entity, &mut ConstructionSite, &mut Pile, &mut InPile)>,
 ) {
     for (builder, mut villager, build_task) in &mut builders {
         let Ok((e_building, mut building, mut pile, mut in_pile)) =
-            buildings.get_mut(build_task.building)
+            sites.get_mut(build_task.building)
         else {
             continue;
         };
@@ -124,6 +141,10 @@ pub fn build(
                     replay.dust(set.pos);
                     building.todo.pop_front();
                 }
+            }
+            Some(ConsItem::Command(cmd)) => {
+                replay.command(cmd.clone());
+                building.todo.pop_front();
             }
             None => {
                 commands.entity(builder).remove::<BuildTask>();

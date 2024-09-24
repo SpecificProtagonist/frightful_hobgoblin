@@ -38,3 +38,5 @@ nanorand = {version = "0.8", git = "https://github.com/StT191/nanorand-rs.git" }
 flate2 = "1"
 toml = "0.8"
 serde = {version = "1", features = ["serde_derive"]}
+zip = {version = "2", default-features = false}
+walkdir = "2"

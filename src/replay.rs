@@ -8,9 +8,10 @@ use flate2::write::GzEncoder;
 use flate2::Compression;
 use nbt::encode::write_compound_tag;
 use nbt::{CompoundTag, Tag};
+use serde::Serialize;
 
 use std::fmt::{Display, Write};
-use std::fs::{create_dir_all, read, write, File};
+use std::fs::{create_dir_all, read_to_string, write, File};
 use std::io::Write as _;
 use std::ops::DerefMut;
 use std::path::PathBuf;
@@ -128,16 +129,21 @@ struct Track {
     commands_this_chunk: i32,
 }
 
+const META_FILE: &str = "frightful-hobgoblin.toml";
+#[derive(Serialize, Deserialize)]
+struct StoredMeta {
+    invocation: u8,
+    next_id: u32,
+}
+
 impl Replay {
     pub fn new(level: &Level) -> Self {
         // Some information is needed if the generator is invoked multiple times
         // so that replays don't interfere with each other
-        if let Ok(vec) = read(level.path.join("mcgen-meta")) {
-            INVOCATION.store(vec[0] + 1, Ordering::Relaxed);
-            NEXT_ID.store(
-                u32::from_be_bytes([vec[1], vec[2], vec[3], vec[4]]),
-                Ordering::Relaxed,
-            );
+        if let Ok(content) = read_to_string(level.path.join(META_FILE)) {
+            let meta: StoredMeta = toml::from_str(&content).unwrap();
+            INVOCATION.store(meta.invocation + 1, Ordering::Relaxed);
+            NEXT_ID.store(meta.next_id, Ordering::Relaxed);
         };
 
         let mut replay = Self {
@@ -539,10 +545,15 @@ impl Replay {
 
         // Store information needed when the generator is invokes on
         // the same map multiple times
-        let mut meta = Vec::new();
-        meta.push(invocation());
-        meta.extend_from_slice(&NEXT_ID.load(Ordering::Relaxed).to_be_bytes());
-        write(self.level_path.join("mcgen-meta"), meta).unwrap();
+        write(
+            self.level_path.join(META_FILE),
+            toml::to_string(&StoredMeta {
+                invocation: invocation(),
+                next_id: NEXT_ID.load(Ordering::Relaxed),
+            })
+            .unwrap(),
+        )
+        .unwrap();
     }
 }
 
@@ -668,4 +679,9 @@ pub fn tick_replay(
     }
 
     replay.tick();
+}
+
+// TODO: Play at a higher speed/pitch when replay faster?
+pub fn playsound(sound: &str, pos: IVec3) -> String {
+    format!("playsound {sound} ambient @a {} {} {}", pos.x, pos.z, pos.y)
 }

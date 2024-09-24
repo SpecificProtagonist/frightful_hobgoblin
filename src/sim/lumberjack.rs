@@ -210,6 +210,7 @@ pub fn chop(
                 goal: task.tree,
                 distance: 2,
             }));
+            place.push_back(ConsItem::Command(playsound("chop", task.tree)));
 
             let cursor = level.recording_cursor();
             untree.remove_trees(&mut level, Some(task.tree.truncate()));

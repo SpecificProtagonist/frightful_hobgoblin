@@ -14,9 +14,12 @@ use nbt::CompoundTag;
 use rayon::prelude::*;
 use std::{
     collections::VecDeque,
+    fs::File,
     ops::{Range, RangeInclusive, Shr},
     path::PathBuf,
 };
+use walkdir::WalkDir;
+use zip::{write::SimpleFileOptions, ZipWriter};
 
 use crate::{default, geometry::*, ConsItem, HashMap, DATA_VERSION};
 pub use biome::*;
@@ -58,8 +61,7 @@ impl Level {
             let read_path = read_path.to_owned();
             let write_path = write_path.to_owned();
             rayon::spawn(move || {
-                let _ = std::fs::remove_dir_all(&write_path);
-                copy_dir::copy_dir(read_path, write_path).expect("Failed to create save");
+                copy_level(read_path, write_path);
             });
         }
         let region_path = {
@@ -585,6 +587,28 @@ fn save_chunk(
             },
         )
         .unwrap();
+}
+
+fn copy_level(read_path: String, write_path: String) {
+    let _ = std::fs::remove_dir_all(&write_path);
+    copy_dir::copy_dir(read_path, &write_path).expect("Failed to create save");
+
+    let file = File::create(format!("{write_path}/resources.zip")).unwrap();
+    let mut zip = ZipWriter::new(file);
+
+    for entry in WalkDir::new("resources") {
+        let entry = entry.unwrap();
+        let zip_path = entry.path().strip_prefix("resources").unwrap();
+        if entry.file_type().is_dir() {
+            zip.add_directory_from_path(zip_path, SimpleFileOptions::default())
+                .unwrap();
+        } else {
+            zip.start_file_from_path(zip_path, SimpleFileOptions::default())
+                .unwrap();
+            let mut content = File::open(entry.path()).unwrap();
+            std::io::copy(&mut content, &mut zip).unwrap();
+        }
+    }
 }
 
 #[derive(Clone, Debug)]

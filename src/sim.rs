@@ -76,6 +76,7 @@ pub enum ConsItem {
     Set(SetBlock),
     Goto(MoveTask),
     Carry(Option<Stack>),
+    Command(String),
 }
 
 #[derive(Component, Deref, DerefMut)]
@@ -195,6 +196,7 @@ fn place(
             Some(ConsItem::Carry(stack)) => {
                 villager.carry = stack;
             }
+            Some(ConsItem::Command(cmd)) => replay.command(cmd),
             None => {
                 commands.entity(entity).remove::<PlaceTask>();
             }

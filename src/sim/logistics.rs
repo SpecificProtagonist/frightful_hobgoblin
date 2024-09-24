@@ -214,6 +214,7 @@ pub fn pickup(
 
 pub fn deliver(
     mut commands: Commands,
+    mut replay: ResMut<Replay>,
     level: Res<Level>,
     pos: Query<&Pos>,
     mut piles: Query<(&mut Pile, Option<&mut InPile>)>,
@@ -243,6 +244,7 @@ pub fn deliver(
                 .insert((MoveTask { goal, distance }, path, DeliverReady));
         } else {
             commands.trigger_targets(UpdatePileVisuals, task.to);
+            replay.command(playsound("drop", pos.get(entity).unwrap().block()));
 
             villager.carry = None;
             commands

@@ -1,0 +1,57 @@
+{
+  "drop": {
+    "category": "ambient",
+    "sounds": [
+      {
+        "name": "drop"
+      }
+    ]
+  },
+  "construction": {
+    "category": "ambient",
+    "sounds": [
+      {
+        "name": "hammer",
+        "attenuation_distance": 32,
+        "weight": 2.5
+      },
+      {
+        "name": "saw_1",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "saw_2",
+        "attenuation_distance": 32
+      }
+    ]
+  },
+  "chop": {
+    "category": "ambient",
+    "sounds": [
+      {
+        "name": "chop_1",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "chop_2",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "chop_3",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "chop_4",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "chop_5",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "chop_6",
+        "attenuation_distance": 32
+      }
+    ]
+  }
+}
