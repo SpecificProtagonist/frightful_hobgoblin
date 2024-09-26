@@ -7,6 +7,13 @@ use sim::*;
 
 use self::storage_pile::StonePile;
 
+pub fn quarryable(block: Block) -> bool {
+    matches!(
+        block,
+        Full(Stone | Granite | Andesite | Diorite | Sandstone | RedSandstone) | Terracotta(_)
+    )
+}
+
 #[derive(PartialEq, Copy, Clone)]
 struct Params {
     pos: IVec2,
@@ -95,7 +102,7 @@ pub fn plan_quarry(
                 columns += 1;
                 for z in avg_start_height..avg_start_height + 15 {
                     match level(column.extend(z)) {
-                        Full(_) => stone += 1,
+                        block if quarryable(block) => stone += 1,
                         other if !other.solid() => break,
                         _ => (),
                     }
@@ -349,11 +356,7 @@ pub fn work(
             }
 
             let rec = level.pop_recording(cursor).collect_vec();
-            let amount = rec
-                .iter()
-                .filter(|set| matches!(set.previous, Full(_)))
-                .count() as f32
-                * 1.5;
+            let amount = rec.iter().filter(|set| quarryable(set.previous)).count() as f32 * 1.5;
             place.extend(rec.into_iter().map(ConsItem::Set));
             place.push_back(ConsItem::Carry(Some(Stack::new(Good::Stone, amount))));
 
