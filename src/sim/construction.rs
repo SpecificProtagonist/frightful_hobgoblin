@@ -115,6 +115,7 @@ pub fn new_construction_site(
 pub fn build(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
+    config: Res<Config>,
     mut builders: Query<(Entity, &mut Villager, &BuildTask), (With<Villager>, Without<MoveTask>)>,
     mut sites: Query<(Entity, &mut ConstructionSite, &mut Pile, &mut InPile)>,
 ) {
@@ -131,9 +132,14 @@ pub fn build(
             }
             Some(ConsItem::Carry(stack)) => villager.carry = *stack,
             Some(ConsItem::Set(set)) => {
-                if let Some(missing) = pile.try_consume(set.block) {
+                let missing = if config.no_building_cost {
+                    None
+                } else {
+                    pile.try_consume(set.block)
+                };
+                if missing.is_some() {
                     building.has_builder = false;
-                    in_pile.priority = Some(missing);
+                    in_pile.priority = missing;
                     commands.entity(builder).remove::<BuildTask>();
                 } else {
                     // TODO: check if current block is still the same as when the ConsList was created

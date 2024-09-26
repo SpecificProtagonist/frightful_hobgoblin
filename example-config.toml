@@ -11,7 +11,8 @@ ticks = 30000
 villagers = 30
 
 # Debug options
-skip_replay = false
+no_building_cost = false
+no_replay = false
 skip_walk = false
 show_blocked = false
 show_reachability = false

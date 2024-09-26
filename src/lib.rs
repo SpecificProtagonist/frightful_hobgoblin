@@ -70,9 +70,10 @@ pub struct Config {
     pub villagers: i32,
     pub ticks: i32,
     // Debug options
-    /// Modify world instead of generating a replay (blockstates will be incorrect)
     #[serde(default)]
-    pub skip_replay: bool,
+    pub no_building_cost: bool,
+    #[serde(default)]
+    pub no_replay: bool,
     #[serde(default)]
     pub skip_walk: bool,
     #[serde(default)]

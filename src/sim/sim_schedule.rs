@@ -126,7 +126,7 @@ pub fn sim(mut level: Level, config: Config) {
 
     // show_blocked(&mut level);
 
-    if world.resource::<Config>().skip_replay {
+    if world.resource::<Config>().no_replay {
         level.debug_save();
     } else {
         let replay = world.remove_resource::<Replay>().unwrap();
