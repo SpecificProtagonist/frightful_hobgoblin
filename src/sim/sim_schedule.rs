@@ -1,4 +1,5 @@
 use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
+use lang::Lang;
 use num_traits::FromPrimitive;
 use storage_pile::update_pile_visuals;
 
@@ -33,6 +34,8 @@ pub fn sim(mut level: Level, config: Config) {
     (level.blocked)(city_center, Street);
     world.spawn((Pos(city_center_pos.as_vec3()), CityCenter(city_center)));
     level.reachability = reachability_2d_from(&level, city_center.center());
+
+    world.init_resource::<Lang>();
 
     if world.resource::<Config>().show_reachability {
         for column in level.area() {
@@ -114,6 +117,7 @@ pub fn sim(mut level: Level, config: Config) {
 
     for _ in 0..world.resource::<Config>().ticks {
         sched.run(&mut world);
+        world.increment_change_tick();
     }
     world.resource_mut::<Replay>().say("Replay complete", Gray);
     world
@@ -123,6 +127,8 @@ pub fn sim(mut level: Level, config: Config) {
     steady_state::generate(&mut world);
 
     let level = world.remove_resource::<Level>().unwrap();
+
+    world.resource::<Lang>().write_blurbs(&level.path);
 
     // show_blocked(&mut level);
 

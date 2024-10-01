@@ -360,13 +360,16 @@ impl Replay {
             scoreboard objectives add sim_{0}_particle dummy
             function sim_{0}:play_track_global {{track:0}}
             scoreboard players set SIM_{0} sim_tick 0
-            # scoreboard objectives setdisplay sidebar sim_tick
+            
             # How many sim ticks to replay per game tick (0 to stop)
             scoreboard objectives add speed dummy
-            scoreboard players set SIM_{0} speed 5
+            scoreboard players set SIM_{0} speed 1
             # Set to X to warp X sim ticks ahead
             scoreboard objectives add warp dummy
             scoreboard players set SIM_{0} warp 0
+
+            scoreboard objectives add sim_blurb_cooldown dummy
+
             gamerule randomTickSpeed 0
             gamerule doMobSpawning false
             gamerule mobGriefing false
@@ -466,14 +469,39 @@ impl Replay {
         // Args: on_idle
         self.mcfunction(
             "on_tick",
-            &format!(
-                "
+            &format!("
             data modify entity @s data.track set from entity @s data.play
             execute if data entity @s data.track run function sim_{0}:tick_track_on_self with entity @s data
             data remove entity @s data.play
             $execute unless data entity @s data.track run function sim_{0}:on_idle/$(on_idle)",
                 invocation()
             ),
+        );
+
+        self.mcfunction(
+            "say_blurb",
+            &format!(
+                "execute store result score @s sim_blurb_cooldown run random value 0..500
+                execute store result storage sim_{0}:data say.index int 1. run random value 0..200
+                function sim_{0}:say_blurb_macro with storage sim_{0}:data say",
+                invocation()
+            ),
+        );
+
+        // Args: index
+        self.mcfunction(
+            "say_blurb_macro",
+            &format!(
+                "$data modify storage sim_{0}:data say.blurb set from storage sim_{0}_language:data blurbs[$(index)]
+                function sim_{0}:say_blurb_macro_2 with storage sim_{0}:data say",
+                invocation()
+            ),
+        );
+
+        // Args: blurb
+        self.mcfunction(
+            "say_blurb_macro_2",
+            "$tellraw @a[distance=..10] [\"<\",{\"selector\":\"@s\"},\"> $(blurb)\"]",
         );
 
         self.mcfunction(
@@ -488,6 +516,10 @@ impl Replay {
             scoreboard players remove @e[scores={{sim_{0}_sleep=1..}}] sim_{0}_sleep 1
             scoreboard players add SIM_{0} sim_tick 1
             scoreboard players remove SIM_{0} warp 1
+
+            execute as @a at @s run scoreboard players remove @e[tag=sim_{0}_villager,distance=..8] sim_blurb_cooldown 1
+            execute as @e[scores={{sim_blurb_cooldown=..-160}}] at @s run function sim_{0}:say_blurb
+
             execute if score SIM_{0} warp matches 1.. run function sim_{0}:sim_tick
             ", invocation()),
         );
@@ -602,26 +634,23 @@ pub fn tick_replay(
             (1., "weaponsmith"),
         ]);
         replay.command(format!(
-            "summon {} {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\",profession:\"{}\"}}}}",
+            "summon {} {} {} {} {{{}, NoAI:1, Invulnerable:1, VillagerData:{{type:\"{}\",profession:\"{}\"}}, Tags: [sim_{}_villager]}}",
             if is_trader {
                 "wandering_trader"
             } else {
                 "villager"
             },
-            pos.x,
-            pos.z,
-            pos.y,
+            pos.x, pos.z, pos.y,
             id.snbt(),
             biome.villager_type(),
-            profession
+            profession,
+            invocation()
         ));
 
         replay.command(format!(
             // TODO: Use block display?
             "summon armor_stand {} {} {} {{{}, Invulnerable:1, Invisible:1, NoGravity:1, Tags:[\"carry\"]}}",
-            pos.x,
-            pos.z + 0.8,
-            pos.y,
+            pos.x, pos.z + 0.8, pos.y,
             vill.carry_id.snbt(),
         ));
         replay.carry_ids.push((*id, vill.carry_id));

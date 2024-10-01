@@ -4,6 +4,8 @@ use nanorand::{RandomGen, RandomRange, Rng, WyRand};
 
 use crate::*;
 
+// TODO: Rubberbanding across invocations (keyed by file+line number)
+
 thread_local! {
     pub static RNG: Cell<WyRand> = default();
 }

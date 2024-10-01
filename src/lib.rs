@@ -13,6 +13,7 @@ pub mod detect_existing_buildings;
 mod geometry;
 pub mod goods;
 pub mod house;
+pub mod lang;
 mod level;
 pub mod loot;
 pub mod make_name;

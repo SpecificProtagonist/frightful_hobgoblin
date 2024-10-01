@@ -139,3 +139,37 @@ pub fn tavern_name() -> String {
     }
     name
 }
+
+pub fn make_tokipona_name() -> String {
+    loop {
+        let consonants = ['m', 'n', 'p', 't', 'k', 's', 'w', 'l', 'j'];
+        let vowels = [(35., 'a'), (25., 'i'), (15., 'e'), (15., 'o'), (10., 'u')];
+
+        let mut name = "jan ".to_owned();
+
+        if rand(0.7) {
+            name.push(*consonants.choose());
+        }
+        name.push(rand_weighted(&vowels));
+        if rand(0.1) {
+            name.push('n');
+        }
+        for _ in 0..rand_weighted(&[(2., 1), (7., 2), (1., 3)]) {
+            name.push(*consonants.choose());
+            name.push(rand_weighted(&vowels));
+            if rand(0.1) {
+                name.push('n');
+            }
+        }
+
+        if !(name.contains("ti")
+            | name.contains("wo")
+            | name.contains("wu")
+            | name.contains("ji")
+            | name.contains("nn")
+            | name.contains("nm"))
+        {
+            return name;
+        }
+    }
+}
