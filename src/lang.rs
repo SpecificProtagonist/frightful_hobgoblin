@@ -317,6 +317,8 @@ impl Lang {
             .write_all(&uncompressed)
             .unwrap();
     }
+
+    // TODO: name generation
 }
 
 impl Default for Lang {
