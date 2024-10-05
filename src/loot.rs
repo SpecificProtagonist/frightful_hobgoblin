@@ -90,13 +90,14 @@ fn snbt(items: &[(&str, i32, i32)]) -> String {
         if i != 0 {
             out.push(',');
         }
-        out.push_str(&format!("{{Slot:{slot}b,Count:{count},id:\"{item}\"}}"));
+        out.push_str(&format!("{{Slot:{slot}b,count:{count},id:\"{item}\"}}"));
     }
     out.push(']');
     out
 }
 
 fn potion() -> String {
+    // TODO: Components
     format!(
         "potion,tag:{{Potion:\"{}\"}}",
         [

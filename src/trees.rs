@@ -587,7 +587,7 @@ pub struct Untree<'w, 's> {
     trees: Query<'w, 's, &'static Tree>,
 }
 
-impl<'w, 's> Untree<'w, 's> {
+impl Untree<'_, '_> {
     pub fn remove_trees(&mut self, level: &mut Level, area: impl IntoIterator<Item = IVec2>) {
         for column in area.into_iter() {
             if let Some(entity) = self.tree_map[column] {

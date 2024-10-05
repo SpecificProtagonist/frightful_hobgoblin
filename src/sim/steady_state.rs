@@ -256,7 +256,7 @@ pub fn generate(world: &mut World) {
                 Trader,
             ))
             .id();
-        world.run_system_once(name);
+        world.run_system_once(name).unwrap();
         walk(world, trader, tavern, 1);
 
         let track_trade = world.resource_mut::<Replay>().begin_next_track();

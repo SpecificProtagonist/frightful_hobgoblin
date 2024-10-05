@@ -356,8 +356,14 @@ pub fn work(
             }
 
             let rec = level.pop_recording(cursor).collect_vec();
+
             let amount = rec.iter().filter(|set| quarryable(set.previous)).count() as f32 * 1.5;
-            place.extend(rec.into_iter().map(ConsItem::Set));
+            for set in rec {
+                if quarryable(set.previous) {
+                    place.push_back(ConsItem::Command(playsound("block.stone.break", set.pos)));
+                }
+                place.push_back(ConsItem::Set(set));
+            }
             place.push_back(ConsItem::Carry(Some(Stack::new(Good::Stone, amount))));
 
             commands.entity(worker).insert(place);

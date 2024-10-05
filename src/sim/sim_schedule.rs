@@ -58,11 +58,11 @@ pub fn sim(mut level: Level, config: Config) {
 
     world.init_resource::<DesireLines>();
 
-    world.run_system_once(detect_existing_buildings);
-    world.run_system_once(init_trees);
-    world.run_system_once(starting_resources);
-    world.run_system_once(init_stalls);
-    world.run_system_once(init_roads);
+    world.run_system_once(detect_existing_buildings).unwrap();
+    world.run_system_once(init_trees).unwrap();
+    world.run_system_once(starting_resources).unwrap();
+    world.run_system_once(init_stalls).unwrap();
+    world.run_system_once(init_roads).unwrap();
 
     let mut sched = Schedule::default();
     // Because the systems are extremely lightweight, running them on a single thread
@@ -113,7 +113,7 @@ pub fn sim(mut level: Level, config: Config) {
         )
             .chain(),
     );
-    world.observe(update_pile_visuals);
+    world.add_observer(update_pile_visuals);
 
     for _ in 0..world.resource::<Config>().ticks {
         sched.run(&mut world);
@@ -123,7 +123,7 @@ pub fn sim(mut level: Level, config: Config) {
     world
         .resource_mut::<Replay>()
         .command("scoreboard players set sim speed 1".into());
-    world.run_system_once(flush_unfinished_changes);
+    world.run_system_once(flush_unfinished_changes).unwrap();
     steady_state::generate(&mut world);
 
     let level = world.remove_resource::<Level>().unwrap();

@@ -296,7 +296,7 @@ impl<T: Copy> MaybeRef<T> for T {
         *self
     }
 }
-impl<'a, T: Copy> MaybeRef<T> for &'a T {
+impl<T: Copy> MaybeRef<T> for &T {
     fn get_val(&self) -> T {
         **self
     }
@@ -375,11 +375,8 @@ fn load_chunk(
         ))
         .ok()?;
     let version = nbt.get_i32("DataVersion").unwrap();
-    if !(3465..=DATA_VERSION).contains(&version) {
-        eprintln!(
-            "Using version {}; only 1.20.2 is currently tested.",
-            version
-        );
+    if version != DATA_VERSION {
+        eprintln!("Using version {}; only 1.21 is currently tested.", version);
     }
 
     // TODO: store CarvingMasks::AIR, seems useful

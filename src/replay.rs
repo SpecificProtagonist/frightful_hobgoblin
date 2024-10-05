@@ -309,7 +309,7 @@ impl Replay {
 
     pub fn mcfunction(&self, name: &str, content: &str) {
         let path = self.level_path.join(format!(
-            "datapacks/sim_{0}/data/sim_{0}/functions/{name}.mcfunction",
+            "datapacks/sim_{0}/data/sim_{0}/function/{name}.mcfunction",
             invocation()
         ));
         create_dir_all(path.parent().unwrap()).unwrap();
@@ -328,11 +328,11 @@ impl Replay {
         create_dir_all(&pack_path).unwrap();
         write(
             pack_path.join("pack.mcmeta"),
-            r#"{"pack": {"pack_format": 10, "description": ""}}"#,
+            r#"{"pack": {"pack_format": 48, "description": ""}}"#,
         )
         .unwrap();
 
-        let tag_path = pack_path.join("data/minecraft/tags/functions/");
+        let tag_path = pack_path.join("data/minecraft/tags/function/");
         create_dir_all(&tag_path).unwrap();
         write(
             tag_path.join("load.json"),

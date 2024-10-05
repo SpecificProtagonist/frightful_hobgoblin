@@ -1,4 +1,3 @@
-#![feature(option_get_or_insert_default)]
 #![feature(let_chains)]
 // Feeling cute, might delete later
 #![feature(unboxed_closures)]
@@ -52,7 +51,7 @@ pub fn default<T: Default>() -> T {
     Default::default()
 }
 
-const DATA_VERSION: i32 = 3578;
+const DATA_VERSION: i32 = 3953;
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;

@@ -27,10 +27,11 @@ itertools = "0.12"
 bresenham = { path = "bresenham-rs" }
 # Used only for debugging
 image = { version = "0.25", default-features = false, features = ["png"] }
-bevy_ecs = { version = "0.14", default-features = false}
-bevy_math = "0.14"
-bevy_derive = "0.14"
-bevy_utils = "0.14"
+bevy_ecs = { version = "0.15", default-features = false}
+# bevy_ecs = { path = "../bevy/crates/bevy_ecs", default-features = false}
+bevy_math = "0.15"
+bevy_derive = "0.15"
+bevy_utils = "0.15"
 bitflags = "2"
 enum-iterator = "2"
 # git points to pull request that fixes off-by-one error

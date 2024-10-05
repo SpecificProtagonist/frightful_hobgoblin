@@ -155,7 +155,7 @@ pub fn palette() -> impl Fn(f32, i32) -> BlockMaterial {
     }
 }
 
-#[allow(clippy::fn_address_comparisons)]
+#[allow(unpredictable_function_pointer_comparisons)]
 pub fn roof_shape(mut base_z: i32, area: Rect) -> Shape {
     let rot = area.size().y > area.size().x;
     let size = if rot { area.size().yx() } else { area.size() }.as_vec2();
