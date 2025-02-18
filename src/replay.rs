@@ -501,7 +501,10 @@ impl Replay {
         // Args: blurb
         self.mcfunction(
             "say_blurb_macro_2",
-            "$tellraw @a[distance=..10] [\"<\",{\"selector\":\"@s\"},\"> $(blurb)\"]",
+            "tag @s add speaker
+            $execute at @s run tellraw @a[distance=..10] [\"<\",{\"selector\":\"@s\"},\"> $(blurb)\"]
+            tag @s remove speaker
+            ",
         );
 
         self.mcfunction(

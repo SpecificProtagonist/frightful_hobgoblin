@@ -275,10 +275,21 @@ impl Lang {
         }
     }
 
-    pub fn sentence(&self) -> String {
+    pub fn spoken_sentence(&self) -> String {
         let mut sentence = String::new();
+        let mut name_mentioned = false;
         for _ in 0..rand(1..9) {
-            sentence.push_str(&rand_weighted(&self.words));
+            if !name_mentioned & rand(0.15) {
+                // TODO: Vary position in sentence between languages
+                name_mentioned = true;
+                if rand(0.5) {
+                    sentence.push_str("\",{\"selector\":\"@p\"},\"");
+                } else {
+                    sentence.push_str("\",{\"selector\":\"@n[type=villager,tag=!speaker]\"},\"");
+                }
+            } else {
+                sentence.push_str(&rand_weighted(&self.words));
+            }
             if rand(self.comma_chance) {
                 sentence.push(',');
             }
@@ -291,7 +302,7 @@ impl Lang {
     pub fn write_blurbs(&self, level_path: &Path) {
         let data_path = level_path.join("data/");
         std::fs::create_dir_all(&data_path).unwrap();
-        let blurbs = Tag::List((0..200).map(|_| self.sentence().into()).collect());
+        let blurbs = Tag::List((0..200).map(|_| self.spoken_sentence().into()).collect());
         let mut nbt = CompoundTag::new();
         nbt.insert("DataVersion", DATA_VERSION);
         nbt.insert("data", {
