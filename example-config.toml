@@ -16,3 +16,4 @@ no_replay = false
 skip_walk = false
 show_blocked = false
 show_reachability = false
+show_level_borders = false

@@ -80,6 +80,8 @@ pub struct Config {
     pub show_reachability: bool,
     #[serde(default)]
     pub show_blocked: bool,
+    #[serde(default)]
+    pub show_level_borders: bool,
 }
 
 impl Config {

@@ -18,6 +18,13 @@ use self::market::upgrade_plaza;
 use super::*;
 
 pub fn sim(mut level: Level, config: Config) {
+    if config.show_level_borders {
+        for column in level.area().border() {
+            let z = level.height[column];
+            level(column.extend(z), Wool(White));
+        }
+    }
+
     let city_center = choose_starting_area(&level);
     let mut replay = Replay::new(&level);
     replay.say(
