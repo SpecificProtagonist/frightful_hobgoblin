@@ -41,7 +41,7 @@ pub fn center_biome() -> Biome {
     *CENTER_BIOME.get().unwrap()
 }
 
-#[derive(Component, Deref, DerefMut, PartialEq)]
+#[derive(Component, Deref, DerefMut, PartialEq, Copy, Clone)]
 pub struct Pos(pub Vec3);
 
 impl std::fmt::Display for Pos {

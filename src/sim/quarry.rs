@@ -69,11 +69,17 @@ pub fn plan_quarry(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<Quarry>, With<Planned>)>,
+    others: Query<&Pos, With<Quarry>>,
     center: Query<&Pos, With<CityCenter>>,
 ) {
     if !planned.is_empty() {
         return;
     }
+
+    let others = others
+        .iter()
+        .map(|p| p.0.truncate().as_ivec2())
+        .collect_vec();
 
     let Some(params) = optimize(
         Params {
@@ -85,13 +91,32 @@ pub fn plan_quarry(
             params.pos += ivec2(rand(-max_move..=max_move), rand(-max_move..=max_move));
             params.dir += (rand(-1. ..1.)) * 2. * PI * temperature.min(0.5);
 
-            if !level.free(params.base_area()) || !level.free(params.probed_mining_area()) {
+            if !level.area().contains(params.pos) {
                 return f32::INFINITY;
             }
+
             let mut distance = level.reachability[params.pos] as f32 - 650.;
             // Penalize quarries near city center
             if distance < 0. {
                 distance *= -5.
+            }
+
+            // At high temperatures, just get the broad strokes
+            if temperature > 0.2 {
+                let probe_pos = params.pos + (params.dir_vec2() * 8.).as_ivec2();
+                if !level.area().contains(probe_pos)
+                    | others
+                        .iter()
+                        .any(|other| (other - params.pos).abs().element_sum() < 24)
+                {
+                    return f32::INFINITY;
+                }
+                return (level.height[params.pos] - level.height[probe_pos] + 100) as f32
+                    + distance / 50.;
+            }
+
+            if !level.free(params.base_area()) || !level.free(params.probed_mining_area()) {
+                return f32::INFINITY;
             }
             // TODO: determine floor height here, weighed by towards lower points along border
             let avg_start_height = level.height.average(params.base_area()) as i32;
@@ -110,9 +135,6 @@ pub fn plan_quarry(
             }
             let avg_stone = stone as f32 / columns as f32;
 
-            // if avg_stone < 5. {
-            //     return f32::INFINITY;
-            // }
             let area = Rect::new_centered(params.pos, IVec2::splat(7));
             if area.into_iter().any(|c| level.water[c].is_some()) {
                 return f32::INFINITY;
@@ -120,8 +142,8 @@ pub fn plan_quarry(
             /*wateryness(&level, area) * 2000. +*/
             unevenness(&level, area) * 1.5 - avg_stone * 5. + distance / 100.
         },
-        300,
-        5,
+        400,
+        25,
     ) else {
         println!("failed to place quarry");
         return;
@@ -180,6 +202,13 @@ pub fn test_build_quarry(
 }
 
 fn make_quarry(level: &mut Level, untree: &mut Untree, pos: IVec3, quarry: &Quarry) -> ConsList {
+    // let params = Params {
+    //     pos: pos.truncate(),
+    //     dir: quarry.dir,
+    // };
+    // level.fill_at(params.base_area(), 91, Wool(Red));
+    // level.fill_at(params.probed_mining_area(), 90, Wool(Orange));
+
     let cursor = level.recording_cursor();
     untree.remove_trees(level, Rect::new_centered(pos.truncate(), ivec2(9, 9)));
 
@@ -330,7 +359,12 @@ pub fn work(
                 commands.entity(worker).remove::<Mason>().insert(Jobless);
                 continue;
             };
-            let floor = pos.get(mason.workplace).unwrap().block().z;
+            let workplace_pos = pos.get(mason.workplace).unwrap().block();
+            let floor = workplace_pos.z
+                - (target
+                    .as_vec2()
+                    .distance(workplace_pos.truncate().as_vec2())
+                    / 3.7) as i32;
             mason.ready_to_work = false;
 
             let mut place = PlaceTask(default());
