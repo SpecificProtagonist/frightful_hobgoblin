@@ -24,8 +24,8 @@ pub fn generate(world: &mut World) {
     world.run_system(tick).unwrap();
 
     // Quarry crane
-    let mut quarries = world.query_filtered::<&mut Quarry, With<Built>>();
-    for mut quarry in quarries.iter_mut(world) {
+    let mut quarries = world.query_filtered::<(&mut Quarry, &Pos), With<Built>>();
+    for (mut quarry, _) in quarries.iter_mut(world) {
         quarry.crane_rot_target = quarry.crane_rot;
     }
     for quarry in world
@@ -41,18 +41,25 @@ pub fn generate(world: &mut World) {
             let mut sched = Schedule::default();
             sched.set_executor_kind(ExecutorKind::SingleThreaded);
             sched.add_systems((quarry::update_quarry_rotation,));
-            let mut data = quarries.get_mut(world, quarry).unwrap();
+            let (mut data, pos) = quarries.get_mut(world, quarry).unwrap();
+            let pos = pos.block();
             data.crane_rot_target = (data.crane_rot + rand(4..12)) % 16;
             let start_rot = data.crane_rot;
-            while quarries.get(world, quarry).unwrap().rotating() {
+            world
+                .resource_mut::<Replay>()
+                .command(playsound("creak", pos));
+            while quarries.get(world, quarry).unwrap().0.rotating() {
                 sched.run(world);
                 world.run_system(tick).unwrap();
             }
             for _ in 0..rand(10..100) {
                 world.run_system(tick).unwrap();
             }
-            quarries.get_mut(world, quarry).unwrap().crane_rot_target = start_rot;
-            while quarries.get(world, quarry).unwrap().rotating() {
+            quarries.get_mut(world, quarry).unwrap().0.crane_rot_target = start_rot;
+            world
+                .resource_mut::<Replay>()
+                .command(playsound("creak", pos));
+            while quarries.get(world, quarry).unwrap().0.rotating() {
                 sched.run(world);
                 world.run_system(tick).unwrap();
             }

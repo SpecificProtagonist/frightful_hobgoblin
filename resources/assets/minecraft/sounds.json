@@ -25,6 +25,24 @@
       }
     ]
   },
+  "creak": {
+    "category": "ambient",
+    "sounds": [
+      {
+        "name": "creak_1",
+        "attenuation_distance": 32,
+        "weight": 2.5
+      },
+      {
+        "name": "creak_2",
+        "attenuation_distance": 32
+      },
+      {
+        "name": "creak_3",
+        "attenuation_distance": 32
+      }
+    ]
+  },
   "chop": {
     "category": "ambient",
     "sounds": [

@@ -257,13 +257,15 @@ pub fn make_stone_piles(
 }
 
 pub fn quarry_rotation(
-    mut quarries: Query<&mut Quarry, (Without<Planned>, Without<ConstructionSite>)>,
+    mut quarries: Query<(&mut Quarry, &Pos), (Without<Planned>, Without<ConstructionSite>)>,
+    mut replay: ResMut<Replay>,
 ) {
-    for mut quarry in &mut quarries {
+    for (mut quarry, pos) in &mut quarries {
         if rand(0.995) {
             continue;
         }
         quarry.crane_rot_target = rand(0..16);
+        replay.command(playsound("creak", pos.block()));
     }
 }
 
