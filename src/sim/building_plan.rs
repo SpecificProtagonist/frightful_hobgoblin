@@ -74,13 +74,13 @@ pub fn plan_house(
     level: Res<Level>,
     planned: Query<(), (With<HousePlan>, With<Planned>)>,
     center: Query<&Pos, With<CityCenter>>,
-) {
+) -> Result<()> {
     if planned.iter().len() > 0 {
-        return;
+        return Ok(());
     }
 
     // TODO: On a large map, allow for multiple town centers
-    let center = center.single().truncate();
+    let center = center.single()?.truncate();
     let Some(area) = optimize(
         Rect::new_centered(center.block(), ivec2(rand(7..=11), rand(7..=15))),
         |area, temperature| {
@@ -102,7 +102,7 @@ pub fn plan_house(
         200,
         20,
     ) else {
-        return;
+        return Ok(());
     };
 
     commands.spawn((
@@ -110,6 +110,7 @@ pub fn plan_house(
         Planned(area.into_iter().collect()),
         HousePlan { area },
     ));
+    Ok(())
 }
 
 // Needed to delay until the post itself has been placed in MC
@@ -121,18 +122,18 @@ pub fn hitching_post(
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,
     mut replay: ResMut<Replay>,
-    tick: Res<Tick>,
+    tick: Res<CurrentTick>,
     center: Query<&Pos, With<CityCenter>>,
     new: Query<&SpawnHitchedHorse, Added<SpawnHitchedHorse>>,
-) {
+) -> Result<()> {
     for new in &new {
         let pos = new.0;
         replay.command(format!("summon horse {} {} {} {{Tame:1,SaddleItem:{{Count:1,id:\"saddle\"}},Leash:{{X:{0},Y:{3},Z:{2}}}}}", pos.x, pos.z-1, pos.y, pos.z));
     }
     if (tick.0 != 20000) & (tick.0 != 30000) {
-        return;
+        return Ok(());
     }
-    let center = center.single().truncate().block();
+    let center = center.single()?.truncate().block();
     let Some(area) = optimize(
         Rect::new_centered(level.area().center(), ivec2(5, 5)),
         |area, temperature| {
@@ -153,7 +154,7 @@ pub fn hitching_post(
         200,
         10,
     ) else {
-        return;
+        return Ok(());
     };
 
     for column in area {
@@ -178,6 +179,7 @@ pub fn hitching_post(
     level(hay, Hay);
 
     commands.spawn(SpawnHitchedHorse(pos + 2 * IVec3::Z));
+    Ok(())
 }
 
 // Very temporary, just for testing!

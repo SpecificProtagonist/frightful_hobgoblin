@@ -27,15 +27,15 @@ itertools = "0.12"
 bresenham = { path = "bresenham-rs" }
 # Used only for debugging
 image = { version = "0.25", default-features = false, features = ["png"] }
-bevy_ecs = { version = "0.15", default-features = false}
-# bevy_ecs = { path = "../bevy/crates/bevy_ecs", default-features = false}
-bevy_math = "0.15"
-bevy_derive = "0.15"
-bevy_utils = "0.15"
+bevy_ecs = { git="https://github.com/bevyengine/bevy.git", rev="12f605e", default-features = false}
+bevy_math = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
+bevy_derive = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
+bevy_utils = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
+bevy_platform = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
 bitflags = "2"
 enum-iterator = "2"
-# git points to pull request that fixes off-by-one error
-nanorand = {version = "0.8", git = "https://github.com/StT191/nanorand-rs.git" }
+# fixes off-by-one error
+nanorand = {version = "0.8", git = "https://github.com/Absolucy/nanorand-rs", branch="main" }
 flate2 = "1"
 toml = "0.8"
 serde = {version = "1", features = ["serde_derive"]}

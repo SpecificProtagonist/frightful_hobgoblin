@@ -20,8 +20,8 @@ pub fn init_roads(
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,
     city_center: Query<&Pos, With<CityCenter>>,
-) {
-    let center = city_center.single().block().truncate();
+) -> Result<()> {
+    let center = city_center.single()?.block().truncate();
     let ray_start = center.as_vec2() * 0.5 + level.area().center_vec2() * 0.5;
     let count = 5;
     let paths = (0..count)
@@ -118,4 +118,5 @@ pub fn init_roads(
     }
 
     commands.insert_resource(Roads(paths));
+    Ok(())
 }

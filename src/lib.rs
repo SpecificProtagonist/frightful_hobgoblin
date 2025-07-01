@@ -5,6 +5,7 @@
 // Mostly for bevy stuff
 #![allow(clippy::type_complexity)]
 #![allow(clippy::too_many_arguments)]
+#![allow(mismatched_lifetime_syntaxes)]
 
 // Flat module hierarchy is ok for now
 pub mod debug_image;
@@ -34,7 +35,7 @@ pub mod trees;
 
 use std::cell::Cell;
 
-use bevy_utils::FixedState;
+use bevy_platform::hash::FixedState;
 pub use geometry::*;
 pub use level::*;
 pub use prefab::prefab;
@@ -51,7 +52,7 @@ pub fn default<T: Default>() -> T {
     Default::default()
 }
 
-const DATA_VERSION: i32 = 3953;
+const DATA_VERSION: i32 = 4440;
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;

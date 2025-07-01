@@ -145,17 +145,18 @@ pub struct Goods(HashMap<Good, f32>);
 
 impl Goods {
     pub fn has(&self, stack: Stack) -> bool {
-        self.get(&stack.good)
+        self.0
+            .get(&stack.good)
             .map(|&a| a >= stack.amount)
             .unwrap_or(false)
     }
 
     pub fn add(&mut self, stack: Stack) {
-        *self.entry(stack.good).or_default() += stack.amount;
+        *self.0.entry(stack.good).or_default() += stack.amount;
     }
 
     pub fn remove(&mut self, stack: Stack) {
-        if let Some(entry) = self.get_mut(&stack.good) {
+        if let Some(entry) = self.0.get_mut(&stack.good) {
             *entry -= stack.amount;
             if *entry <= 0. {
                 self.0.remove(&stack.good);
@@ -164,7 +165,7 @@ impl Goods {
     }
 
     pub fn remove_up_to(&mut self, mut stack: Stack) -> Stack {
-        let available = self.entry(stack.good).or_default();
+        let available = self.0.entry(stack.good).or_default();
         stack.amount = stack.amount.min(*available);
         *available -= stack.amount;
         stack
@@ -173,7 +174,7 @@ impl Goods {
     /// Try consume the goods required for block, return what good is missing
     pub fn try_consume(&mut self, block: Block) -> Option<Good> {
         let needed = goods_for_block(block)?;
-        let stored = self.entry(needed.good).or_default();
+        let stored = self.0.entry(needed.good).or_default();
         if *stored >= needed.amount {
             *stored -= needed.amount;
             None

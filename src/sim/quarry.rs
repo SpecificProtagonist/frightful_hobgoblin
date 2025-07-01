@@ -71,9 +71,9 @@ pub fn plan_quarry(
     planned: Query<(), (With<Quarry>, With<Planned>)>,
     others: Query<&Pos, With<Quarry>>,
     center: Query<&Pos, With<CityCenter>>,
-) {
+) -> Result<()> {
     if !planned.is_empty() {
-        return;
+        return Ok(());
     }
 
     let others = others
@@ -83,7 +83,7 @@ pub fn plan_quarry(
 
     let Some(params) = optimize(
         Params {
-            pos: center.single().0.block().truncate(),
+            pos: center.single()?.0.block().truncate(),
             dir: rand(0. ..2. * PI),
         },
         |params, temperature| {
@@ -145,8 +145,8 @@ pub fn plan_quarry(
         400,
         25,
     ) else {
-        println!("failed to place quarry");
-        return;
+        eprintln!("failed to place quarry");
+        return Ok(());
     };
 
     let mut to_mine = params
@@ -180,6 +180,7 @@ pub fn plan_quarry(
             crane_rot_target: 0,
         },
     ));
+    Ok(())
 }
 
 pub fn test_build_quarry(

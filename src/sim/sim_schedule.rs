@@ -34,7 +34,7 @@ pub fn sim(mut level: Level, config: Config) {
 
     let mut world = World::new();
     world.insert_resource(config);
-    world.init_resource::<Tick>();
+    world.init_resource::<CurrentTick>();
 
     let city_center_pos = level.ground(city_center.center());
     CENTER_BIOME.get_or_init(|| level.biome[city_center.center()]);
@@ -67,9 +67,11 @@ pub fn sim(mut level: Level, config: Config) {
 
     world.run_system_once(detect_existing_buildings).unwrap();
     world.run_system_once(init_trees).unwrap();
-    world.run_system_once(starting_resources).unwrap();
-    world.run_system_once(init_stalls).unwrap();
-    world.run_system_once(init_roads).unwrap();
+    world
+        .run_system_once::<_, (), _>(starting_resources)
+        .unwrap();
+    world.run_system_once::<_, (), _>(init_stalls).unwrap();
+    world.run_system_once::<_, (), _>(init_roads).unwrap();
 
     let mut sched = Schedule::default();
     // Because the systems are extremely lightweight, running them on a single thread
@@ -115,7 +117,7 @@ pub fn sim(mut level: Level, config: Config) {
             desire_lines,
             personal_name::name,
             tick_replay,
-            |mut tick: ResMut<Tick>| tick.0 += 1,
+            |mut tick: ResMut<CurrentTick>| tick.0 += 1,
             World::clear_trackers,
         )
             .chain(),

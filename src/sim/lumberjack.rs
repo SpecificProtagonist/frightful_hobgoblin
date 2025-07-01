@@ -47,15 +47,15 @@ pub fn plan_lumberjack(
     planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
     trees: Query<(Entity, &Pos, &Tree), Without<TreeIsNearLumberCamp>>,
     center: Query<&Pos, With<CityCenter>>,
-) {
+) -> Result<()> {
     if !planned.is_empty() {
-        return;
+        return Ok(());
     }
 
     // TODO: Seperate focus and shack position selection
     let Some(area) = optimize(
         Rect::new_centered(
-            center.single().0.block().truncate(),
+            center.single()?.0.block().truncate(),
             ivec2(rand(4..=6), rand(5..=8)),
         ),
         |area, temperature| {
@@ -85,7 +85,7 @@ pub fn plan_lumberjack(
         200,
         1,
     ) else {
-        return;
+        return Ok(());
     };
 
     for (tree, pos, _) in &trees {
@@ -100,6 +100,7 @@ pub fn plan_lumberjack(
         Planned(area.grow(1).into_iter().collect()),
         LumberjackShack { area },
     ));
+    Ok(())
 }
 
 // TMP
@@ -242,13 +243,13 @@ pub fn make_lumber_piles(
     mut untree: Untree,
     center: Query<&Pos, With<CityCenter>>,
     new_lumberjacks: Query<&Pos, Added<LumberjackFocus>>,
-) {
+) -> Result<()> {
     for lumberjack in &new_lumberjacks {
         let (pos, _, params) = LumberPile::make(
             &mut level,
             &mut untree,
             lumberjack.0.truncate(),
-            center.single().truncate(),
+            center.single()?.truncate(),
         );
         commands.spawn((
             Pos(pos.as_vec3()),
@@ -258,4 +259,5 @@ pub fn make_lumber_piles(
             StoragePile,
         ));
     }
+    Ok(())
 }

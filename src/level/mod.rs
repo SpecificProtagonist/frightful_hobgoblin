@@ -8,7 +8,7 @@ use anvil_region::{
     position::{RegionChunkPosition, RegionPosition},
     provider::{FolderRegionProvider, RegionProvider},
 };
-use bevy_ecs::system::Resource;
+use bevy_ecs::resource::Resource;
 use itertools::Itertools;
 use nbt::CompoundTag;
 use rayon::prelude::*;
@@ -376,7 +376,7 @@ fn load_chunk(
         .ok()?;
     let version = nbt.get_i32("DataVersion").unwrap();
     if version != DATA_VERSION {
-        eprintln!("Using version {}; only 1.21 is currently tested.", version);
+        eprintln!("Using version {version}; only 1.21.8 is currently tested.",);
     }
 
     // TODO: store CarvingMasks::AIR, seems useful
@@ -553,7 +553,7 @@ fn save_chunk(
                                     current_long += 1;
                                     // If there's an unnecessary empty long at the end,
                                     // the chunk can't be loaded
-                                    if (i < 4095) | (64 % bits_per_index != 0) {
+                                    if (i < 4095) | !64usize.is_multiple_of(bits_per_index) {
                                         blocks.push(0);
                                     }
                                 }

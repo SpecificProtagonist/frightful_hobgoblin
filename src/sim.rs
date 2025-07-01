@@ -30,7 +30,7 @@ pub use bevy_ecs::prelude::*;
 use bevy_math::Vec2Swizzles;
 
 #[derive(Resource, Default, Deref, DerefMut)]
-pub struct Tick(pub i32);
+pub struct CurrentTick(pub i32);
 
 #[derive(Component, Deref)]
 pub struct CityCenter(Rect);
@@ -54,13 +54,16 @@ impl std::fmt::Display for Pos {
 pub struct PrevPos(pub Vec3);
 
 #[derive(Component, Default)]
+// #[require(DateOfArrival)]
 pub struct Villager {
     pub carry: Option<Stack>,
     pub carry_id: Id,
 }
 
-#[derive(Component)]
-pub struct Name(pub String);
+// #[derive(Component)]
+// pub struct DateOfArrival {
+//     tick: i32,
+// }
 
 #[derive(Component, Default)]
 pub struct InBoat(pub Id);
@@ -209,8 +212,8 @@ fn starting_resources(
     mut level: ResMut<Level>,
     mut untree: Untree,
     city_center: Query<(Entity, &Pos), With<CityCenter>>,
-) {
-    let (center, pos) = city_center.single();
+) -> Result<()> {
+    let (center, pos) = city_center.single()?;
     for _ in 0..6 {
         let (pos, area, params) =
             LumberPile::make(&mut level, &mut untree, pos.truncate(), pos.truncate());
@@ -263,17 +266,18 @@ fn starting_resources(
     commands
         .entity(center)
         .insert((OutPile::default(), Pile::new(starting_resources, 1)));
+    Ok(())
 }
 
 fn spawn_villagers(
     mut commands: Commands,
     level: Res<Level>,
-    tick: Res<Tick>,
+    tick: Res<CurrentTick>,
     city_center: Query<&Pos, With<CityCenter>>,
     config: Res<Config>,
-) {
+) -> Result<()> {
     if (tick.0 < config.villagers * 4) & (tick.0 % 4 == 0) {
-        let column = city_center.single().truncate() + vec2(rand(-5. ..5.), rand(-5. ..5.));
+        let column = city_center.single()?.truncate() + vec2(rand(-5. ..5.), rand(-5. ..5.));
         commands.spawn((
             Id::default(),
             Villager::default(),
@@ -282,6 +286,7 @@ fn spawn_villagers(
             PrevPos(default()),
         ));
     }
+    Ok(())
 }
 
 fn flush_unfinished_changes(

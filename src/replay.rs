@@ -661,8 +661,7 @@ pub fn tick_replay(
     // Names
     for (id, name) in &named {
         replay.command(format!(
-            "data modify entity {id} CustomName set value \"{{\\\"text\\\":\\\"{}\\\"}}\"",
-            name.0
+            "data modify entity {id} CustomName set value \"{{\\\"text\\\":\\\"{name}\\\"}}\"",
         ));
     }
     // Movement

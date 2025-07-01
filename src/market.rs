@@ -20,8 +20,8 @@ pub struct MarketStall {
 #[derive(Component)]
 pub struct StallNotYetPlanned;
 
-pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) {
-    let center = center.single().block().truncate();
+pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) -> Result<()> {
+    let center = center.single()?.block().truncate();
     for x in -1..=1 {
         let offset = || ivec2(x * 8 + rand(0..=1), -rand(3..=4));
         commands.spawn((
@@ -39,6 +39,7 @@ pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>
             StallNotYetPlanned,
         ));
     }
+    Ok(())
 }
 
 pub fn plan_stalls(
@@ -139,14 +140,14 @@ fn replace_wool_colors() -> impl Fn(Color) -> Color {
 pub fn upgrade_plaza(
     mut commands: Commands,
     mut level: ResMut<Level>,
-    tick: Res<Tick>,
+    tick: Res<CurrentTick>,
     center: Query<(Entity, &CityCenter)>,
     mut untree: Untree,
-) {
+) -> Result<()> {
     if tick.0 != 1000 {
-        return;
+        return Ok(());
     }
-    let (entity, rect) = center.single();
+    let (entity, rect) = center.single()?;
 
     let cursor = level.recording_cursor();
     let mut rec = ConsList::new();
@@ -178,4 +179,5 @@ pub fn upgrade_plaza(
         offset += dir;
     }
     commands.entity(entity).insert(ConstructionSite::new(rec));
+    Ok(())
 }

@@ -388,7 +388,7 @@ impl Display for Blockstate {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "{}[", self.0)?;
         for (name, state) in self.1.iter() {
-            write!(f, "{}={},", name, state)?;
+            write!(f, "{name}={state},")?;
         }
         write!(f, "]")
     }
@@ -759,7 +759,7 @@ impl Block {
                             2 => "2".into(),
                             3 => "3".into(),
                             4 => "4".into(),
-                            _ => panic!("Repeater delay {}", delay),
+                            _ => panic!("Repeater delay {delay}"),
                         },
                     ),
                     ("facing".into(), dir.to_str().into()),

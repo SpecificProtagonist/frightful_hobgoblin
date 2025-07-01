@@ -3,7 +3,7 @@ use bevy_ecs::{prelude::*, system::SystemParam};
 use std::f32::consts::PI;
 
 use crate::{
-    sim::{Pos, Tick},
+    sim::{CurrentTick, Pos},
     *,
 };
 
@@ -110,7 +110,7 @@ pub fn spawn_trees(
     mut commands: Commands,
     noise: ResMut<TreeNoise>,
     level: Res<Level>,
-    tick: Res<Tick>,
+    tick: Res<CurrentTick>,
     dl: Res<DesireLines>,
     mut tree_map: ResMut<Trees>,
 ) {
@@ -225,7 +225,7 @@ pub fn spawn_trees(
 
 pub fn grow_trees(
     mut level: ResMut<Level>,
-    tick: Res<Tick>,
+    tick: Res<CurrentTick>,
     mut trees: Query<(&Pos, &mut Tree, &mut GrowTree)>,
 ) {
     for (pos, mut tree, mut grow) in &mut trees {
