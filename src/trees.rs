@@ -29,7 +29,7 @@ pub struct Trees(ColumnMap<Option<Entity>>);
 #[derive(Resource, Deref, DerefMut)]
 pub struct TreeNoise(ColumnMap<f32, 2>);
 
-pub fn init_trees(mut commands: Commands, level: Res<Level>) {
+pub fn init_trees_sys(mut commands: Commands, level: Res<Level>) {
     let mut noise = level.column_map(0.);
     let mut trees = level.column_map(None);
 
@@ -106,7 +106,7 @@ pub fn init_trees(mut commands: Commands, level: Res<Level>) {
     commands.insert_resource(TreeNoise(noise));
 }
 
-pub fn spawn_trees(
+pub fn spawn_trees_sys(
     mut commands: Commands,
     noise: ResMut<TreeNoise>,
     level: Res<Level>,
@@ -223,7 +223,7 @@ pub fn spawn_trees(
     }
 }
 
-pub fn grow_trees(
+pub fn grow_trees_sys(
     mut level: ResMut<Level>,
     tick: Res<CurrentTick>,
     mut trees: Query<(&Pos, &mut Tree, &mut GrowTree)>,

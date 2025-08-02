@@ -16,8 +16,8 @@ pub mod house;
 pub mod lang;
 mod level;
 pub mod loot;
-pub mod make_name;
 pub mod market;
+pub mod names;
 pub mod noise;
 pub mod optimize;
 pub mod pathfind;
@@ -27,6 +27,7 @@ pub mod remove_foliage;
 pub mod replay;
 pub mod roof;
 pub mod shipping;
+#[path = "sim/sim.rs"]
 pub mod sim;
 pub mod test_house;
 pub mod trees;
@@ -83,6 +84,8 @@ pub struct Config {
     pub show_blocked: bool,
     #[serde(default)]
     pub show_level_borders: bool,
+    #[serde(default)]
+    pub export_heightmap: Option<String>,
 }
 
 impl Config {

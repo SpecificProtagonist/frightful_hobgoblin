@@ -25,14 +25,12 @@ fn main() {
 
     let level = config.load_level();
 
-    heightmap(&level);
+    if let Some(heightmap_path) = &config.export_heightmap {
+        let mut map = MapImage::new(level.area());
+        map.heightmap(&level);
+        map.water(&level);
+        map.save(heightmap_path);
+    }
 
     sim(level, config);
-}
-
-fn heightmap(level: &Level) {
-    let mut map = MapImage::new(level.area());
-    map.heightmap(level);
-    map.water(level);
-    map.save("heightmap.png");
 }

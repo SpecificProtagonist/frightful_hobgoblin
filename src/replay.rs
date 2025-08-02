@@ -18,7 +18,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::sync::Arc;
 
-use self::steady_state::Trader;
+use self::infinite_sim::Trader;
 
 // TODO: When warping ahead, skip tps except for the last ones
 // to do that, store tps in a seperate list
@@ -52,6 +52,9 @@ impl Default for Id {
     }
 }
 
+// These could also be resources, which would be semantically more correct.
+// However, our generator will only run on one minecraft world per process,
+// so this works and is more convenient.
 static NEXT_ID: AtomicU32 = AtomicU32::new(1);
 static INVOCATION: AtomicU8 = AtomicU8::new(0);
 pub fn invocation() -> u8 {
@@ -592,7 +595,7 @@ impl Replay {
     }
 }
 
-pub fn tick_replay(
+pub fn tick_replay_sys(
     change_tick: SystemChangeTick,
     mut level: ResMut<Level>,
     mut replay: ResMut<Replay>,

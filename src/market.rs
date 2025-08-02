@@ -20,7 +20,10 @@ pub struct MarketStall {
 #[derive(Component)]
 pub struct StallNotYetPlanned;
 
-pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>) -> Result<()> {
+pub fn init_stalls_sys(
+    mut commands: Commands,
+    center: Query<&Pos, With<CityCenter>>,
+) -> Result<()> {
     let center = center.single()?.block().truncate();
     for x in -1..=1 {
         let offset = || ivec2(x * 8 + rand(0..=1), -rand(3..=4));
@@ -42,7 +45,7 @@ pub fn init_stalls(mut commands: Commands, center: Query<&Pos, With<CityCenter>>
     Ok(())
 }
 
-pub fn plan_stalls(
+pub fn plan_stalls_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     houses: Query<(), (With<HousePlan>, Without<Planned>, Without<ConstructionSite>)>,
@@ -137,7 +140,7 @@ fn replace_wool_colors() -> impl Fn(Color) -> Color {
     move |c| replace[c as usize]
 }
 
-pub fn upgrade_plaza(
+pub fn upgrade_plaza_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     tick: Res<CurrentTick>,

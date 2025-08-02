@@ -8,7 +8,7 @@ use roof::build_roof;
 use self::{
     construction::RemoveWhenBlocked,
     desire_lines::{add_desire_line, DesireLines},
-    make_name::tavern_name,
+    names::tavern_name,
     pathfind::pathfind_street,
     roof::{roof_shape, Shape},
     sim::{logistics::MoveTask, ConsItem, ConsList},

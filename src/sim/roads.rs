@@ -14,7 +14,7 @@ use self::{
 #[derive(Resource)]
 pub struct Roads(pub Vec<VecDeque<PathingNode>>);
 
-pub fn init_roads(
+pub fn init_roads_sys(
     mut commands: Commands,
     mut tree_map: ResMut<Trees>,
     mut level: ResMut<Level>,

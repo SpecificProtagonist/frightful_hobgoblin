@@ -69,7 +69,7 @@ pub fn choose_starting_area(level: &Level) -> Rect {
     .shrink(10)
 }
 
-pub fn plan_house(
+pub fn plan_house_sys(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<HousePlan>, With<Planned>)>,
@@ -117,7 +117,7 @@ pub fn plan_house(
 #[derive(Component)]
 pub struct SpawnHitchedHorse(IVec3);
 
-pub fn hitching_post(
+pub fn hitching_post_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,
@@ -183,7 +183,7 @@ pub fn hitching_post(
 }
 
 // Very temporary, just for testing!
-pub fn assign_builds(
+pub fn assign_builds_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     construction_sites: Query<(), With<ConstructionSite>>,
@@ -221,7 +221,7 @@ pub fn assign_builds(
 }
 
 // TMP
-pub fn test_build_house(
+pub fn test_build_house_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,

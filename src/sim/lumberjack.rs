@@ -41,7 +41,7 @@ impl ChopTask {
     }
 }
 
-pub fn plan_lumberjack(
+pub fn plan_lumberjack_sys(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<LumberjackShack>, With<Planned>)>,
@@ -104,7 +104,7 @@ pub fn plan_lumberjack(
 }
 
 // TMP
-pub fn test_build_lumberjack(
+pub fn test_build_lumberjack_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,
@@ -121,7 +121,7 @@ pub fn test_build_lumberjack(
     }
 }
 
-pub fn assign_worker(
+pub fn assign_worker_sys(
     mut commands: Commands,
     available: Query<(Entity, &Pos), With<Jobless>>,
     new: Query<(Entity, &Pos), Added<LumberjackFocus>>,
@@ -145,7 +145,7 @@ pub fn assign_worker(
     }
 }
 
-pub fn work(
+pub fn work_sys(
     mut commands: Commands,
     pos: Query<&Pos>,
     mut workers: Query<
@@ -198,7 +198,7 @@ pub fn work(
 }
 
 // Seperate system to allow other villagers to chop. Should this be merge into `work`?
-pub fn chop(
+pub fn chop_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut lumberjacks: Query<(Entity, &mut ChopTask), (Without<MoveTask>, Without<PlaceTask>)>,
@@ -237,7 +237,7 @@ pub fn chop(
     }
 }
 
-pub fn make_lumber_piles(
+pub fn make_lumber_piles_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,

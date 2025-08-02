@@ -112,7 +112,7 @@ impl Default for Pile {
     }
 }
 
-pub fn update_piles(
+pub fn update_piles_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut piles: Query<(Entity, &mut Pile)>,
@@ -173,7 +173,7 @@ pub struct PickupReady;
 #[component(storage = "SparseSet")]
 pub struct DeliverReady;
 
-pub fn pickup(
+pub fn pickup_sys(
     mut commands: Commands,
     level: Res<Level>,
     pos: Query<&Pos>,
@@ -212,7 +212,7 @@ pub fn pickup(
     }
 }
 
-pub fn deliver(
+pub fn deliver_sys(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     level: Res<Level>,
@@ -329,7 +329,7 @@ struct MovePathNode {
 
 // TODO: Calculate the exact path at the beginning, then store it & use it for walk_ticks
 // TODO: Smooth this out
-pub fn walk(
+pub fn walk_sys(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     level: Res<Level>,

@@ -11,7 +11,7 @@ impl FromWorld for DesireLines {
     }
 }
 
-pub fn desire_lines(
+pub fn desire_lines_sys(
     mut level: ResMut<Level>,
     mut dl: ResMut<DesireLines>,
     walkers: Query<(&Pos, &PrevPos), With<Villager>>,

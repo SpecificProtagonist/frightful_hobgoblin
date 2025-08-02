@@ -65,7 +65,7 @@ pub struct Mason {
     ready_to_work: bool,
 }
 
-pub fn plan_quarry(
+pub fn plan_quarry_sys(
     mut commands: Commands,
     level: Res<Level>,
     planned: Query<(), (With<Quarry>, With<Planned>)>,
@@ -183,7 +183,7 @@ pub fn plan_quarry(
     Ok(())
 }
 
-pub fn test_build_quarry(
+pub fn test_build_quarry_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,
@@ -238,7 +238,7 @@ fn make_quarry(level: &mut Level, untree: &mut Untree, pos: IVec3, quarry: &Quar
     level.pop_recording(cursor).map(ConsItem::Set).collect()
 }
 
-pub fn make_stone_piles(
+pub fn make_stone_pile_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     new_quarries: Query<&Pos, (With<Quarry>, Added<Built>)>,
@@ -257,7 +257,7 @@ pub fn make_stone_piles(
     }
 }
 
-pub fn quarry_rotation(
+pub fn quarry_rotation_sys(
     mut quarries: Query<(&mut Quarry, &Pos), (Without<Planned>, Without<ConstructionSite>)>,
     mut replay: ResMut<Replay>,
 ) {
@@ -270,7 +270,7 @@ pub fn quarry_rotation(
     }
 }
 
-pub fn update_quarry_rotation(
+pub fn update_quarry_rotation_sys(
     mut level: ResMut<Level>,
     mut quarries: Query<&mut Quarry, (Without<Planned>, Without<ConstructionSite>)>,
 ) {
@@ -319,7 +319,7 @@ pub fn update_quarry_rotation(
     }
 }
 
-pub fn assign_worker(
+pub fn assign_worker_sys(
     mut commands: Commands,
     available: Query<(Entity, &Pos), With<Jobless>>,
     new: Query<(Entity, &Pos), (With<Quarry>, Added<Built>)>,
@@ -340,7 +340,7 @@ pub fn assign_worker(
     }
 }
 
-pub fn work(
+pub fn work_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut untree: Untree,

@@ -43,7 +43,7 @@ pub struct RemoveWhenBlocked {
     pub restore: Vec<SetBlock>,
 }
 
-pub fn new_construction_site(
+pub fn new_construction_site_sys(
     mut commands: Commands,
     mut level: ResMut<Level>,
     mut new: Query<(Entity, &mut ConstructionSite, Option<&Pile>), Added<ConstructionSite>>,
@@ -112,7 +112,7 @@ pub fn new_construction_site(
     }
 }
 
-pub fn build(
+pub fn build_sys(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     config: Res<Config>,

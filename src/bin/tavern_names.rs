@@ -1,4 +1,4 @@
-use frightful_hobgoblin::make_name::*;
+use frightful_hobgoblin::names::*;
 
 fn main() {
     for _ in 0..40 {

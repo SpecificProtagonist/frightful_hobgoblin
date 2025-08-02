@@ -1,11 +1,10 @@
-use bevy_ecs::{schedule::ExecutorKind, system::RunSystemOnce};
+use bevy_ecs::schedule::ExecutorKind;
 use bevy_utils::default;
 use itertools::Itertools;
 use std::fmt::Write;
 
 use self::{
     market::{MarketStall, StallNotYetPlanned},
-    personal_name::name,
     quarry::Quarry,
     roads::Roads,
 };
@@ -18,7 +17,7 @@ pub struct Trader;
 /// Animations to be perpetually run after the replay is done
 pub fn generate(world: &mut World) {
     let mut handlers = 0;
-    let tick = world.register_system(tick_replay);
+    let tick = world.register_system(tick_replay_sys);
     // Ugh, ugly hack because you can't set the change ticks of a system
     world.resource_mut::<Replay>().skip_changes_once = true;
     world.run_system(tick).unwrap();
@@ -40,7 +39,7 @@ pub fn generate(world: &mut World) {
             tracks.push(world.resource_mut::<Replay>().begin_next_track());
             let mut sched = Schedule::default();
             sched.set_executor_kind(ExecutorKind::SingleThreaded);
-            sched.add_systems((quarry::update_quarry_rotation,));
+            sched.add_systems((quarry::update_quarry_rotation_sys,));
             let (mut data, pos) = quarries.get_mut(world, quarry).unwrap();
             let pos = pos.block();
             data.crane_rot_target = (data.crane_rot + rand(4..12)) % 16;
@@ -97,7 +96,7 @@ pub fn generate(world: &mut World) {
     }
 
     // Villagers
-    let walk = world.register_system(walk);
+    let walk = world.register_system(walk_sys);
     let walk = |world: &mut World, villager: Entity, goal: IVec3, distance: i32| {
         world
             .entity_mut(villager)
@@ -263,7 +262,6 @@ pub fn generate(world: &mut World) {
                 Trader,
             ))
             .id();
-        world.run_system_once(name).unwrap();
         walk(world, trader, tavern, 1);
 
         let track_trade = world.resource_mut::<Replay>().begin_next_track();

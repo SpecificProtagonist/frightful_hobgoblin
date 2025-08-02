@@ -1,69 +1,15 @@
-pub mod building_plan;
-pub mod construction;
-pub mod desire_lines;
-pub mod logistics;
-pub mod lumberjack;
-mod personal_name;
-pub mod quarry;
-pub mod roads;
-mod sim_schedule;
-pub mod steady_state;
-mod storage_pile;
+use bevy_ecs::prelude::*;
 
-use std::collections::VecDeque;
-use std::sync::OnceLock;
-
-use crate::goods::*;
-use crate::optimize::optimize;
-use crate::trees::grow_trees;
+use crate::sim::social::make_name;
+use crate::sim::*;
 use crate::*;
-use crate::{pathfind::pathfind, replay::*};
-use building_plan::*;
-use construction::*;
-use logistics::*;
-use lumberjack::LumberjackShack;
-pub use sim_schedule::sim;
-use storage_pile::{LumberPile, StonePile};
-
-use bevy_derive::{Deref, DerefMut};
-pub use bevy_ecs::prelude::*;
-use bevy_math::Vec2Swizzles;
-
-#[derive(Resource, Default, Deref, DerefMut)]
-pub struct CurrentTick(pub i32);
-
-#[derive(Component, Deref)]
-pub struct CityCenter(Rect);
-
-/// For convenience
-static CENTER_BIOME: OnceLock<Biome> = OnceLock::new();
-pub fn center_biome() -> Biome {
-    *CENTER_BIOME.get().unwrap()
-}
-
-#[derive(Component, Deref, DerefMut, PartialEq, Copy, Clone)]
-pub struct Pos(pub Vec3);
-
-impl std::fmt::Display for Pos {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{} {} {}", self.0.x, self.0.y, self.0.z)
-    }
-}
-
-#[derive(Component, Deref, DerefMut)]
-pub struct PrevPos(pub Vec3);
 
 #[derive(Component, Default)]
-// #[require(DateOfArrival)]
+#[require(Name = make_name())]
 pub struct Villager {
     pub carry: Option<Stack>,
     pub carry_id: Id,
 }
-
-// #[derive(Component)]
-// pub struct DateOfArrival {
-//     tick: i32,
-// }
 
 #[derive(Component, Default)]
 pub struct InBoat(pub Id);
@@ -83,9 +29,9 @@ pub enum ConsItem {
 }
 
 #[derive(Component, Deref, DerefMut)]
-pub struct PlaceTask(ConsList);
+pub struct PlaceTask(pub ConsList);
 
-fn assign_work(
+pub fn assign_work_sys(
     mut commands: Commands,
     idle: Query<
         (Entity, &Pos),
@@ -183,7 +129,7 @@ fn assign_work(
     }
 }
 
-fn place(
+pub fn place_sys(
     mut commands: Commands,
     mut replay: ResMut<Replay>,
     mut builders: Query<(Entity, &mut Villager, &mut PlaceTask), Without<MoveTask>>,
@@ -202,109 +148,6 @@ fn place(
             Some(ConsItem::Command(cmd)) => replay.command(cmd),
             None => {
                 commands.entity(entity).remove::<PlaceTask>();
-            }
-        }
-    }
-}
-
-fn starting_resources(
-    mut commands: Commands,
-    mut level: ResMut<Level>,
-    mut untree: Untree,
-    city_center: Query<(Entity, &Pos), With<CityCenter>>,
-) -> Result<()> {
-    let (center, pos) = city_center.single()?;
-    for _ in 0..6 {
-        let (pos, area, params) =
-            LumberPile::make(&mut level, &mut untree, pos.truncate(), pos.truncate());
-
-        let goods = {
-            let mut stock = Goods::default();
-            stock.add(Stack::new(Good::Wood, 200.));
-            stock
-        };
-        commands.spawn((
-            Pos(pos.as_vec3()),
-            params,
-            OutPile::default(),
-            Pile {
-                goods,
-                interact_distance: params.width,
-                despawn_when_empty: Some(area),
-                future_deltas: default(),
-            },
-        ));
-    }
-    for _ in 0..6 {
-        let (pos, area, params) = StonePile::make(&mut level, &mut untree, pos.truncate());
-
-        let goods = {
-            let mut stock = Goods::default();
-            stock.add(Stack::new(Good::Stone, 140.));
-            stock
-        };
-        commands.spawn((
-            Pos(pos),
-            params,
-            OutPile::default(),
-            Pile {
-                goods,
-                interact_distance: 2,
-                despawn_when_empty: Some(area),
-                future_deltas: default(),
-            },
-        ));
-    }
-    // Temporary, for testing
-    let starting_resources = {
-        let mut stock = Goods::default();
-        stock.add(Stack::new(Good::Soil, 99999999.));
-        // stock.add(Stack::new(Good::Wood, 99999999.));
-        // stock.add(Stack::new(Good::Stone, 99999999.));
-        stock
-    };
-    commands
-        .entity(center)
-        .insert((OutPile::default(), Pile::new(starting_resources, 1)));
-    Ok(())
-}
-
-fn spawn_villagers(
-    mut commands: Commands,
-    level: Res<Level>,
-    tick: Res<CurrentTick>,
-    city_center: Query<&Pos, With<CityCenter>>,
-    config: Res<Config>,
-) -> Result<()> {
-    if (tick.0 < config.villagers * 4) & (tick.0 % 4 == 0) {
-        let column = city_center.single()?.truncate() + vec2(rand(-5. ..5.), rand(-5. ..5.));
-        commands.spawn((
-            Id::default(),
-            Villager::default(),
-            Jobless,
-            Pos(level.ground(column.block()).as_vec3() + Vec3::Z),
-            PrevPos(default()),
-        ));
-    }
-    Ok(())
-}
-
-fn flush_unfinished_changes(
-    mut replay: ResMut<Replay>,
-    cs: Query<&ConstructionSite>,
-    place_tasks: Query<&PlaceTask>,
-) {
-    for site in &cs {
-        for item in &site.todo {
-            if let ConsItem::Set(block) = item {
-                replay.block(block.pos, block.block, block.nbt.clone());
-            }
-        }
-    }
-    for task in &place_tasks {
-        for item in &task.0 {
-            if let ConsItem::Set(block) = item {
-                replay.block(block.pos, block.block, block.nbt.clone());
             }
         }
     }

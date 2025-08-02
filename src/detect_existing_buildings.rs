@@ -1,7 +1,7 @@
 use crate::*;
 use sim::*;
 
-pub fn detect_existing_buildings(mut level: ResMut<Level>) {
+pub fn detect_existing_buildings_sys(mut level: ResMut<Level>) {
     for column in level.area() {
         match level(level.ground(column)) {
             Full(
