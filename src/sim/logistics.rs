@@ -133,11 +133,11 @@ pub fn update_piles_sys(
                 true
             }
         });
-        if let Some(area) = despawn_when_empty {
-            if future_deltas.is_empty() & goods.iter().all(|(_, &amount)| amount <= 0.) {
-                (level.blocked)(*area, Free);
-                commands.entity(entity).despawn();
-            }
+        if let Some(area) = despawn_when_empty
+            && future_deltas.is_empty() & goods.iter().all(|(_, &amount)| amount <= 0.)
+        {
+            (level.blocked)(*area, Free);
+            commands.entity(entity).despawn();
         }
     }
 }
@@ -234,10 +234,10 @@ pub fn deliver_sys(
             let path = MovePath::new(&level, pos.get(entity).unwrap().block(), goal, distance);
             let (mut pile, in_pile) = piles.get_mut(task.to).unwrap();
             pile.add_at(stack, path.ticks());
-            if let Some(mut in_pile) = in_pile {
-                if in_pile.priority == Some(stack.good) {
-                    in_pile.priority = None
-                }
+            if let Some(mut in_pile) = in_pile
+                && in_pile.priority == Some(stack.good)
+            {
+                in_pile.priority = None
             }
             commands
                 .entity(entity)

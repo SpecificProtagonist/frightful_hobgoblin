@@ -1,3 +1,4 @@
+#![allow(unused)]
 use bevy_ecs::prelude::*;
 
 use crate::SliceExt;

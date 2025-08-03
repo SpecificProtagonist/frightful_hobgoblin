@@ -55,7 +55,7 @@ impl<T, const RES: i32> ColumnMap<T, RES> {
         }
     }
 
-    pub fn cells(&self) -> impl Iterator<Item = IVec2> {
+    pub fn cells(&self) -> impl Iterator<Item = IVec2> + use<T, RES> {
         let (min, max) = (self.chunk_min, self.chunk_max);
         ((min.0 * 16)..=(max.0 * 16 + 15))
             .step_by(RES as usize)

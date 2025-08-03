@@ -1,8 +1,8 @@
 [package]
 name = "frightful_hobgoblin"
 version = "0.1.0"
-authors = ["Vincent Junge <vincentjunge@posteo.net>"]
-edition = "2021"
+authors = ["Mira Morgana <mira-morgana@posteo.net>"]
+edition = "2024"
 default-run = "run"
 
 [profile.dev]
@@ -18,7 +18,7 @@ debug = true
 
 [dependencies]
 copy_dir = "0.1"
-anvil-region = "0.8"
+anvil-region = { path = "anvil-region" }
 named-binary-tag = "0.6"
 num-traits = "0.2"
 num-derive = "0.4"

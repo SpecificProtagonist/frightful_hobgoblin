@@ -1,0 +1,18 @@
+[package]
+name = "anvil-region"
+version = "0.8.1"
+authors = ["vagola <vladislavs.golubs@yandex.ru>"]
+edition = "2018"
+description = "Region file format storage for chunks."
+license = "MIT"
+homepage = "https://github.com/eihwaz/anvil-region"
+repository = "https://github.com/eihwaz/anvil-region"
+keywords = ["minecraft", "region", "anvil", "io"]
+readme = "README.md"
+include = ["src/**/*", "LICENSE", "README.md", "test/*"]
+
+[dependencies]
+byteorder = "1.3"
+named-binary-tag = "0.6"
+bitvec = "1"
+log = "0.4.11"

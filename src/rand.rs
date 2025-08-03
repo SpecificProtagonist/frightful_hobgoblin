@@ -12,20 +12,20 @@ thread_local! {
 
 pub fn rand<T: RandArg>(arg: T) -> T::T {
     let mut rng = RNG.replace(WyRand::new_seed(0));
-    let value = T::gen(arg, &mut rng);
+    let value = T::rng(arg, &mut rng);
     RNG.set(rng);
     value
 }
 
 pub trait RandArg {
     type T;
-    fn gen(self, rand: &mut WyRand) -> Self::T;
+    fn rng(self, rand: &mut WyRand) -> Self::T;
 }
 
 impl RandArg for f32 {
     type T = bool;
 
-    fn gen(self, rng: &mut WyRand) -> Self::T {
+    fn rng(self, rng: &mut WyRand) -> Self::T {
         self > f32::random(rng)
     }
 }
@@ -33,7 +33,7 @@ impl RandArg for f32 {
 impl RandArg for Range<f32> {
     type T = f32;
 
-    fn gen(self, rng: &mut WyRand) -> Self::T {
+    fn rng(self, rng: &mut WyRand) -> Self::T {
         self.start + (self.end - self.start) * f32::random(rng)
     }
 }
@@ -45,7 +45,7 @@ impl Num for usize {}
 impl<T: Num> RandArg for Range<T> {
     type T = T;
 
-    fn gen(self, rand: &mut WyRand) -> T {
+    fn rng(self, rand: &mut WyRand) -> T {
         T::random_range(rand, self)
     }
 }
@@ -53,7 +53,7 @@ impl<T: Num> RandArg for Range<T> {
 impl<T: Num> RandArg for RangeInclusive<T> {
     type T = T;
 
-    fn gen(self, rand: &mut WyRand) -> T {
+    fn rng(self, rand: &mut WyRand) -> T {
         T::random_range(rand, self)
     }
 }

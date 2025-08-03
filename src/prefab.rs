@@ -1,12 +1,12 @@
 use std::{
     collections::VecDeque,
     ffi::OsString,
-    fs::{read_dir, File},
+    fs::{File, read_dir},
     path::PathBuf,
     sync::LazyLock,
 };
 
-use nbt::{decode::read_gzip_compound_tag, CompoundTag, Tag};
+use nbt::{CompoundTag, Tag, decode::read_gzip_compound_tag};
 
 use crate::*;
 
@@ -40,7 +40,7 @@ impl Prefab {
         wool: impl Fn(Color) -> Color,
     ) {
         let rotation = self.markers["origin"].dir.unwrap().difference(facing);
-        for (mut offset, block) in self.blocks.iter() {
+        for (mut offset, block) in self.blocks.iter().copied() {
             if flip_x {
                 offset.x *= -1
             }

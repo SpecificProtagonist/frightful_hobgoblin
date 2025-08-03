@@ -294,7 +294,7 @@ impl TreeGen {
                 size: -0.1,
                 max_size: rand(1.5..2.0),
                 last_grown: 0,
-                gen: Generator::Cypress,
+                generator: Generator::Cypress,
             },
         }
     }
@@ -358,7 +358,7 @@ fn basic_tree(params: BasicParams) -> GrowTree {
         size: -0.1,
         max_size: params.max_size,
         last_grown: 0,
-        gen: Generator::Basic(BasicTree {
+        generator: Generator::Basic(BasicTree {
             stem,
             species: params.species,
             leaf_z_factor: params.leaf_z_factor,
@@ -372,7 +372,7 @@ pub struct GrowTree {
     pub size: f32,
     max_size: f32,
     last_grown: i32,
-    gen: Generator,
+    generator: Generator,
 }
 
 enum Generator {
@@ -501,7 +501,7 @@ impl GrowTree {
             }
         }
         let cursor = level.recording_cursor();
-        match &self.gen {
+        match &self.generator {
             Generator::Basic(params) => params.build(level, pos, self.size),
             Generator::Cypress => build_cypress(level, pos, self.size),
         };

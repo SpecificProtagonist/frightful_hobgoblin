@@ -1,4 +1,3 @@
-#![feature(let_chains)]
 // Feeling cute, might delete later
 #![feature(unboxed_closures)]
 #![feature(fn_traits)]

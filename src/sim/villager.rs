@@ -79,10 +79,10 @@ pub fn assign_work_sys(
                         if let Some(&requested) = in_pile.requested.get(good)
                             && requested > 0.
                         {
-                            if let Some(priority) = in_pile.priority {
-                                if priority != *good {
-                                    continue;
-                                }
+                            if let Some(priority) = in_pile.priority
+                                && priority != *good
+                            {
+                                continue;
                             }
                             let mut score = out_pos.distance_squared(in_pos.0);
                             // Try to reduce the amount of trips
