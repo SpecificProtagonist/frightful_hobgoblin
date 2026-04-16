@@ -9,11 +9,14 @@ use nanorand::*;
 
 fn main() {
     let args = args().collect_vec();
-    if args.len() != 2 {
-        eprintln!("Expected exactly one argument: path to config file");
+    if args.len() > 2 {
+        eprintln!("Expected at most one argument: path to config file");
         std::process::exit(1)
     }
-    let config_file = &args[1];
+    let config_file = args.get(1).map(|s| s.as_str()).unwrap_or_else(|| {
+        println!("No config file specified, trying config.toml");
+        "config.toml"
+    });
     let config: Config =
         toml::from_str(&read_to_string(config_file).expect("Failed to read config"))
             .expect("Failed to parse config");
