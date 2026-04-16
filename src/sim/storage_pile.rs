@@ -133,7 +133,9 @@ impl StonePile {
 }
 
 #[derive(EntityEvent)]
-pub struct UpdatePileVisuals;
+pub struct UpdatePileVisuals {
+    pub entity: Entity,
+}
 
 pub fn update_pile_visuals(
     trigger: On<UpdatePileVisuals>,
@@ -142,11 +144,11 @@ pub fn update_pile_visuals(
     lumber: Query<&LumberPile>,
     stone: Query<&StonePile>,
 ) {
-    let Ok((pos, pile)) = query.get(trigger.target()) else {
+    let Ok((pos, pile)) = query.get(trigger.event().entity) else {
         return;
     };
 
-    if let Ok(lumberpile) = lumber.get(trigger.target()) {
+    if let Ok(lumberpile) = lumber.get(trigger.event().entity) {
         let amount = pile.goods.get(&Good::Wood).copied().unwrap_or(0.);
         let logs = (amount / (4. * lumberpile.length as f32)).round() as usize;
         let log_positions: &[(i32, i32)] = match lumberpile.width {
@@ -217,7 +219,7 @@ pub fn update_pile_visuals(
         }
     }
 
-    if let Ok(stonepile) = stone.get(trigger.target()) {
+    if let Ok(stonepile) = stone.get(trigger.event().entity) {
         let mut leftover = pile.available(Good::Stone, 0);
         for pos in stonepile.volume {
             level(pos, if leftover > 0. { Full(Andesite) } else { Air });

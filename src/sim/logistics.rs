@@ -192,7 +192,7 @@ pub fn pickup_sys(
                 .entity(entity)
                 .insert((path, MoveTask { goal, distance }, PickupReady));
         } else if villager.carry.is_none() {
-            commands.trigger_targets(UpdatePileVisuals, task.from);
+            commands.trigger(UpdatePileVisuals { entity: task.from });
             let (mut pile, out_pile) = out_piles.get_mut(task.from).unwrap();
             // If more goods have been deposited since the task was set, take them too
             let missing = task.max_stack - task.stack.amount;
@@ -243,7 +243,7 @@ pub fn deliver_sys(
                 .entity(entity)
                 .insert((MoveTask { goal, distance }, path, DeliverReady));
         } else {
-            commands.trigger_targets(UpdatePileVisuals, task.to);
+            commands.trigger(UpdatePileVisuals { entity: task.to });
             replay.command(playsound("drop", pos.get(entity).unwrap().block()));
 
             villager.carry = None;

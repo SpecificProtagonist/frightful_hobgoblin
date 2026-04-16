@@ -27,11 +27,11 @@ itertools = "0.12"
 bresenham = { path = "bresenham-rs" }
 # Used only for debugging
 image = { version = "0.25", default-features = false, features = ["png"] }
-bevy_ecs = { git="https://github.com/bevyengine/bevy.git", rev="12f605e", default-features = false}
-bevy_math = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
-bevy_derive = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
-bevy_utils = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
-bevy_platform = { git="https://github.com/bevyengine/bevy.git", rev="12f605e"}
+bevy_ecs = { version = "0.18", default-features = false}
+bevy_math = { version = "0.18" }
+bevy_derive = { version = "0.18" }
+bevy_utils = { version = "0.18" }
+bevy_platform = { version = "0.18" }
 bitflags = "2"
 enum-iterator = "2"
 # fixes off-by-one error
