@@ -19,9 +19,9 @@ use std::{
     path::PathBuf,
 };
 use walkdir::WalkDir;
-use zip::{write::SimpleFileOptions, ZipWriter};
+use zip::{ZipWriter, write::SimpleFileOptions};
 
-use crate::{default, geometry::*, ConsItem, HashMap, DATA_VERSION};
+use crate::{ConsItem, DATA_VERSION, HashMap, default, geometry::*};
 pub use biome::*;
 pub use block::*;
 pub use column_map::ColumnMap;
@@ -56,10 +56,10 @@ pub struct Level {
 
 impl Level {
     // No nice error handling, but we don't really need that for just the three invocations
-    pub fn new(read_path: &str, write_path: &str, area: Rect) -> Self {
+    pub fn new(read_path: String, write_path: String, area: Rect) -> Self {
         if read_path != write_path {
-            let read_path = read_path.to_owned();
-            let write_path = write_path.to_owned();
+            let read_path = read_path.clone();
+            let write_path = write_path.clone();
             rayon::spawn(move || {
                 copy_level(read_path, write_path);
             });
@@ -512,8 +512,7 @@ fn save_chunk(
                             let y_index = y_index as i32 + MIN_SECTION;
                             //https://github.com/rust-lang/rust-clippy/issues/8281
                             #[allow(clippy::question_mark)]
-                            let Some(section) = section
-                            else {
+                            let Some(section) = section else {
                                 return None;
                             };
                             let mut nbt = CompoundTag::new();

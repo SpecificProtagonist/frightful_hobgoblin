@@ -97,8 +97,11 @@ impl Config {
 
     pub fn load_level(&self) -> Level {
         Level::new(
-            &self.path,
-            self.out_path.as_ref().unwrap_or(&self.path),
+            self.path.clone(),
+            match &self.out_path {
+                Some(out) => out.clone(),
+                None => format!("{} (generated)", self.path.trim_end_matches('/')),
+            },
             self.area(),
         )
     }
