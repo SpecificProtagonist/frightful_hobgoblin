@@ -66,7 +66,7 @@ impl Level {
         }
         let region_path = {
             let mut region_path = PathBuf::from(read_path);
-            region_path.push("region");
+            region_path.push("dimensions/minecraft/overworld/region");
             region_path.into_os_string().into_string().unwrap()
         };
         let chunk_provider = FolderRegionProvider::new(&region_path);
@@ -98,7 +98,6 @@ impl Level {
                     heightmap,
                     watermap,
                 )
-                .unwrap_or_else(|| panic!("Failed to load chunk ({},{}): ", index.0, index.1))
             });
 
         Self {
@@ -122,7 +121,7 @@ impl Level {
     pub fn debug_save(&self) {
         // Write chunks
         let mut region_path = self.path.clone();
-        region_path.push("region");
+        region_path.push("dimensions/minecraft/overworld/region");
         // Internally, AnvilChunkProvider stores a path. So why require a str??
         let region_path = region_path.into_os_string().into_string().unwrap();
         let chunk_provider = FolderRegionProvider::new(&region_path);
@@ -141,10 +140,9 @@ impl Level {
     }
 
     pub fn save_metadata(&self) {
-        // Edit metadata
-        let level_nbt_path =
-            self.path.clone().into_os_string().into_string().unwrap() + "/level.dat";
-        let mut file = std::fs::File::open(&level_nbt_path).expect("Failed to open level.dat");
+        // Edit metadata: Level.dat
+        let nbt_path = self.path.join("level.dat");
+        let mut file = std::fs::File::open(&nbt_path).expect("Failed to open level.dat");
         let mut nbt =
             nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
         let data: &mut CompoundTag = nbt.get_mut("Data").expect("Corrupt level.dat");
@@ -173,14 +171,26 @@ impl Level {
 
         data.insert_i8("Difficulty", 0);
 
-        let gamerules: &mut CompoundTag = data.get_mut("GameRules").unwrap();
-        gamerules.insert_str("commandBlockOutput", "false");
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .open(&nbt_path)
+            .expect("Failed to open level.dat");
+        nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
+
+        // Edit metadata: Game Rules
+        let nbt_path = self.path.join("data/minecraft/game_rules.dat");
+        let mut file = std::fs::File::open(&nbt_path).expect("Failed to open game_rules.dat");
+        let mut nbt =
+            nbt::decode::read_gzip_compound_tag(&mut file).expect("Failed to open level.dat");
+        let data: &mut CompoundTag = nbt.get_mut("data").unwrap();
+
+        data.insert_bool("minecraft:command_block_output", false);
 
         let mut file = std::fs::OpenOptions::new()
             .write(true)
-            .open(&level_nbt_path)
-            .expect("Failed to open level.dat");
-        nbt::encode::write_gzip_compound_tag(&mut file, &nbt).expect("Failed to write level.dat");
+            .open(&nbt_path)
+            .expect("Failed to open game_rules.dat");
+        nbt::encode::write_gzip_compound_tag(&mut file, &nbt).unwrap();
     }
 
     pub fn column_map<T: Clone, const RES: i32>(&self, default: T) -> ColumnMap<T, RES> {
@@ -362,18 +372,15 @@ fn load_chunk(
     biomes: &mut [Biome],
     heightmap: &mut [i32],
     watermap: &mut [Option<i32>],
-) -> Option<()> {
+) {
+    let region_pos = RegionPosition::from_chunk_position(chunk_index.0, chunk_index.1);
+    let chunk_in_region_pos =
+        RegionChunkPosition::from_chunk_position(chunk_index.0, chunk_index.1);
     let nbt = chunk_provider
-        .get_region(RegionPosition::from_chunk_position(
-            chunk_index.0,
-            chunk_index.1,
-        ))
-        .ok()?
-        .read_chunk(RegionChunkPosition::from_chunk_position(
-            chunk_index.0,
-            chunk_index.1,
-        ))
-        .ok()?;
+        .get_region(region_pos)
+        .unwrap()
+        .read_chunk(chunk_in_region_pos)
+        .unwrap();
     let version = nbt.get_i32("DataVersion").unwrap();
     if version != DATA_VERSION {
         eprintln!("Using version {version}; only 1.21.8 is currently tested.",);
@@ -472,8 +479,6 @@ fn load_chunk(
             }
         }
     }
-
-    Some(())
 }
 
 fn bits_per_index(palette_len: usize) -> usize {

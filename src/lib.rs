@@ -52,7 +52,7 @@ pub fn default<T: Default>() -> T {
     Default::default()
 }
 
-const DATA_VERSION: i32 = 4440;
+const DATA_VERSION: i32 = 4790;
 
 /// How far outside of the borders of the work area is loaded
 const LOAD_MARGIN: i32 = 20;

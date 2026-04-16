@@ -13,7 +13,7 @@ mod villager;
 use std::collections::VecDeque;
 use std::sync::OnceLock;
 
-use crate::desire_lines::{desire_lines_sys, DesireLines};
+use crate::desire_lines::{DesireLines, desire_lines_sys};
 use crate::goods::*;
 use crate::lang::Lang;
 use crate::lumberjack::{plan_lumberjack_sys, test_build_lumberjack_sys};

@@ -4,19 +4,19 @@ use crate::sim::*;
 use crate::*;
 use bevy_ecs::prelude::*;
 use bevy_ecs::system::SystemChangeTick;
-use flate2::write::GzEncoder;
 use flate2::Compression;
+use flate2::write::GzEncoder;
 use nbt::encode::write_compound_tag;
 use nbt::{CompoundTag, Tag};
 use serde::Serialize;
 
 use std::fmt::{Display, Write};
-use std::fs::{create_dir_all, read_to_string, write, File};
+use std::fs::{File, create_dir_all, read_to_string, write};
 use std::io::Write as _;
 use std::ops::DerefMut;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, AtomicU8, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicU8, AtomicU32, Ordering};
 
 use self::infinite_sim::Trader;
 
@@ -115,13 +115,17 @@ pub struct Replay {
     level_path: PathBuf,
     area: Rect,
     tracks: Vec<Track>,
-    pub track: usize,
+    // The track to which new commands are added
+    active_track: usize,
     skip_tick: bool,
     total_commands: u64,
     writes_in_flight: Arc<AtomicU32>,
     carry_ids: Vec<(Id, Id)>,
 }
 
+// Commands to be replayed over time.
+// Multiple tracks can be replayed simultaneously.
+// To play a track, run `data modify entity @s data.play set value {track}`.
 #[derive(Default)]
 struct Track {
     // Stored in reverse order
@@ -154,7 +158,7 @@ impl Replay {
             level_path: level.path.clone(),
             area: level.area(),
             tracks: vec![default()],
-            track: 0,
+            active_track: 0,
             skip_tick: false,
             total_commands: 0,
             writes_in_flight: default(),
@@ -170,7 +174,7 @@ impl Replay {
     }
 
     fn track(&mut self) -> &mut Track {
-        &mut self.tracks[self.track]
+        &mut self.tracks[self.active_track]
     }
 
     #[allow(unused_variables)]
@@ -235,7 +239,7 @@ impl Replay {
         self.command(format!(
             "data modify storage sim_{0}_track{1}:data commands set from storage sim_{0}_track{1}_chunk{2}:data commands",
             invocation(),
-            self.track,
+            self.active_track,
             chunk + 1
         ));
         let tick_commands = std::mem::take(&mut self.track().commands_this_tick);
@@ -243,7 +247,7 @@ impl Replay {
         commands.push(tick_commands);
 
         let data_path = self.level_path.join("data/");
-        let track = self.track;
+        let track = self.active_track;
         let arc = self.writes_in_flight.clone();
         arc.fetch_add(1, Ordering::Relaxed);
         rayon::spawn(move || {
@@ -282,11 +286,12 @@ impl Replay {
                 });
                 nbt
             });
-            let mut file = File::create(data_path.join(format!(
-                "command_storage_sim_{}_track{track}_chunk{chunk}.dat",
+            let path = data_path.join(format!(
+                "sim_{}_track{track}_chunk{chunk}/command_storage.dat",
                 invocation()
-            )))
-            .unwrap();
+            ));
+            std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+            let mut file = File::create(path).unwrap();
             // Write to a buffer first.
             // If writing directly to a GzEncoder and the chunk size is too big, it
             // gets silently trunctated?!?
@@ -303,11 +308,15 @@ impl Replay {
         self.track().commands_this_chunk = 0;
     }
 
-    pub fn begin_next_track(&mut self) -> usize {
-        self.track = self.tracks.len();
+    pub fn switch_to_main_trace(&mut self) {
+        self.active_track = 0;
+    }
+
+    pub fn begin_track(&mut self) -> usize {
+        self.active_track = self.tracks.len();
         self.tracks.push(default());
         self.skip_tick = true;
-        self.track
+        self.active_track
     }
 
     pub fn mcfunction(&self, name: &str, content: &str) {
@@ -321,7 +330,7 @@ impl Replay {
 
     pub fn finish(mut self) {
         for track in 0..self.tracks.len() {
-            self.track = track;
+            self.active_track = track;
             self.flush_chunk();
         }
 
@@ -339,13 +348,13 @@ impl Replay {
         create_dir_all(&tag_path).unwrap();
         write(
             tag_path.join("load.json"),
-            format!("{{values:[\"sim_{}:check_setup\"]}}", invocation()),
+            format!("{{\"values\":[\"sim_{}:check_setup\"]}}", invocation()),
         )
         .unwrap();
 
         write(
             tag_path.join("tick.json"),
-            format!("{{values:[\"sim_{}:check_tick\"]}}", invocation()),
+            format!("{{\"values\":[\"sim_{}:check_tick\"]}}", invocation()),
         )
         .unwrap();
 
@@ -373,11 +382,11 @@ impl Replay {
 
             scoreboard objectives add sim_blurb_cooldown dummy
 
-            gamerule randomTickSpeed 0
-            gamerule doMobSpawning false
-            gamerule mobGriefing false
-            gamerule doFireTick false
-            gamerule doTileDrops false
+            gamerule random_tick_speed 0
+            gamerule spawn_mobs false
+            gamerule mob_griefing false
+            gamerule fire_spread_radius_around_player 0
+            gamerule block_drops false
             ",
                 invocation()
             ),
@@ -563,8 +572,8 @@ impl Replay {
                 tag @e[type=player,x={},z={},dx={},dz={},y=-100,dy=400] add sim_{4}_in_area
                 tellraw @a[tag=!sim_{4}_in_area,tag=sim_{4}_previous_in_area] {{\"text\":\"Exited build area, replay paused\",\"color\":\"gray\"}}
                 tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] {{\"text\":\"Entered build area, replay resumed\",\"color\":\"gray\"}}
-                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] [{{\"text\":\"Click to set replay speed: \",\"color\":\"gray\"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"pause\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"1×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"3×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"5×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"10×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 20\"}}}},{{\"text\":\"20×\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 20\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim speed 20\"}}}}]
-                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] [{{\"text\":\"Click to warp ahead: \",\"color\":\"gray\"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\"1 minute\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 6000\"}}}},{{\"text\":\"5 minutes\",\"color\":\"green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 6000\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"clickEvent\":{{\"action\":\"run_command\",\"value\":\"/scoreboard players set sim warp 6000\"}}}}]
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] [{{\"text\":\"Click to set replay speed: \",\"color\":\"gray\"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"pause\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 0\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"1×\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 1\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"3×\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 3\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"5×\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 5\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"10×\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 10\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 20\"}}}},{{\"text\":\"20×\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 20\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim speed 20\"}}}}]
+                tellraw @a[tag=sim_{4}_in_area,tag=!sim_{4}_previous_in_area] [{{\"text\":\"Click to warp ahead: \",\"color\":\"gray\"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\"1 minute\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 1200\"}}}},{{\"text\":\" \"}},{{\"text\":\"[\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 6000\"}}}},{{\"text\":\"5 minutes\",\"color\":\"green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 6000\"}}}},{{\"text\":\"]\",\"color\":\"dark_green\",\"click_event\":{{\"action\":\"run_command\",\"command\":\"/scoreboard players set sim warp 6000\"}}}}]
                 tag @a remove sim_{4}_previous_in_area
                 execute if entity @p[tag=sim_{4}_in_area] run function sim_{}:game_tick",
                 self.area.min.x,
@@ -664,7 +673,7 @@ pub fn tick_replay_sys(
     // Names
     for (id, name) in &named {
         replay.command(format!(
-            "data modify entity {id} CustomName set value \"{{\\\"text\\\":\\\"{name}\\\"}}\"",
+            "data modify entity {id} CustomName set value \"{name}\"",
         ));
     }
     // Movement
