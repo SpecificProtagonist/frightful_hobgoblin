@@ -1,3 +1,6 @@
+> [!WARNING]
+> Moved to https://codeberg.org/mira-morgana/frightful_hobgoblin
+
 # Frightful Hobgoblin
 
 ![Example village](image.png)
